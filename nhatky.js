@@ -365,6 +365,7 @@ export function renderPage(d, pi, opt) {
   if (pi === 0) {
     x.fillStyle = '#2b1838'; x.font = FONT(700, 64); x.textAlign = 'left'; x.fillText(fitTxt(x, H.title || '', PW - PM * 2 - 200, 64, 40, 700), PM, 72);
     x.fillStyle = '#b04a78'; fitTxt(x, H.sub || '', PW - PM * 2, 30, 20, 600); x.fillText(H.sub || '', PM + 4, 140, PW - PM * 2);
+    if (H.fn) { x.fillStyle = '#a0742c'; x.font = FONT(700, 21); x.fillText(H.fn, PM + 4, 24, PW - PM * 2 - 220); }
   } else if (H.chap?.(pi)) {
     const c = H.chap(pi); x.fillStyle = '#b04a78'; x.font = FONT(700, 24); x.textAlign = 'left'; x.fillText(c.no, PM, 46);
     x.fillStyle = '#2b1838'; fitTxt(x, c.t, PW - PM * 2 - 200, 40, 24, 700); x.fillText(c.t, PM, 86, PW - PM * 2 - 180);
@@ -605,7 +606,8 @@ export function initDiary(A) {
     const chaps = d.pages.map((p, i) => p.chap ? i : -1).filter(i => i >= 0), multi = chaps.length > 1;
     const chapLine = pi => { const pg = d.pages[pi], t = pg?.chap && A.parseYmd(pg.chap); if (!t) return null; const ag = ks.map(k => A.ageText(k, t)).filter(Boolean).join(' · '); return { no: `Chương ${chaps.indexOf(pi) + 1}`, t: `${A.WD[new Date(t).getDay()]} · ${A.dmy(t)}${ag ? ' · ' + ag : ''}` }; };
     const sub = multi && chaps[0] === 0 ? (c => `${c.no} · ${c.t} · ${ms.length} khoảnh khắc`)(chapLine(0)) : `${when} · ${ms.length} khoảnh khắc${age ? ' · ' + age : ''}`;
-    return { title: d.title, short: `${d.title} · ${A.dmy(a)}`, sub, chap: multi ? chapLine : () => null };
+    const fn = ks.length === 1 && ks[0]?.fullName ? ks[0].fullName : '';
+    return { title: d.title, short: `${d.title} · ${A.dmy(a)}`, sub, fn, chap: multi ? chapLine : () => null };
   }
   const ctxFor = d => ({ gender: A.kid()?.gender, months: kidMonths(A.kid(), d.ts), ts: mid => momById(mid)?.ts, close: mid => CLOSE.get(mid), src: mid => SRC.get(mid + ':s') || SRC.get(mid) || null });
   // ảnh cận mặt: tỉ lệ màu da ở giữa ảnh nhỏ

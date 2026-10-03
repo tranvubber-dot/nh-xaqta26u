@@ -87,6 +87,11 @@ const P = {
   smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14c1 1.6 2.4 2.4 4 2.4s3-.8 4-2.4"/><circle cx="9" cy="9.8" r=".9" fill="currentColor"/><circle cx="15" cy="9.8" r=".9" fill="currentColor"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/>',
   move: '<path d="M4 12h12M12 6l6 6-6 6"/><path d="M4 5v14"/>',
+  bell: '<path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2H5z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  pause: '<path d="M8.5 5.5v13M15.5 5.5v13"/>',
+  sound: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+  mute: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   baby: '<circle cx="12" cy="8" r="4"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/><path d="M11 6.2c.6-.6 1.4-.6 2 0"/>'
 };
 export function icon(name, size = 24, sw = 1.7) {
@@ -96,7 +101,7 @@ export function icon(name, size = 24, sw = 1.7) {
 // ---------- Bottom sheet kính kéo được ----------
 // Biến mọi .modal thành sheet: trên điện thoại trượt từ dưới lên (lò xo), kéo tay cầm xuống để đóng.
 export function initSheets(closeFn) {
-  const narrow = () => innerWidth <= 760;
+  const narrow = () => innerWidth < 768;
   document.querySelectorAll('.modal .card').forEach(card => {
     if (card.querySelector(':scope > .grab')) return;
     const g = document.createElement('div'); g.className = 'grab'; g.innerHTML = '<i></i>'; card.prepend(g);
@@ -127,37 +132,61 @@ export { clamp };
 
 // ---------- Menu hành động kiểu iOS (nhấn giữ hoặc nút ⋯) ----------
 // items: [{ icon, label, act, danger, hidden }] — act() được gọi khi chọn. el: phần tử được "nâng lên" (tuỳ chọn); at: nút ⋯ để neo menu.
+// bàn phím iOS mở lên: kéo ô đang nhập vào giữa vùng còn thấy
+document.addEventListener('focusin', e => { const el = e.target; if (!el.matches?.('input:not([type=checkbox]):not([type=range]), textarea') || !el.closest('.modal .card, .cm')) return; setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); });
 let CM = null;
+if (window.visualViewport) { const vv = window.visualViewport, upd = () => { const kb = Math.max(0, innerHeight - vv.height - vv.offsetTop); document.documentElement.style.setProperty('--kb', kb > 60 ? kb + 'px' : '0px'); }; vv.addEventListener('resize', upd); vv.addEventListener('scroll', upd); }
 const PDOWN = { n: 0 };
 addEventListener('pointerdown', () => { PDOWN.n = 1; }, true); addEventListener('pointerup', () => { PDOWN.n = 0; }, true); addEventListener('pointercancel', () => { PDOWN.n = 0; }, true);
 export function contextMenu({ el, at, title, items }) {
   closeMenu(true);
-  const list = items.filter(i => i && !i.hidden);
-  const ov = document.createElement('div'); ov.className = 'cm'; ov.innerHTML = '<div class="cm-bg"></div>';
+  // nhóm: {sep:1} ngăn bằng đường mảnh; mục Xoá (danger) luôn dồn xuống cuối, có đường ngăn phía trên
+  let raw = items.filter(i => i && !i.hidden); const dz = raw.filter(i => i.danger), rest = raw.filter(i => !i.danger);
+  raw = dz.length && rest.length ? [...rest, { sep: 1 }, ...dz] : raw;
+  raw = raw.filter((it, i, a) => !it.sep || (i > 0 && i < a.length - 1 && !a[i - 1].sep));
+  const list = raw.filter(i => !i.sep);
+  const phone = innerWidth < 768; // điện thoại: action sheet dính sát đáy như iOS; máy tính: popover cạnh nút
+  const ov = document.createElement('div'); ov.className = 'cm' + (phone ? ' sheet' : ''); ov.innerHTML = '<div class="cm-bg"></div>';
   let pv = null, r = (el || at)?.getBoundingClientRect();
-  if (el && r) { pv = el.cloneNode(true); pv.classList.add('cm-pv'); pv.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`; pv.querySelectorAll('[id]').forEach(x => x.removeAttribute('id')); ov.appendChild(pv); }
+  if (el && r) { pv = el.cloneNode(true); pv.classList.add('cm-pv'); pv.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;visibility:visible;opacity:1`; pv.querySelectorAll('[id]').forEach(x => x.removeAttribute('id')); ov.appendChild(pv); }
   const m = document.createElement('div'); m.className = 'cm-list';
-  m.innerHTML = (title ? `<div class="cm-t">${title}</div>` : '') + list.map((it, i) => `<button data-i="${i}" class="${it.danger ? 'danger' : ''}">${it.icon ? icon(it.icon, 20, 1.9) : ''}<span>${it.label}</span></button>`).join('');
-  ov.appendChild(m); document.body.appendChild(ov);
-  const W = innerWidth, H = innerHeight, mw = Math.min(290, W - 24), mh = m.offsetHeight;
-  let x = r ? clamp(r.left + (el ? 0 : r.width - mw), 12, W - mw - 12) : (W - mw) / 2, y;
-  if (!r) y = (H - mh) / 2;
-  else if (el) { const lift = Math.min(0, H - 20 - (r.bottom + 12 + mh)); if (pv && lift < 0) { pv.style.setProperty('--ly', Math.max(lift, -r.top + 20) + 'px'); } y = r.bottom + 12 + Math.max(lift, -r.top + 20); if (y + mh > H - 12) y = Math.max(12, r.top - mh - 12); }
-  else { y = r.bottom + 8; if (y + mh > H - 12) y = Math.max(12, r.top - mh - 8); }
-  m.style.cssText = `left:${x}px;top:${y}px;width:${mw}px;transform-origin:${el ? '20% 0' : '90% 0'}`;
+  let k = 0; const rows = raw.map(it => it.sep ? '<i class="cm-sep"></i>' : `<button data-i="${k}" class="${it.danger ? 'danger' : ''}${it.on ? ' on' : ''}" style="--k:${k++}${it.color ? ';--c:' + it.color : ''}">${it.img ? `<img class="cm-av" src="${it.img}" alt="">` : it.icon ? icon(it.icon, phone ? 22 : 21, 1.6) : ''}<span>${it.label}</span>${it.note ? `<small class="cm-n">${it.note}</small>` : ''}${it.on ? icon('check', 18, 2) : ''}</button>`).join('');
+  if (phone) m.innerHTML = `<div class="cm-grab"><i></i></div><div class="cm-g">${title ? `<div class="cm-t">${title}</div>` : ''}<div class="cm-sc">${rows}</div></div><button class="cm-cancel" data-cancel>Huỷ</button>`;
+  else m.innerHTML = (title ? `<div class="cm-t">${title}</div>` : '') + rows;
+  ov.appendChild(m); document.body.appendChild(ov); document.body.classList.add('cmopen');
+  if (!phone) {
+    const W = innerWidth, H = innerHeight, mw = Math.min(290, W - 24), mh = m.offsetHeight;
+    let x = r ? clamp(r.left + (el ? 0 : r.width - mw), 12, W - mw - 12) : (W - mw) / 2, y;
+    if (!r) y = (H - mh) / 2;
+    else if (el) { const lift = Math.min(0, H - 20 - (r.bottom + 12 + mh)); if (pv && lift < 0) { pv.style.setProperty('--ly', Math.max(lift, -r.top + 20) + 'px'); } y = r.bottom + 12 + Math.max(lift, -r.top + 20); if (y + mh > H - 12) y = Math.max(12, r.top - mh - 12); }
+    else { y = r.bottom + 8; if (y + mh > H - 12) y = Math.max(12, r.top - mh - 8); }
+    m.style.cssText = `left:${x}px;top:${y}px;width:${mw}px;transform-origin:${el ? '20% 0' : '90% 0'}`;
+  } else if (pv) {
+    m.style.maxHeight = Math.max(330, Math.round(innerHeight * .6)) + 'px';
+    // vật đang giữ nổi tại chỗ; nếu sheet che mất thì đẩy vật lên vừa đủ thấy
+    const sheetTop = innerHeight - m.offsetHeight - 12, over = r.bottom - sheetTop;
+    if (over > 0) pv.style.setProperty('--ly', Math.max(-over, -r.top + 20 + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-t')) || 0)) + 'px');
+  }
   requestAnimationFrame(() => ov.classList.add('on')); haptic(12);
-  if (el) el.style.visibility = 'hidden';
-  // mở bằng nhấn giữ: chỉ "nhận" chạm sau khi đã nhấc tay (cú click tổng hợp lúc nhấc tay không được đóng menu)
+  const oldVis = el ? el.style.visibility : ''; if (el) el.style.visibility = 'hidden';
   // mở lúc ngón tay còn giữ → chờ thả tay; mở ngay lúc thả tay → bỏ qua cú "click" đi kèm rồi mới nhận chạm nền để đóng
   let armed = !el; if (el) { if (PDOWN.n > 0) { const arm = () => setTimeout(() => { armed = true; }, 80); addEventListener('pointerup', arm, { once: true, capture: true }); addEventListener('pointercancel', arm, { once: true, capture: true }); } else setTimeout(() => { armed = true; }, 320); }
   const close = () => { if (armed) closeMenu(); };
   ov.querySelector('.cm-bg').addEventListener('click', close);
-  m.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (!b || !armed) return; const it = list[+b.dataset.i]; closeMenu(); setTimeout(() => it.act?.(), 60); });
-  CM = { ov, el };
+  m.addEventListener('click', e => { if (e.target.closest('[data-cancel]')) { if (armed) closeMenu(); return; } const b = e.target.closest('[data-i]'); if (!b || !armed) return; const it = list[+b.dataset.i]; closeMenu(); setTimeout(() => it.act?.(), 60); });
+  if (phone) { // kéo sheet xuống để đóng
+    let d = null; const g = m;
+    g.addEventListener('pointerdown', e => { if (!e.target.closest('.cm-grab, .cm-t') && m.querySelector('.cm-sc').scrollTop > 0) return; d = { y: e.clientY, dy: 0, v: 0, ly: e.clientY, lt: performance.now(), on: false }; });
+    g.addEventListener('pointermove', e => { if (!d) return; const dy = e.clientY - d.y; if (!d.on) { if (dy > 8) { d.on = true; try { g.setPointerCapture(e.pointerId); } catch (er) { } g.style.transition = 'none'; } else if (dy < -8) { d = null; return; } else return; } const now = performance.now(); d.v = (e.clientY - d.ly) / Math.max(1, now - d.lt); d.ly = e.clientY; d.lt = now; d.dy = dy; g.style.transform = `translate3d(0,${dy > 0 ? dy : rubber(dy, 120)}px,0)`; });
+    const up = () => { if (!d) return; const D = d; d = null; if (!D.on) return; g.style.transition = ''; if (D.dy > 90 || D.v > .6) { armed = true; closeMenu(); } else g.style.transform = ''; };
+    g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+  }
+  CM = { ov, el, oldVis };
 }
 export function closeMenu(now) {
-  if (!CM) return; const { ov, el } = CM; CM = null; ov.classList.remove('on'); ov.classList.add('off');
-  setTimeout(() => { ov.remove(); if (el) el.style.visibility = ''; }, now ? 0 : 260);
+  if (!CM) return; const { ov, el, oldVis } = CM; CM = null; ov.classList.remove('on'); ov.classList.add('off'); document.body.classList.remove('cmopen');
+  const L = ov.querySelector('.cm-list'); if (L && ov.classList.contains('sheet')) L.style.transform = '';
+  setTimeout(() => { ov.remove(); if (el) el.style.visibility = oldVis || ''; }, now ? 0 : 260);
 }
 addEventListener('keydown', e => { if (e.key === 'Escape' && CM) { e.stopImmediatePropagation(); closeMenu(); } }, true);
 // nhấn giữ ~0,45 s trên phần tử khớp selector → cb(el, e); chặn cú chạm theo sau
@@ -165,13 +194,14 @@ export function longPress(root, sel, cb, ms = 450) {
   let t = 0, st = null, fired = false;
   root.addEventListener('pointerdown', e => {
     const el = e.target.closest(sel); if (!el || !root.contains(el) || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    fired = false; st = { x: e.clientX, y: e.clientY, el, e };
-    clearTimeout(t); t = setTimeout(() => { if (!st) return; fired = true; cb(st.el, st.e); st = null; }, ms);
+    fired = 0; st = { x: e.clientX, y: e.clientY, el, e };
+    clearTimeout(t); t = setTimeout(() => { if (!st) return; fired = performance.now(); cb(st.el, st.e); st = null; }, ms);
   });
   root.addEventListener('pointermove', e => { if (st && Math.hypot(e.clientX - st.x, e.clientY - st.y) > 9) { clearTimeout(t); st = null; } });
   const end = () => { clearTimeout(t); st = null; };
   root.addEventListener('pointerup', end); root.addEventListener('pointercancel', end);
-  root.addEventListener('click', e => { if (fired) { e.stopPropagation(); e.preventDefault(); fired = false; } }, true);
+  // chỉ nuốt cú click đi liền ngay sau lần nhấn giữ (không để sót sang lần chạm sau)
+  root.addEventListener('click', e => { if (fired && performance.now() - fired < 1500) { e.stopPropagation(); e.preventDefault(); } fired = 0; }, true);
   root.addEventListener('contextmenu', e => { if (e.target.closest(sel)) e.preventDefault(); });
 }
 // toast kính có nút ↩︎ Hoàn tác (5 giây)

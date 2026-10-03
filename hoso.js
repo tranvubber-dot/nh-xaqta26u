@@ -142,6 +142,8 @@ export function initProfile(A) {
   }
   const ageLine = p => !p.born ? 'Sắp chào đời' : [p.y ? `${p.y} tuổi` : '', p.m ? `${p.m} tháng` : '', p.d || (!p.y && !p.m) ? `${p.d} ngày` : ''].filter(Boolean).join(' ');
   const g3 = (kid, a, b, c) => kid.gender === 'm' ? a : kid.gender === 'f' ? b : c;
+  const birthTimeTxt = t => { const [h, m] = t.split(':').map(Number); return `${h}:${String(m).padStart(2, '0')} ${h < 11 ? 'sáng' : h < 13 ? 'trưa' : h < 18 ? 'chiều' : 'tối'}`; };
+  const birthStats = k => [k.weight ? `${String(k.weight).replace('.', ',')} kg` : '', k.length ? `${String(k.length).replace('.', ',')} cm` : '', k.place ? k.place : ''].filter(Boolean);
   async function openProfile(kid) {
     if (!kid?.birth) return; document.querySelector('.confetti')?.remove();
     const nh = await A.metaGet?.('nhac:' + kid.id);
@@ -150,9 +152,10 @@ export function initProfile(A) {
     const lun = `Ngày ${P.lunar.d} tháng ${LUNAR_MONTH(P.lunar.m)}${P.lunar.leap ? ' (nhuận)' : ''} năm ${P.canChi}`;
     HI.innerHTML = `
       <div class="hs-hero"><div class="hs-av"><img src="${av}" alt=""><i></i></div>
-        <h1>${esc(kid.name)}</h1><p>${g3(kid, 'Chàng trai nhỏ', 'Công chúa nhỏ', 'Em bé')} · sinh ${esc(fmtLong(new Date(kid.birth + 'T12:00:00').getTime()))}</p>
+        <h1>${esc(kid.name)}</h1>${kid.fullName ? `<div class="hs-fn">${esc(kid.fullName)}</div>` : ''}<p>${g3(kid, 'Chàng trai nhỏ', 'Công chúa nhỏ', 'Em bé')} · sinh ${esc(fmtLong(new Date(kid.birth + 'T12:00:00').getTime()))}${kid.birthTime ? ` lúc ${esc(birthTimeTxt(kid.birthTime))}` : ''}</p>
+        ${birthStats(kid).length ? `<div class="hs-bs">${birthStats(kid).map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
         ${age.today ? `<div class="hs-bday">${icon('cake', 18, 2)}<b>Chúc mừng sinh nhật ${esc(kid.name)}!</b></div>` : ''}
-        <div class="hs-tools"><button data-a="edit">${icon('edit', 18)}<span>Sửa thông tin</span></button><button data-a="av">${icon('smile', 18)}<span>Đổi avatar</span></button><button data-a="bg">${icon('image', 18)}<span>Hình nền</span></button><button data-a="nhac">${icon('cake', 18)}<span>${nh ? 'Đã đặt nhắc · cập nhật' : 'Nhắc sinh nhật'}</span></button><button data-a="rm" class="danger">${icon('trash', 18)}<span>Xoá bé</span></button></div></div>
+        <div class="hs-tools"><button data-a="edit">${icon('edit', 18)}<span>Sửa thông tin</span></button><button data-a="nhac">${icon('cake', 18)}<span>${nh ? 'Đã đặt nhắc' : 'Nhắc sinh nhật'}</span></button></div></div>
       <div class="hs-grid">
         <section class="t big"><h3>${icon('heart', 18)}Tuổi hôm nay</h3><div class="v">${ageLine(age)}</div>
           <p>Đã sống <b>${age.days.toLocaleString('vi-VN')}</b> ngày${age.born ? '' : ''}</p>
@@ -174,8 +177,10 @@ export function initProfile(A) {
     { icon: 'edit', label: 'Sửa tên, ngày sinh, giới tính, màu', act: () => { closeProfile(); A.editKid(k); } },
     { icon: 'smile', label: 'Đổi avatar', act: () => HS.querySelector('[data-a=av]').click() },
     { icon: 'image', label: 'Đổi hình nền', act: () => { closeProfile(); A.openBgSettings(); } },
+    { icon: 'bell', label: 'Nhắc sinh nhật hằng năm', act: () => A.nhac(k) },
+    { sep: 1 },
     { icon: 'download', label: 'Lưu thẻ hồ sơ thành ảnh', act: () => saveCard(k) },
-    { icon: 'cake', label: 'Nhắc sinh nhật hằng năm', act: () => A.nhac(k) },
+    { sep: 1 },
     { icon: 'trash', label: `Xoá ${esc(k.name)}…`, danger: true, act: () => A.removeKid(k) }] }); };
   function closeProfile() { document.querySelector('.confetti')?.remove(); HS.classList.remove('open'); HS.setAttribute('aria-hidden', 'true'); document.body.classList.remove('hsopen'); }
   HS.querySelector('.hs-back').onclick = closeProfile;
@@ -205,8 +210,10 @@ export function initProfile(A) {
     const im = new Image(); im.src = await avatarURL(kid); await im.decode().catch(() => { });
     x.save(); x.shadowColor = col; x.shadowBlur = 60; x.fillStyle = col; x.beginPath(); x.arc(W / 2, 330, 196, 0, 7); x.fill(); x.restore();
     x.save(); x.beginPath(); x.arc(W / 2, 330, 180, 0, 7); x.clip(); x.drawImage(im, W / 2 - 180, 150, 360, 360); x.restore();
-    x.textAlign = 'center'; x.fillStyle = '#3d1b35'; x.font = F(700, 104); x.fillText(kid.name, W / 2, 640);
-    x.fillStyle = mix(col, '#000000', .35); x.font = F(700, 40); x.fillText(`${g3(kid, 'Chàng trai nhỏ', 'Công chúa nhỏ', 'Em bé')} · sinh ${fmtLong(new Date(kid.birth + 'T12:00:00').getTime())}`, W / 2, 710, W - 120);
+    const fy = kid.fullName ? 1 : 0;
+    x.textAlign = 'center'; x.fillStyle = '#3d1b35'; x.font = F(700, 104); x.fillText(kid.name, W / 2, fy ? 612 : 640, W - 100);
+    if (fy) { x.fillStyle = '#9a6a1e'; x.font = F(700, 38); x.fillText(kid.fullName, W / 2, 672, W - 120); }
+    x.fillStyle = mix(col, '#000000', .35); x.font = F(700, fy ? 34 : 40); x.fillText(`${g3(kid, 'Chàng trai nhỏ', 'Công chúa nhỏ', 'Em bé')} · sinh ${fmtLong(new Date(kid.birth + 'T12:00:00').getTime())}`, W / 2, fy ? 728 : 710, W - 120);
     const tiles = [['Tuổi hôm nay', ageLine(age), `đã sống ${age.days.toLocaleString('vi-VN')} ngày`], ['Âm lịch', `${P.lunar.d}/${P.lunar.m}${P.lunar.leap ? ' nhuận' : ''} ${P.canChi}`, `sinh vào ${A.WD[P.wd]}`], ['Năm sinh', P.canChi, `tuổi ${P.chi} – con ${P.con}`], ['Mệnh', P.nap.ten, `hành ${P.nap.hanh}`], ['Cung hoàng đạo', P.zodiac.ten, `${P.zodiac.nt} · ${P.zodiac.ht}`], ['Đá & hoa', P.da.split(' (')[0], `hoa ${P.hoa}`]];
     tiles.forEach((t, i) => { const cx = 70 + (i % 2) * 480, cy = 780 + Math.floor(i / 2) * 230; rr(cx, cy, 460, 205, 40); x.fillStyle = 'rgba(255,255,255,.72)'; x.fill(); x.strokeStyle = 'rgba(255,255,255,.95)'; x.lineWidth = 3; x.stroke();
       x.textAlign = 'left'; x.fillStyle = mix(col, '#000000', .3); x.font = F(700, 32); x.fillText(t[0], cx + 34, cy + 58); x.fillStyle = '#3d1b35'; x.font = F(700, 46); x.fillText(t[1], cx + 34, cy + 122, 400); x.fillStyle = '#7d5a75'; x.font = F(600, 30); x.fillText(t[2], cx + 34, cy + 170, 400); });
@@ -217,5 +224,5 @@ export function initProfile(A) {
     await A.shareOrDownload(new File([blob], name, { type: 'image/jpeg' }), name); if (!A.TEST) A.toast('Đã lưu thẻ hồ sơ', 1800);
     return blob;
   }
-  return { confetti, avatarURL, avatarNow, warm, openAvatar, openProfile, closeProfile, askGender, saveCard, ageParts, isOpen: () => HS.classList.contains('open') };
+  return { birthTimeTxt, birthStats, confetti, avatarURL, avatarNow, warm, openAvatar, openProfile, closeProfile, askGender, saveCard, ageParts, isOpen: () => HS.classList.contains('open') };
 }

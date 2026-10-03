@@ -13,49 +13,36 @@ const HTML = `
   <div id="tl" tabindex="-1"><div class="tl-in"></div></div>
 </div>
 <div id="evp" aria-hidden="true">
-  <div class="evp-bg"></div>
+  <div class="evp-bg"><canvas class="evp-bgc" width="36" height="48"></canvas><i></i></div>
   <div class="evp-sc">
-    <div class="evp-hero"><img alt=""></div>
+    <header class="evp-head"><div class="evp-hx"><div class="evp-dt"></div><h2 class="evp-ti"></h2><div class="evp-chips"></div>
+      <div class="evp-cta"><button data-a="play" class="cta1">${icon('play', 18, 2.2)}<span>Chiếu</span></button></div></div></header>
+    <div class="evp-strip" aria-label="Dải ảnh — quẹt ngang để xem"><div class="evp-rows"></div></div>
     <div class="evp-body">
-      <div class="evp-dt"></div><h2 class="evp-ti"></h2><div class="evp-ag"></div><div class="evp-ct"></div><p class="evp-nt"></p>
-      <div class="evp-acts">
-        <button data-a="diary">${icon('book', 20)}<span>Tạo nhật ký</span></button>
-        <button data-a="rename">${icon('edit', 20)}<span>Đổi tên, ghi chú</span></button>
-        <button data-a="add">${icon('plus', 20)}<span>Thêm ảnh</span></button>
-        <button data-a="select">${icon('check', 20)}<span>Chọn nhiều</span></button>
-        <button data-a="date">${icon('calendar', 20)}<span>Đổi ngày</span></button>
-        <button data-a="cover">${icon('star', 20)}<span>Đổi ảnh bìa</span></button>
-        <button data-a="merge">${icon('merge', 20)}<span>Gộp / tách</span></button>
-        <button data-a="del" class="danger">${icon('trash', 20)}<span>Xoá sự kiện</span></button>
-      </div>
       <p class="evp-hint" hidden></p>
+      <p class="evp-nt"></p>
       <div class="evp-dia"></div>
-      <div class="evp-grid"></div>
+      <button class="evp-gbtn" data-a="grid">${icon('grid', 17, 1.8)}<span>Xem dạng lưới</span></button>
+      <div class="evp-grid" hidden></div>
     </div>
   </div>
-  <button class="evp-back glassbtn" aria-label="Quay lại">${icon('back', 22, 2)}</button>
-  <button class="evp-more glassbtn" aria-label="Tuỳ chọn sự kiện">${icon('more', 22, 2)}</button>
+  <div class="evp-bar"><div class="evp-bbg"></div><button class="evp-back glassbtn" aria-label="Quay lại">${icon('back', 22, 2)}</button><div class="evp-bt"><b></b><small></small></div><button class="evp-more glassbtn" aria-label="Tuỳ chọn sự kiện">${icon('more', 22, 2)}</button></div>
 </div>
 <div id="bulk" aria-hidden="true"><div class="bk-top"><b class="bk-n">Chọn ảnh</b><button data-b="all">Chọn tất cả</button><button data-b="done" class="primary">Xong</button></div>
   <div class="bk-acts"><button data-b="del" class="danger">${icon('trash', 21)}<span>Xoá</span></button><button data-b="date">${icon('calendar', 21)}<span>Đổi ngày</span></button><button data-b="move">${icon('move', 21)}<span>Chuyển sự kiện</span></button><button data-b="kids">${icon('baby', 21)}<span>Gắn bé</span></button><button data-b="diary">${icon('book', 21)}<span>Nhật ký</span></button><button data-b="save">${icon('download', 21)}<span>Lưu về máy</span></button></div></div>
 <div id="pv" aria-hidden="true">
-  <div class="pv-bg"></div><div class="pv-track"></div>
-  <div class="pv-top"><button class="glassbtn" data-a="close" aria-label="Đóng">${icon('close', 22, 2)}</button><span class="pv-count"></span><span style="flex:1"></span><button class="glassbtn" data-a="more" aria-label="Tuỳ chọn">${icon('more', 22, 2)}</button></div>
-  <div class="pv-tray">
-    <div class="grab"><i></i></div>
-    <div class="pv-ti"></div><div class="pv-dt"></div><div class="pv-ag"></div>
-    <div class="pv-more"><p class="pv-nt"></p><div class="pv-acts">
-      <button data-a="edit">${icon('edit', 20)}<span>Sửa</span></button>
-      <button data-a="save">${icon('download', 20)}<span>Lưu về máy</span></button>
-      <button data-a="kids">${icon('baby', 20)}<span>Gắn bé</span></button>
-      <button data-a="cover">${icon('star', 20)}<span>Làm bìa</span></button>
-      <button data-a="bg">${icon('image', 20)}<span>Làm hình nền</span></button>
-      <button data-a="avatar">${icon('smile', 20)}<span>Làm avatar</span></button>
-      <button data-a="split">${icon('split', 20)}<span>Tách từ đây</span></button>
-      <button data-a="del" class="danger">${icon('trash', 20)}<span>Xoá</span></button>
-    </div></div>
+  <div class="pv-bg"><i class="pv-bgc"></i><img class="pv-bgi" alt=""></div><div class="pv-track"></div>
+  <div class="pv-ui">
+    <div class="pv-top"><button class="glassbtn" data-a="close" aria-label="Đóng">${icon('close', 22, 2)}</button><span class="pv-count"></span><button class="glassbtn" data-a="more" aria-label="Tuỳ chọn">${icon('more', 22, 2)}</button></div>
+    <div class="pv-bot">
+      <div class="pv-info"><div class="pv-ti"></div><div class="pv-dt"></div><div class="pv-ag"></div><p class="pv-nt"></p></div>
+      <div class="pv-vc" hidden><button data-a="vplay" aria-label="Phát / dừng"></button><span class="pv-t0">0:00</span><input class="pv-seek" type="range" min="0" max="1000" value="0" aria-label="Tua video"><span class="pv-t1">0:00</span><button data-a="vmute" aria-label="Tắt / bật tiếng"></button></div>
+      <div class="pv-film"><div class="pv-fi"></div></div>
+    </div>
   </div>
+  <div class="pv-prog"><i></i></div>
 </div>
+<div id="evs" aria-hidden="true"><div class="evs-st"></div><div class="evs-cap"><small></small><b></b><span></span></div><div class="evs-bar"><i></i></div><button class="glassbtn evs-x" aria-label="Dừng chiếu">${icon('close', 22, 2)}</button></div>
 <div id="fsc" aria-hidden="true"><i class="th"></i><span class="bb"></span></div>
 <div class="modal" id="mEvName"><div class="card glass">
   <h2>Đổi tên sự kiện</h2><p class="lead evn-sub"></p>
@@ -162,7 +149,9 @@ export function initTimeline(A) {
       e.ts0 = e.ms[0].ts; e.ts1 = e.ms[e.ms.length - 1].ts;
       e.nImg = e.ms.filter(m => m.type !== 'video').length; e.nVid = e.ms.length - e.nImg;
       const present = fam ? e.kids.map(kidById) : [kid];
-      e.preg = fam ? present.every(k => k?.birth && A.dayStart(e.ts0) < A.dayStart(A.parseYmd(k.birth))) : A.dayStart(e.ts0) < b0;
+      // chỉ 42 tuần trước ngày sinh mới là "trong bụng mẹ"; xa hơn là ảnh trước khi chào đời bình thường
+      const inPreg = (d, b) => d < b && d >= b - 294 * 864e5;
+      e.preg = fam ? present.every(k => k?.birth && inPreg(A.dayStart(e.ts0), A.dayStart(A.parseYmd(k.birth)))) : inPreg(A.dayStart(e.ts0), b0);
       if (fam) { const ms2 = KS.map(k => (e.kids.includes(k.id) || A.ymd(A.parseYmd(k.birth)) === e.day) ? milestone(k, e.days, true) : null).filter(Boolean).sort((a, b) => b.p - a.p); e.mile = ms2[0] || null; }
       else e.mile = e.preg ? null : milestone(kid, e.days);
       e.sibs = [];
@@ -190,10 +179,10 @@ export function initTimeline(A) {
 
   // ---------- dựng dòng sự kiện ----------
   function card(e, i) {
-    const side = st.wide ? (i % 2 ? 'R' : 'L') : 'R', ag = A.ageText(A.kid(), e.ts0);
+    const side = st.wide ? (i % 2 ? 'R' : 'L') : 'R', ag = A.ageText(A.kid(), e.ts0, false);
     const chips = [e.nImg ? `<span class="chip">${icon('image', 15, 1.9)}${e.nImg} ảnh</span>` : '', e.nVid ? `<span class="chip">${icon('video', 15, 1.9)}${e.nVid} video</span>` : '',
       e.diaries.length ? `<button class="chip bk" data-diary="${e.diaries[0].id}">${icon('book', 15, 1.9)}nhật ký</button>` : '',
-      ...(A.family() ? e.ages.filter(a => a.txt !== e.title).map(a => `<span class="chip age" style="--c:${a.color}"><img class="mav" src="${A.avatar(kidById(a.id))}" alt="">${esc(a.txt)}</span>`) : [ag && ag !== e.title ? `<span class="chip age">${esc(ag)}</span>` : '']),
+      ...(A.family() ? e.ages.filter(a => a.txt !== e.title).map(a => `<span class="chip age" style="--c:${a.color}"><img class="mav" src="${A.avatar(kidById(a.id))}" alt="">${esc(a.txt)}</span>`) : [ag ? `<span class="chip age">${esc(ag)}</span>` : '']),
       ...e.sibs.map(x => `<span class="chip sib" style="--c:${kidById(x.id)?.color}">${icon('heart', 13, 2)}${esc(x.txt)}</span>`)].join('');
     return `<article class="ev ${side}${e.mile ? ' mile' : ''}${e.preg ? ' preg' : ''}" data-key="${esc(e.key)}">
       ${A.family() ? `<div class="kdots">${e.kids.map(id => { const k = kidById(id), i = kidsAll().indexOf(k); return `<img class="kd${e.mile?.kid === id ? ' m' : ''}" style="left:${(16 + i * 7 - 10).toFixed(0)}px;--c:${k.color};top:${44 + (i % 2) * 14}px" src="${A.avatar(k)}" alt="">`; }).join('')}</div>` : `<div class="dot">${e.mile ? icon(e.mile.ic, 13, 2.2) : ''}</div>`}
@@ -215,8 +204,8 @@ export function initTimeline(A) {
     TL.classList.toggle('fam', fam); document.body.classList.toggle('tlfam', fam); TL.style.setProperty('--nl', fam ? KS.length : 1);
     const out = fam ? [`<header class="lt"><div class="lt-row"><div class="lt-avs">${KS.map(k => `<img src="${A.avatar(k)}" style="--c:${k.color}" alt="">`).join('')}</div><button class="lt-name" data-a="kid"><h1>Cả nhà</h1>${icon('chevronDown', 22, 2.2)}</button></div><p>${KS.length} bé · ${n} khoảnh khắc · ${evs.length} ngày đáng nhớ</p>
         <div class="kflt">${KS.map(k => `<button data-kf="${k.id}" class="${!st.filter || st.filter.has(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${A.avatar(k)}" alt=""><span>${esc(k.name)}</span></button>`).join('')}</div></header>`, '<div class="lanes"></div>']
-      : [`<header class="lt"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><button class="lt-name" data-a="kid"><h1>${esc(kid.name)}</h1>${icon('chevronDown', 22, 2.2)}</button></div><p>${esc(A.ageText(kid, Date.now()) || '')}${n ? ` · ${n} khoảnh khắc · ${evs.length} ngày đáng nhớ` : ''}</p></header>`,
-        `<div class="rhd"><button class="rhead" data-a="prof" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><span>Dải ngân hà của ${esc(kid.name)}</span></div>`];
+      : [`<header class="lt"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><button class="lt-name" data-a="kid"><h1>${esc(kid.name)}</h1>${icon('chevronDown', 20, 2.2)}</button></div><p>${esc(A.ageText(kid, Date.now(), false) || '')}${n ? ` · ${n} khoảnh khắc` : ''}</p></header>`,
+        evs.length ? `<button class="rstart" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button>` : ''];
     document.body.style.setProperty('--kc', fam ? '#ff8fbf' : (kid.color || '#ff8fbf'));
     if (!evs.length) out.push(`<div class="empty"><div class="em-ic">${icon('sparkle', 46, 1.4)}</div><h3>Dòng thời gian của ${esc(kid.name)} đang chờ những khoảnh khắc đầu tiên</h3><p>Bấm nút <b>+</b> ở giữa thanh dưới để thêm ảnh, video. App tự đọc ngày chụp và xếp vào đúng ngày.</p><button class="primary" data-a="add">${icon('plus', 18, 2.2)}<span>Thêm khoảnh khắc đầu tiên</span></button></div>`);
     let y = null, mo = null, i = 0;
@@ -224,7 +213,7 @@ export function initTimeline(A) {
       const d = new Date(e.ts0), yy = d.getFullYear(), mm = d.getMonth();
       if (yy !== y) {
         if (y !== null) out.push('</section>');
-        const by = kid.birth ? +kid.birth.slice(0, 4) : 0, age = yy - by, sub = !by ? '' : age < 0 ? 'Chờ ngày gặp con' : age === 0 ? `Năm ${esc(kid.name)} chào đời` : `${esc(kid.name)} tròn ${age} tuổi`;
+        const by = kid.birth ? +kid.birth.slice(0, 4) : 0, age = yy - by, sub = !by ? '' : age < 0 ? (evs.some(x => x.preg && new Date(x.ts0).getFullYear() === yy) ? 'Chờ ngày gặp con' : '') : age === 0 ? `Năm ${esc(kid.name)} chào đời` : `${esc(kid.name)} tròn ${age} tuổi`;
         out.push(`<section class="yr" data-y="${yy}"><i class="ysen"></i><h2 class="yh"><b>${yy}</b>${sub ? `<small>${sub}</small>` : ''}</h2>`); y = yy; mo = null;
       }
       if (mm !== mo) { out.push(`<div class="mo" data-ym="${yy}-${mm}"><span>${MONTH(mm)}${e.preg ? ' · trước khi chào đời' : ''}</span></div>`); mo = mm; }
@@ -232,15 +221,32 @@ export function initTimeline(A) {
     }
     if (y !== null) out.push('</section>');
     if (evs.length) out.push(`<div class="tl-end">${icon('star', 18, 1.8)}<span>Hành trình của ${esc(kid.name)} bắt đầu từ đây</span></div>`);
+    if (evs.length && evs.length < 6 && !fam) out.push(`<button class="tl-more" data-a="add"><i>${icon('plus', 26, 2.2)}</i><b>Thêm khoảnh khắc tiếp theo</b><span>Ảnh, video của ${esc(kid.name)} — app tự xếp vào đúng ngày</span></button>`);
+    if (evs.length && !fam) out.push('<div class="rail2" aria-hidden="true"><i></i></div>');
     out.splice(1, 0, bdayBanner());
     IN.innerHTML = out.join('');
     IN.querySelectorAll('.pol img').forEach(im => imgIO.observe(im));
     IN.querySelectorAll('.ev').forEach(el => cardIO.observe(el));
     IN.querySelectorAll('.ysen').forEach(el => yrIO.observe(el));
     if (anchor) restoreAnchor(anchor);
-    if (fam) drawLanes();
+    if (fam) drawLanes(); else layRail();
+    fitTitle(); st.tlp = -1;
     onScroll(true);
   }
+  // dải sáng nằm trong nội dung: bắt đầu ở avatar đầu dải, mờ dần ở dòng "Hành trình bắt đầu từ đây"
+  function layRail() {
+    const r = IN.querySelector('.rail2'), a = IN.querySelector('.rstart'), end = IN.querySelector('.tl-end'); if (!r || !a || !end) return;
+    const t = aT(a) + a.offsetHeight / 2, b = aT(end) + end.offsetHeight / 2, h = Math.max(40, b - t);
+    r.style.top = t + 'px'; r.style.height = h + 'px'; r.style.setProperty('--dur', clamp(h / 420, 2.4, 9).toFixed(2) + 's');
+  }
+  // tên lớn tự thu cỡ chữ cho vừa một dòng (tối thiểu 28px, quá nữa thì "…")
+  function fitTitle() {
+    const h = IN.querySelector('.lt h1'), b = h?.closest('.lt-name'), row = h?.closest('.lt-row'); if (!h) return;
+    h.style.fontSize = ''; const max = row.clientWidth - (row.querySelector('.lt-av, .lt-avs')?.offsetWidth || 0) - 12 - 30;
+    let fs = parseFloat(getComputedStyle(h).fontSize) || 42; b.style.maxWidth = max + 'px';
+    while (h.scrollWidth > h.clientWidth + 1 && fs > 28) { fs -= 2; h.style.fontSize = fs + 'px'; }
+  }
+  new ResizeObserver(() => { if (!A.family()) layRail(); }).observe(IN);
   // các dải song song của Cả nhà: mỗi bé một màu, bắt đầu từ ngày sinh (đoạn mang bầu nét đứt), avatar so le ở đầu dải
   function drawLanes() {
     const box = IN.querySelector('.lanes'); if (!box) return; const KS = kidsAll(), evEls = [...IN.querySelectorAll('.ev')];
@@ -293,7 +299,7 @@ export function initTimeline(A) {
     if (raf && !force) return;
     raf = requestAnimationFrame(() => {
       raf = 0; const top = TL.scrollTop, H = TL.clientHeight;
-      const p = clamp(top / 70, 0, 1); document.body.style.setProperty('--tlp', p.toFixed(3));
+      const p = +clamp(top / 70, 0, 1).toFixed(3); if (p !== st.tlp) { st.tlp = p; const tb = document.getElementById('tbar'), lt = IN.querySelector('.lt'); tb?.style.setProperty('--tlp', p); lt?.style.setProperty('--tlp', p); } // chỉ đặt biến trên đúng phần tử dùng nó (đặt trên body làm cả trang tính lại kiểu)
       document.body.classList.toggle('tl-scrolled', p > .6);
       const max = TL.scrollHeight - H;
       if (max > 0) { const t = FSC.querySelector('.th'); t.style.transform = `translate3d(0,${(top / max * (FSC.clientHeight - 44)).toFixed(1)}px,0)`; }
@@ -366,68 +372,232 @@ export function initTimeline(A) {
     el.addEventListener('transitionend', e => { if (e.propertyName === 'transform') end(); }); setTimeout(end, 1300);
   };
   const rectOf = el => { const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; };
+  // ---------- màu chủ đạo của ảnh (làm nền chờ khi ảnh chưa hiện, nền trình xem) ----------
+  const COL = new Map(); let colDirty = 0, colLoaded = false;
+  const loadCols = async () => { if (colLoaded) return; colLoaded = true; const c = await A.metaGet('cols'); if (c) for (const k in c) COL.set(k, c[k]); };
+  const ccv = document.createElement('canvas'); ccv.width = ccv.height = 6; const cctx = ccv.getContext('2d', { willReadFrequently: true });
+  function colorOf(mid, im) {
+    if (COL.has(mid)) return COL.get(mid);
+    try { cctx.drawImage(im, 0, 0, 6, 6); const d = cctx.getImageData(0, 0, 6, 6).data; let r = 0, g = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; } const n = d.length / 4, h = '#' + [r, g, b].map(v => Math.round(v / n).toString(16).padStart(2, '0')).join(''); COL.set(mid, h); clearTimeout(colDirty); colDirty = setTimeout(() => A.metaSet('cols', Object.fromEntries(COL)), 2500); return h; } catch (e) { return ''; }
+  }
+  // ---------- trang sự kiện: đầu trang gọn + DẢI ẢNH TRÔI bồng bềnh (quẹt ngang có đà) ----------
+  const SC = EVP.querySelector('.evp-sc'), STRIP = EVP.querySelector('.evp-strip'), ROWS = EVP.querySelector('.evp-rows'), GRID = EVP.querySelector('.evp-grid');
+  const kidCol = () => A.kid()?.color || '#ff8fbf';
+  const fmtD = s => { s = Math.round(s || 0); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
+  // giải mã ảnh gốc rồi vẽ thu nhỏ vào canvas vừa khung (tối đa 2x màn hình) — đỡ tốn bộ nhớ GPU
+  async function fitCanvas(blob, W, H, extra = 1) {
+    const u = URL.createObjectURL(blob), im = new Image(); im.src = u;
+    try { await im.decode(); } catch (er) { URL.revokeObjectURL(u); return null; }
+    const dpr = Math.min(2, devicePixelRatio || 1), cw = Math.round(W * dpr * extra), ch = Math.round(H * dpr * extra), iw = im.naturalWidth, ih = im.naturalHeight, k = Math.max(cw / iw, ch / ih);
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch; const x = cv.getContext('2d'); x.imageSmoothingQuality = 'high';
+    x.drawImage(im, (cw - iw * k) / 2, (ch - ih * k) / 2, iw * k, ih * k); URL.revokeObjectURL(u); return cv;
+  }
+  // nền đầu trang: ảnh bìa vẽ vào canvas rất nhỏ rồi phóng to = nhoè tự nhiên (không cần filter blur)
+  async function paintBg(m) {
+    const cv = EVP.querySelector('.evp-bgc'), x = cv.getContext('2d'), u = await thumbURL(m.id); if (!u) return;
+    const im = new Image(); im.src = u; try { await im.decode(); } catch (e) { return; }
+    const k = Math.max(cv.width / im.naturalWidth, cv.height / im.naturalHeight); x.filter = 'blur(1.2px)'; x.drawImage(im, (cv.width - im.naturalWidth * k) / 2, (cv.height - im.naturalHeight * k) / 2, im.naturalWidth * k, im.naturalHeight * k);
+    cv.classList.add('ok');
+  }
+  // ---- động cơ dải trôi: một vòng rAF duy nhất, chỉ đổi transform/opacity ----
+  const SP = { rows: [], cards: [], raf: 0, t: 0, last: 0, drag: null, idle: 0, speedK: 1, open: false, enter: 0, video: null, vEl: null, W: 0, H: 0 };
+  const asp = m => clamp(m.w && m.h ? m.w / m.h : 1, .56, 1.9);
+  function buildStrip(e) {
+    stopStripVideo(); ROWS.innerHTML = ''; SP.rows = []; SP.cards = [];
+    const W = STRIP.clientWidth || innerWidth, H = STRIP.clientHeight || 380; SP.W = W; SP.H = H;
+    const ms = e.ms, two = ms.length >= 6 && H >= 300, nRows = two ? 2 : 1;
+    const rowH = H / nRows, ihMax = rowH - 58, [wmin, wmax] = two ? [.32, .46] : [.42, .56];
+    for (let r = 0; r < nRows; r++) {
+      const list = ms.filter((m, i) => i % nRows === r); if (!list.length) continue;
+      const fitW = ms.length <= 2 ? (W - 36 - 22 * (ms.length - 1)) / ms.length - 12 : 1e9; // 1–2 ảnh: vừa khít màn hình, căn giữa
+      const items = list.map(m => { const a = asp(m); let w = Math.min(clamp(ihMax * a, W * wmin, W * wmax), fitW); let ih = w / a; if (ih > ihMax) { ih = ihMax; w = ih * a; } return { m, w: w + 12, h: ih + 12 }; });
+      const gap = 22; let base = items.slice(), L = base.reduce((s, it) => s + it.w + gap, 0);
+      const loop = ms.length >= 4 && L > W * .9; let copies = 1;
+      if (loop) while (L * copies < W * 2.2) copies++;
+      const all = []; for (let c = 0; c < copies; c++) all.push(...base.map(it => ({ ...it })));
+      let x = 0; for (const it of all) { it.x0 = x; x += it.w + gap; }
+      const row = { r, loop, L: x, items: all, y: rowH * r + (rowH - 22) / 2, off: loop ? -(W * .08) : (W - (x - gap)) / 2, v: 0, drift: (r ? 8 : 12) * (r ? 1 : 1), par: r ? .82 : 1 };
+      if (!loop) row.off = (W - (x - gap)) / 2;
+      for (const it of all) {
+        const el = document.createElement('button'); el.className = 'sc' + (it.m.type === 'video' ? ' v' : ''); el.dataset.mid = it.m.id;
+        el.style.width = it.w + 'px'; el.style.height = it.h + 'px'; el.style.setProperty('--pc', it.m.color || COL.get(it.m.id) || 'var(--pc0)');
+        el.innerHTML = `<span class="sc-f"><img alt="" decoding="async"></span>${it.m.type === 'video' ? `<span class="sc-v">${icon('play', 11, 2.6)} ${fmtD(it.m.dur)}</span>` : ''}<span class="sc-t">${esc(it.m.title || timeVN(it.m.ts))}</span><i class="sc-sh"></i>`;
+        ROWS.appendChild(el); const R = rng(it.m.id + r + it.x0);
+        Object.assign(it, { el, row, tilt: (R() * 2 - 1) * 4.2, ph: R() * Math.PI * 2, bob: 4 + R() * 4, img: el.querySelector('img'), loaded: false, k: SP.cards.length });
+        SP.cards.push(it);
+      }
+      SP.rows.push(row);
+    }
+    ROWS.style.height = H + 'px'; SP.enter = performance.now(); SP.speedK = 0; SP.idle = performance.now() + 900;
+  }
+  function loadCard(it) { if (it.loaded) return; it.loaded = true; thumbURL(it.m.id).then(u => { if (!u || !it.el.isConnected) return; it.img.src = u; (it.img.decode ? it.img.decode() : Promise.resolve()).catch(() => { }).then(() => it.img.classList.add('ok')); }); }
+  const mod = (a, n) => ((a % n) + n) % n;
+  function cardX(it) { const R = it.row; if (!R.loop) return it.x0 + R.off; return mod(it.x0 + R.off + it.w, R.L) - it.w; }
+  function stripFrame(now) {
+    SP.raf = 0; if (!SP.open || document.hidden) return;
+    const dt = Math.min(.05, (now - (SP.last || now)) / 1000); SP.last = now; SP.t += dt;
+    // tự trôi (trái → phải); đang chạm thì ngừng, thả 2 giây sau trôi lại và tăng tốc dần
+    const auto = !SP.drag && now > SP.idle && !REDUCED && !PV.classList.contains('open') && !document.body.classList.contains('cmopen');
+    SP.speedK = auto ? Math.min(1, SP.speedK + dt / 1.6) : 0;
+    for (const R of SP.rows) {
+      if (SP.drag) { /* off do ngón tay quyết định */ }
+      else if (Math.abs(R.v) > 6) { R.off += R.v * dt; R.v *= Math.exp(-dt * 3.2); if (Math.abs(R.v) <= 6) { R.v = 0; R.snap = snapTarget(R); } if (!R.loop) R.off = softBound(R); }
+      else if (R.snap != null) { const d = R.snap - R.off; R.sv = (R.sv || 0) * Math.exp(-dt * 12) + d * dt * 90; R.off += R.sv * dt; if (Math.abs(d) < .4 && Math.abs(R.sv) < 4) { R.off = R.snap; R.snap = null; R.sv = 0; } }
+      else if (R.loop) R.off += R.drift * SP.speedK * dt;
+    }
+    const W = SP.W, cx = W / 2, en = clamp((now - SP.enter) / 900, 0, 1);
+    let best = null, bestD = 1e9;
+    for (const it of SP.cards) {
+      const x = cardX(it), vis = x < W + 40 && x + it.w > -40;
+      if (!vis) { if (it.on) { it.el.style.visibility = 'hidden'; it.on = false; } continue; }
+      if (!it.on) { it.el.style.visibility = 'visible'; it.on = true; loadCard(it); }
+      const c = x + it.w / 2, d = clamp((c - cx) / (W * .62), -1, 1), ad = Math.abs(d);
+      const s = 1 - .18 * ad * ad, y = it.row.y - it.h / 2 + Math.sin(SP.t * .9 + it.ph) * it.bob + ad * 10;
+      const ek = REDUCED ? 1 : 1 - Math.pow(1 - clamp(en * 1.6 - it.k * .06, 0, 1), 3);
+      const rot = it.tilt + Math.sin(SP.t * .6 + it.ph) * .8;
+      it.el.style.transform = `translate3d(${x.toFixed(1)}px,${(y + (1 - ek) * 60).toFixed(1)}px,0) rotate(${rot.toFixed(2)}deg) scale(${(s * (.85 + .15 * ek)).toFixed(3)})`;
+      it.el.style.opacity = (ek * (1 - .32 * ad)).toFixed(3); it.el.style.zIndex = 10 - Math.round(ad * 9);
+      if (it.m.type === 'video' && ad < bestD) { bestD = ad; best = it; }
+    }
+    pickStripVideo(best && bestD < .32 ? best : null);
+    SP.raf = requestAnimationFrame(stripFrame);
+  }
+  const softBound = R => { const len = R.L - 22, lo = Math.min((SP.W - len) / 2, SP.W - len - 16), hi = Math.max((SP.W - len) / 2, 16); if (R.off > hi || R.off < lo) { R.v = 0; R.snap = clamp(R.off, lo, hi); } return R.off; };
+  function snapTarget(R) { // hút về tấm gần giữa nhất
+    const cx = SP.W / 2; let best = null, bd = 1e9;
+    for (const it of R.items) { const c = cardX(it) + it.w / 2, d = Math.abs(c - cx); if (d < bd) { bd = d; best = it; } }
+    if (!R.loop) { const len = R.L - 22; return len < SP.W ? (SP.W - len) / 2 : clamp(R.off + (cx - (cardX(best) + best.w / 2)), SP.W - len - 16, 16); }
+    return best ? R.off + (cx - (cardX(best) + best.w / 2)) : R.off;
+  }
+  function startStrip() { SP.open = true; SP.last = 0; if (!SP.raf) SP.raf = requestAnimationFrame(stripFrame); }
+  function stopStrip() { SP.open = false; if (SP.raf) cancelAnimationFrame(SP.raf); SP.raf = 0; stopStripVideo(); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && SP.open && !SP.raf) { SP.last = 0; SP.raf = requestAnimationFrame(stripFrame); } });
+  // video gần giữa nhất tự phát xem trước (tắt tiếng, lặp) — chỉ 1 cái
+  function pickStripVideo(it) {
+    if (SP.vEl === (it?.el || null)) return; stopStripVideo(); if (!it) return;
+    const el = it.el, v = document.createElement('video'); SP.vEl = el; SP.video = { v, u: '' };
+    A.dbGet('blobs', 'o_' + it.m.id).then(b => { if (!b || SP.vEl !== el) return; const u = URL.createObjectURL(b); SP.video.u = u; Object.assign(v, { src: u, muted: true, loop: true, playsInline: true, preload: 'auto' }); v.setAttribute('playsinline', ''); v.setAttribute('muted', ''); v.addEventListener('playing', () => v.classList.add('ok'), { once: true }); el.querySelector('.sc-f').appendChild(v); v.play().catch(() => { }); });
+  }
+  function stopStripVideo() { const g = SP.video; if (g) { g.v.pause(); g.v.remove(); if (g.u) URL.revokeObjectURL(g.u); } SP.video = null; SP.vEl = null; }
+  // quẹt ngang có đà; chạm = mở trình xem; nhấn giữ = menu dính đáy
+  {
+    let d = null, lpT = 0;
+    STRIP.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return; const card = e.target.closest('.sc');
+      d = { x: e.clientX, y: e.clientY, lx: e.clientX, lt: performance.now(), v: 0, on: false, card, offs: SP.rows.map(R => R.off) };
+      SP.drag = d; SP.rows.forEach(R => { R.v = 0; R.snap = null; R.sv = 0; });
+      clearTimeout(lpT); if (card) lpT = setTimeout(() => { if (!d || d.on) return; d.lp = true; SP.drag = null; SP.idle = performance.now() + 2500; const m = st.cur?.ms.find(x => x.id === card.dataset.mid); if (m) photoMenu(m, card); }, 480);
+    });
+    STRIP.addEventListener('pointermove', e => {
+      if (!d) return; const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (!d.on) { if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { d.on = true; clearTimeout(lpT); try { STRIP.setPointerCapture(e.pointerId); } catch (er) { } } else if (Math.abs(dy) > 10) { clearTimeout(lpT); d = null; SP.drag = null; SP.idle = performance.now() + 2000; return; } else return; }
+      const now = performance.now(), dt = Math.max(1, now - d.lt); d.v = d.v * .25 + (e.clientX - d.lx) / dt * 1000 * .75; d.lx = e.clientX; d.lt = now;
+      SP.rows.forEach((R, i) => { let o = d.offs[i] + dx * R.par; if (!R.loop) { const len = R.L - 22, lo = Math.min((SP.W - len) / 2, SP.W - len - 16), hi = Math.max((SP.W - len) / 2, 16); if (o > hi) o = hi + rubber(o - hi, 160); if (o < lo) o = lo + rubber(o - lo, 160); } R.off = o; });
+    });
+    const up = e => {
+      clearTimeout(lpT); if (!d) return; const D = d; d = null; SP.drag = null; SP.idle = performance.now() + 2000;
+      if (D.lp) return;
+      if (!D.on) { if (D.card && e.type === 'pointerup') { const m = st.cur?.ms.find(x => x.id === D.card.dataset.mid); if (SEL.on) { toggleSel(m.id); return; } if (st.coverPick) { st.coverPick = false; EVP.classList.remove('pick'); setCover(m); return; } if (m) openViewer(st.cur.ms, st.cur.ms.indexOf(m), stripRect); } SP.rows.forEach(R => { R.snap = null; }); return; }
+      SP.rows.forEach(R => { R.v = clamp(D.v * R.par, -4200, 4200); if (Math.abs(R.v) <= 6) R.snap = snapTarget(R); });
+    };
+    STRIP.addEventListener('pointerup', up); STRIP.addEventListener('pointercancel', up);
+    STRIP.addEventListener('click', e => e.preventDefault());
+    STRIP.addEventListener('contextmenu', e => e.preventDefault());
+    STRIP.addEventListener('wheel', e => { if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; e.preventDefault(); SP.rows.forEach(R => { R.off -= e.deltaX * R.par; R.v = 0; R.snap = null; }); SP.idle = performance.now() + 2000; }, { passive: false });
+  }
+  // trình xem hỏi khung của tấm: chọn bản sao gần giữa nhất, không thấy thì kéo dải cho tấm đó về giữa
+  function stripRect(mid) {
+    let cs = SP.cards.filter(c => c.m.id === mid); if (!cs.length) return null;
+    const cx = SP.W / 2; let it = cs.sort((a, b) => Math.abs(cardX(a) + a.w / 2 - cx) - Math.abs(cardX(b) + b.w / 2 - cx))[0];
+    const c = cardX(it) + it.w / 2; if (c < 0 || c > SP.W) { it.row.off += cx - c; it.row.v = 0; it.row.snap = null; stripFrame(performance.now()); }
+    const sr = STRIP.getBoundingClientRect(); if (sr.bottom < 80 || sr.top > innerHeight - 80) SC.scrollTop = 0;
+    return it.el.querySelector('.sc-f');
+  }
   async function openEvent(key, cdEl) {
     const e = st.byKey.get(key); if (!e) return;
-    haptic(8); st.cur = e; EVP.classList.remove('closing'); EVP.querySelector('.evp-sc').scrollTop = 0;
+    haptic(8); st.cur = e; st.evb = -1; EVP.classList.remove('closing', 'gridon'); GRID.hidden = true; GRID.innerHTML = ''; SC.scrollTop = 0; SC.style.transform = ''; await loadCols();
     fillEvent(e);
-    const hero = EVP.querySelector('.evp-hero img'), cover = e.stack[0];
-    const tu = await thumbURL(cover.id); hero.src = tu; hero.style.visibility = 'hidden';
-    EVP.classList.add('open'); EVP.setAttribute('aria-hidden', 'false'); document.body.classList.add('evopen');
+    const cover = e.stack[0]; EVP.style.setProperty('--hc', cover.color || COL.get(cover.id) || kidCol()); EVP.querySelector('.evp-bgc').classList.remove('ok'); paintBg(cover);
+    EVP.classList.add('open'); EVP.setAttribute('aria-hidden', 'false'); document.body.classList.add('evopen'); onEvScroll(true);
+    requestAnimationFrame(() => { buildStrip(e); startStrip(); });
+    // tấm polaroid của thẻ bay lên chỗ dải ảnh
     const srcIm = cdEl?.querySelector('.pol.p0 img');
-    const to = rectOf(hero);
-    if (srcIm && !REDUCED) {
-      const g = new Image(); g.src = tu; srcIm.closest('.pol').style.visibility = 'hidden';
-      fly(g, { ...rectOf(srcIm), r: 6 }, { ...to, r: 0 }, 'soft', () => { hero.style.visibility = ''; g.remove(); srcIm.closest('.pol').style.visibility = ''; });
-    } else hero.style.visibility = '';
-    if (cover.type === 'image' && !cover.heic) A.dbGet('blobs', 'o_' + cover.id).then(b => { if (!b || st.cur !== e) return; const u = URL.createObjectURL(b), im = new Image(); im.onload = () => { if (st.cur === e) { hero.src = u; setTimeout(() => URL.revokeObjectURL(u), 60000); } }; im.src = u; });
+    if (srcIm && !REDUCED) { const g = new Image(); g.src = srcIm.src; const r = STRIP.getBoundingClientRect(), w = Math.min(innerWidth * .5, 240), h = w * 1.05; srcIm.closest('.pol').style.visibility = 'hidden'; fly(g, { ...rectOf(srcIm), r: 6 }, { left: (innerWidth - w) / 2, top: r.top + (r.height - h) / 2, width: w, height: h, r: 16 }, 'soft', () => { g.style.transition = 'opacity .3s'; g.style.opacity = '0'; setTimeout(() => g.remove(), 320); srcIm.closest('.pol').style.visibility = ''; }); }
   }
   function fillEvent(e) {
     EVP.querySelector('.evp-dt').textContent = e.days.length > 1 ? dateTxt(e) : fmtLong(e.ts0);
-    EVP.querySelector('.evp-ti').innerHTML = esc(e.title) + (e.mile ? ` <span class="mb">${icon(e.mile.ic, 14, 2)}<b>${esc(e.title === e.mile.label ? 'Cột mốc' : e.mile.label)}</b></span>` : '');
-    const ag = A.ageText(A.kid(), e.ts0); EVP.querySelector('.evp-ag').textContent = ag === e.title ? '' : ag;
-    EVP.querySelector('.evp-ct').textContent = `${countTxt(e)} · ${timeVN(e.ts0)}${e.ts1 - e.ts0 > 60e3 ? ' – ' + timeVN(e.ts1) : ''}`;
+    EVP.querySelector('.evp-ti').textContent = e.title;
+    const ag = A.family() ? '' : A.ageText(A.kid(), e.ts0, false);
+    EVP.querySelector('.evp-chips').innerHTML = [e.mile ? `<span class="hc mile">${icon(e.mile.ic, 14, 2)}Cột mốc</span>` : '', ag ? `<span class="hc age">${esc(ag)}</span>` : '', `<span class="hc">${esc(countTxt(e))}</span>`].join('');
+    EVP.querySelector('.evp-bt b').textContent = e.title; EVP.querySelector('.evp-bt small').textContent = A.dmy(e.ts0);
     const nt = EVP.querySelector('.evp-nt'); nt.textContent = e.note; nt.hidden = !e.note;
     EVP.classList.toggle('mile', !!e.mile);
-    // nhật ký của ngày này
+    EVP.querySelector('[data-a=play]').hidden = e.ms.length < 2;
     const dia = EVP.querySelector('.evp-dia'); dia.innerHTML = '';
-    for (const d of e.diaries) { A.dbGet('blobs', 'd_' + d.id).then(b => { const u = b ? URL.createObjectURL(b) : ''; dia.insertAdjacentHTML('beforeend', `<button class="dia" data-diary="${d.id}">${u ? `<img src="${u}" alt="">` : ''}<span>${icon('book', 15)} ${esc(d.title)}</span></button>`); }); }
-    // lưới ảnh chia theo giờ
-    const groups = []; let g = null;
-    for (const m of e.ms) { if (!g || m.ts - g.last > 45 * 60e3) { g = { t: m.ts, last: m.ts, ms: [] }; groups.push(g); } g.ms.push(m); g.last = m.ts; }
-    const grid = EVP.querySelector('.evp-grid');
-    grid.innerHTML = groups.map(gr => `<div class="tg"><h4>${esc(timeVN(gr.t))}${e.days.length > 1 ? ' · ' + A.dmy(gr.t).slice(0, 5) : ''} <small>· ${gr.ms.length} ${gr.ms.length > 1 ? 'khoảnh khắc' : 'khoảnh khắc'}</small></h4><div class="gg">${gr.ms.map(m => `<button class="gi${m.type === 'video' ? ' v' : ''}" data-mid="${m.id}"><img data-mid="${m.id}" alt="" decoding="async">${m.type === 'video' ? `<span class="du">${icon('play', 10, 2.6)} ${fmtD(m.dur)}</span>` : ''}${m.title ? `<span class="gt">${esc(m.title)}</span>` : ''}</button>`).join('')}</div></div>`).join('');
-    grid.querySelectorAll('img').forEach((im, i) => { thumbURL(im.dataset.mid).then(u => { if (u) { im.src = u; im.onload = () => im.classList.add('ok'); } }); im.closest('.gi').style.setProperty('--d', Math.min(i, 14) * 30 + 'ms'); });
+    for (const d of e.diaries) { A.dbGet('blobs', 'd_' + d.id).then(b => { const u = b ? URL.createObjectURL(b) : ''; dia.insertAdjacentHTML('beforeend', `<button class="dia" data-diary="${d.id}">${u ? `<img src="${u}" alt="">` : ''}<span>${icon('book', 15)} Nhật ký ngày này</span></button>`); }); }
+    if (EVP.classList.contains('open') && SP.open) buildStrip(e);
+    if (!GRID.hidden) layoutGrid();
   }
-  const fmtD = s => { s = Math.round(s || 0); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
-  function closeEvent() {
-    if (SEL.on && SEL.scope === 'ev') endSel(); st.coverPick = false; EVP.classList.remove('pick'); hint('');
-    const e = st.cur; if (!e || !EVP.classList.contains('open')) return;
-    const hero = EVP.querySelector('.evp-hero img'), el = evEl(e.key), tgt = el?.querySelector('.pol.p0 img');
-    if (tgt && hero.getBoundingClientRect().bottom > 0 && !REDUCED) {
-      const g = new Image(); g.src = hero.src; const from = { ...rectOf(hero), r: 0 }; hero.style.visibility = 'hidden';
-      const pol = tgt.closest('.pol'); pol.style.visibility = 'hidden';
-      // bay ngược về thẻ: đặt ở khung đích rồi nảy từ khung nguồn
-      const to = { ...rectOf(tgt), r: 6 };
-      fly(g, from, to, 'snappy', () => { g.remove(); pol.style.visibility = ''; el.classList.remove('hl'); void el.offsetWidth; el.classList.add('hl'); });
+  // lưới gọn: ô vuông nhỏ 3 cột (khi cần chọn nhiều, đổi bìa…)
+  const cellHTML = (m, k) => `<button class="gi${m.type === 'video' ? ' v' : ''}" data-mid="${m.id}" style="--pc:${m.color || COL.get(m.id) || 'var(--pc0)'};--d:${Math.min(k % 6, 5) * 45}ms"><img data-mid="${m.id}" alt="" decoding="async">${m.type === 'video' ? `<span class="du">${icon('play', 10, 2.6)} ${fmtD(m.dur)}</span>` : ''}</button>`;
+  function layoutGrid() { const e = st.cur; if (!e) return; GRID.innerHTML = e.ms.map(cellHTML).join(''); GRID.querySelectorAll('.gi').forEach(el => gridIO.observe(el)); }
+  function showGrid(on, scroll) {
+    GRID.hidden = !on; EVP.classList.toggle('gridon', on); EVP.querySelector('.evp-gbtn span').textContent = on ? 'Ẩn lưới' : 'Xem dạng lưới';
+    if (on) { layoutGrid(); if (scroll) setTimeout(() => GRID.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }), 60); } else GRID.innerHTML = '';
+  }
+  let gN = 0, gT = 0;
+  const gridIO = new IntersectionObserver(es => {
+    const now = performance.now(); if (now - gT > 140) gN = 0; gT = now;
+    for (const en of es) {
+      if (!en.isIntersecting) continue; const el = en.target; gridIO.unobserve(el);
+      if (!el.classList.contains('in')) { el.style.setProperty('--d', (REDUCED ? 0 : Math.min(gN++, 8) * 40) + 'ms'); el.classList.add('in'); }
+      const im = el.querySelector('img'), mid = el.dataset.mid;
+      thumbURL(mid).then(u => { if (!u || !im.isConnected) return; im.src = u; (im.decode ? im.decode() : Promise.resolve()).catch(() => { }).then(() => { if (im.isConnected) im.classList.add('ok'); }); });
     }
+  }, { root: SC, rootMargin: '500px 0px' });
+  const stopGridVideos = () => { };
+  // cuộn dọc: đầu trang mờ dần, tiêu đề thu vào thanh kính trên
+  let evRaf = 0;
+  function onEvScroll(force) {
+    if (evRaf && !force) return;
+    evRaf = requestAnimationFrame(() => {
+      evRaf = 0; const y = SC.scrollTop, H = EVP.querySelector('.evp-head').offsetHeight || 1;
+      const hx = EVP.querySelector('.evp-hx'); hx.style.opacity = clamp(1 - y / (H * .6), 0, 1).toFixed(3); hx.style.transform = y > 0 ? `translate3d(0,${(y * .3).toFixed(1)}px,0)` : '';
+      const evb = +clamp((y - (H - 110)) / 60, 0, 1).toFixed(3); if (evb !== st.evb) { st.evb = evb; EVP.querySelector('.evp-bar').style.setProperty('--evb', evb); }
+    });
+  }
+  SC.addEventListener('scroll', () => onEvScroll(), { passive: true });
+  function closeEvent() {
+    if (SEL.on && SEL.scope === 'ev') endSel(); st.coverPick = false; EVP.classList.remove('pick'); hint(''); stopEvShow();
+    const e = st.cur; if (!e || !EVP.classList.contains('open')) return;
+    const el = evEl(e.key), tgt = el?.querySelector('.pol.p0 img');
+    const cx = SP.W / 2, near = SP.cards.filter(c => c.on).sort((a, b) => Math.abs(cardX(a) + a.w / 2 - cx) - Math.abs(cardX(b) + b.w / 2 - cx))[0];
+    if (near && tgt && !REDUCED) {
+      const f = near.el.querySelector('.sc-f'), g = new Image(); g.src = near.img.src || tgt.src; const from = { ...rectOf(f), r: 14 }; near.el.style.visibility = 'hidden';
+      const pol = tgt.closest('.pol'); pol.style.visibility = 'hidden';
+      fly(g, from, { ...rectOf(tgt), r: 6 }, 'snappy', () => { g.remove(); pol.style.visibility = ''; el.classList.remove('hl'); void el.offsetWidth; el.classList.add('hl'); });
+    }
+    stopStrip();
     EVP.classList.add('closing'); EVP.classList.remove('open'); EVP.setAttribute('aria-hidden', 'true'); document.body.classList.remove('evopen');
-    setTimeout(() => { if (!EVP.classList.contains('open')) { EVP.classList.remove('closing'); hero.style.visibility = ''; EVP.querySelector('.evp-sc').style.transform = ''; } }, 450);
+    setTimeout(() => { if (!EVP.classList.contains('open')) { EVP.classList.remove('closing'); ROWS.innerHTML = ''; SP.cards = []; SC.style.transform = ''; GRID.innerHTML = ''; } }, 450);
     st.cur = null;
   }
   EVP.querySelector('.evp-back').onclick = closeEvent;
-  { // kéo trang xuống từ đầu để đóng
-    const sc = EVP.querySelector('.evp-sc'); let d = null;
-    sc.addEventListener('pointerdown', e => { if (sc.scrollTop > 0 || e.pointerType === 'mouse' && e.button !== 0) return; d = { y: e.clientY, x: e.clientX, on: false, v: 0, ly: e.clientY, lt: performance.now() }; });
-    sc.addEventListener('pointermove', e => {
-      if (!d) return; const dy = e.clientY - d.y; if (!d.on) { if (dy > 10 && Math.abs(dy) > Math.abs(e.clientX - d.x)) { d.on = true; try { sc.setPointerCapture(e.pointerId); } catch (er) { } } else if (Math.abs(dy) > 10) { d = null; return; } else return; }
+  { // kéo cả trang xuống từ đầu để đóng (không tính vùng dải ảnh)
+    let d = null;
+    SC.addEventListener('pointerdown', e => { if (SC.scrollTop > 0 || e.pointerType === 'mouse' && e.button !== 0 || e.target.closest('.gi, .evp-strip')) return; d = { y: e.clientY, x: e.clientX, on: false, v: 0, ly: e.clientY, lt: performance.now() }; });
+    SC.addEventListener('pointermove', e => {
+      if (!d) return; const dy = e.clientY - d.y; if (!d.on) { if (dy > 10 && Math.abs(dy) > Math.abs(e.clientX - d.x)) { d.on = true; try { SC.setPointerCapture(e.pointerId); } catch (er) { } } else if (Math.abs(dy) > 10) { d = null; return; } else return; }
       const now = performance.now(); d.v = (e.clientY - d.ly) / Math.max(1, now - d.lt); d.ly = e.clientY; d.lt = now;
-      const y = Math.max(0, dy); sc.style.transform = `translate3d(0,${y}px,0) scale(${1 - y / 3000})`; EVP.querySelector('.evp-bg').style.opacity = 1 - y / 900;
+      const y = Math.max(0, dy); SC.style.transform = `translate3d(0,${y}px,0) scale(${1 - y / 3000})`; EVP.querySelector('.evp-bg').style.opacity = 1 - y / 900;
     });
-    const up = () => { if (!d) return; const on = d.on, v = d.v, m = /translate3d\(0px?,\s*([\d.]+)px/.exec(sc.style.transform), y = m ? +m[1] : 0; d = null; if (!on) return;
-      if (y > 120 || v > .8) { closeEvent(); setTimeout(() => { sc.style.transform = ''; EVP.querySelector('.evp-bg').style.opacity = ''; }, 460); }
-      else animateSpring(y, 0, { k: 300, c: 24, v: v * 1000 }, z => { sc.style.transform = z > .5 ? `translate3d(0,${z}px,0) scale(${1 - z / 3000})` : ''; EVP.querySelector('.evp-bg').style.opacity = 1 - z / 900; }); };
-    sc.addEventListener('pointerup', up); sc.addEventListener('pointercancel', up);
+    const up = () => { if (!d) return; const on = d.on, v = d.v, m = /translate3d\(0px?,\s*([\d.]+)px/.exec(SC.style.transform), y = m ? +m[1] : 0; d = null; if (!on) return;
+      if (y > 120 || v > .8) { closeEvent(); setTimeout(() => { SC.style.transform = ''; EVP.querySelector('.evp-bg').style.opacity = ''; }, 460); }
+      else animateSpring(y, 0, { k: 300, c: 24, v: v * 1000 }, z => { SC.style.transform = z > .5 ? `translate3d(0,${z}px,0) scale(${1 - z / 3000})` : ''; EVP.querySelector('.evp-bg').style.opacity = 1 - z / 900; }); };
+    SC.addEventListener('pointerup', up); SC.addEventListener('pointercancel', up);
   }
+  const gridRect = mid => { if (GRID.hidden) return stripRect(mid); const im = EVP.querySelector(`.gi[data-mid="${mid}"]`); if (!im) return null; const r = im.getBoundingClientRect(); if (r.bottom < 60 || r.top > innerHeight - 40) { SC.scrollTop += r.top - innerHeight * .4; } return im; };
+  function startCoverPick() { st.coverPick = true; EVP.classList.add('pick'); hint('Chạm vào một ảnh để đặt làm ảnh bìa'); showGrid(true, true); }
   EVP.addEventListener('click', async ev => {
     const e = st.cur; if (!e) return;
     const gi = ev.target.closest('.gi');
@@ -435,32 +605,31 @@ export function initTimeline(A) {
       const m = e.ms.find(x => x.id === gi.dataset.mid);
       if (SEL.on) { toggleSel(m.id); return; }
       if (st.coverPick) { st.coverPick = false; EVP.classList.remove('pick'); setCover(m); return; }
-      openViewer(e.ms, e.ms.indexOf(m), mid => EVP.querySelector(`.gi[data-mid="${mid}"] img`)); return;
+      openViewer(e.ms, e.ms.indexOf(m), gridRect); return;
     }
     const dia = ev.target.closest('[data-diary]'); if (dia) { A.openDiary(dia.dataset.diary); return; }
-    const b = ev.target.closest('.evp-acts [data-a]'); if (!b) return; const a = b.dataset.a;
-    if (a === 'diary') A.makeDiary(e.ms.filter(m => m.type !== 'video').length ? e.ms.filter(m => m.type !== 'video') : e.ms);
-    else if (a === 'rename') { $('#evnTi').value = e.title; $('#evnNt').value = e.note; $('#mEvName .evn-sub').textContent = `${dateTxt(e)} · ${countTxt(e)}`; A.openModal($('#mEvName')); setTimeout(() => $('#evnTi').focus(), 350); }
-    else if (a === 'add') $('#evFiles').click();
-    else if (a === 'merge') openMerge(e);
-    else if (a === 'select') startSel('ev');
-    else if (a === 'date') changeEventDate(e);
-    else if (a === 'cover') { st.coverPick = true; EVP.classList.add('pick'); hint('Chạm vào một ảnh bên dưới để đặt làm ảnh bìa'); EVP.querySelector('.evp-grid').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }
-    else if (a === 'del') deleteEvent(e, b);
+    const b = ev.target.closest('[data-a]'); if (!b || !EVP.contains(b)) return; const a = b.dataset.a;
+    if (a === 'play') playEvent(e);
+    else if (a === 'grid') showGrid(GRID.hidden, true);
   });
   EVP.querySelector('.evp-more').onclick = e => st.cur && eventMenu(st.cur, null, e.currentTarget);
   const hint = t => { const h = EVP.querySelector('.evp-hint'); h.textContent = t || ''; h.hidden = !t; };
   // ---------- menu & thao tác sự kiện ----------
   function eventMenu(e, el, at) {
     const i = st.events.indexOf(e), older = st.events[i + 1], newer = st.events[i - 1];
+    const ensure = async () => { if (!EVP.classList.contains('open') || st.cur?.key !== e.key) await openEvent(e.key, evEl(e.key)?.querySelector('.cd')); };
     contextMenu({ el, at, title: esc(e.title), items: [
       el && { icon: 'image', label: 'Mở sự kiện', act: () => openEvent(e.key, el) },
+      e.ms.length > 1 && { icon: 'play', label: 'Chiếu sự kiện này', act: () => playEvent(e) },
+      { icon: 'book', label: e.diaries.length ? 'Xem nhật ký' : 'Tạo nhật ký từ sự kiện', act: () => e.diaries.length ? A.openDiary(e.diaries[0].id) : A.makeDiary(e.ms.filter(m => m.type !== 'video').length ? e.ms.filter(m => m.type !== 'video') : e.ms) },
+      { sep: 1 },
       { icon: 'edit', label: 'Đổi tên, ghi chú', act: () => { st.cur = st.cur || e; renameEvent(e); } },
-      { icon: 'calendar', label: 'Đổi ngày cả sự kiện', act: () => changeEventDate(e) },
-      { icon: 'star', label: 'Đổi ảnh bìa', act: async () => { if (!EVP.classList.contains('open')) { await openEvent(e.key, evEl(e.key)?.querySelector('.cd')); } EVP.querySelector('[data-a=cover]').click(); } },
       { icon: 'plus', label: 'Thêm ảnh vào sự kiện', act: () => { st.cur = st.cur || e; st.addTo = e; $('#evFiles').click(); } },
-      { icon: 'book', label: 'Tạo nhật ký từ sự kiện', act: () => A.makeDiary(e.ms.filter(m => m.type !== 'video').length ? e.ms.filter(m => m.type !== 'video') : e.ms) },
-      { icon: 'check', label: 'Chọn nhiều ảnh', act: async () => { if (!EVP.classList.contains('open')) await openEvent(e.key, evEl(e.key)?.querySelector('.cd')); startSel('ev'); } },
+      { icon: 'check', label: 'Chọn nhiều ảnh', act: async () => { await ensure(); showGrid(true, true); startSel('ev'); } },
+      { icon: 'grid', label: GRID.hidden ? 'Xem dạng lưới' : 'Ẩn lưới', act: async () => { await ensure(); showGrid(GRID.hidden, true); } },
+      { sep: 1 },
+      { icon: 'star', label: 'Đổi ảnh bìa', act: async () => { await ensure(); startCoverPick(); } },
+      { icon: 'calendar', label: 'Đổi ngày cả sự kiện', act: () => changeEventDate(e) },
       older && { icon: 'merge', label: `Gộp với ngày trước (${A.dmy(older.ts0).slice(0, 5)})`, act: () => mergeWith(e, older) },
       newer && { icon: 'merge', label: `Gộp với ngày sau (${A.dmy(newer.ts0).slice(0, 5)})`, act: () => mergeWith(e, newer) },
       e.merged && { icon: 'split', label: 'Tách lại thành từng ngày', act: async () => { st.meta.merges = st.meta.merges.filter(g => !g.includes(e.key)); await saveMeta(); render(); } },
@@ -469,7 +638,7 @@ export function initTimeline(A) {
   }
   function renameEvent(e) { $('#evnTi').value = e.title; $('#evnNt').value = e.note; $('#mEvName .evn-sub').textContent = `${dateTxt(e)} · ${countTxt(e)}`; st.cur = e; A.openModal($('#mEvName')); setTimeout(() => $('#evnTi').focus(), 350); }
   async function mergeWith(e, o) { const ks = [...new Set([...(e.merged || [e.key]), ...(o.merged || [o.key])])]; st.meta.merges = st.meta.merges.filter(g => !g.some(k => ks.includes(k))); st.meta.merges.push(ks); await saveMeta(); const mid = e.ms[0].id; closeEvent(); render(); const k = keyOfMid(mid); if (k) setTimeout(() => scrollToKey(k), 450); A.toast('Đã gộp thành một sự kiện', 1600); }
-  async function setCover(m) { const e = st.cur || st.events.find(x => x.ms.includes(m)); if (!e) return; st.meta.covers[e.key] = m.id; await saveMeta(); haptic(10); A.toast('Đã đặt làm ảnh bìa sự kiện', 1500); const k = e.key; render(); if (EVP.classList.contains('open') && st.byKey.get(k)) { st.cur = st.byKey.get(k); fillEvent(st.cur); const hero = EVP.querySelector('.evp-hero img'); thumbURL(m.id).then(u => hero.src = u); } hint(''); }
+  async function setCover(m) { const e = st.cur || st.events.find(x => x.ms.includes(m)); if (!e) return; st.meta.covers[e.key] = m.id; await saveMeta(); haptic(10); A.toast('Đã đặt làm ảnh bìa sự kiện', 1500); const k = e.key; render(); if (EVP.classList.contains('open') && st.byKey.get(k)) { st.cur = st.byKey.get(k); fillEvent(st.cur); EVP.style.setProperty('--hc', m.color || COL.get(m.id) || kidCol()); paintBg(m); } hint(''); }
   async function changeEventDate(e) {
     const v = await A.prompt(`Đổi ngày “${e.title}”`, e.day, 10, 'date'); if (!v || !A.parseYmd(v) || v === e.day) return;
     const delta = Math.round((A.parseYmd(v) - A.parseYmd(e.day)) / 864e5);
@@ -487,20 +656,23 @@ export function initTimeline(A) {
   function photoMenu(m, el, at, inViewer) {
     const e = st.cur || st.events.find(x => x.ms.includes(m));
     contextMenu({ el, at, title: esc(m.title || `${timeVN(m.ts)} · ${A.dmy(m.ts)}`), items: [
-      !inViewer && { icon: 'image', label: 'Xem lớn', act: () => openViewer(e.ms, e.ms.indexOf(m), mid => EVP.querySelector(`.gi[data-mid="${mid}"] img`)) },
+      !inViewer && { icon: 'image', label: 'Xem lớn', act: () => openViewer(e.ms, e.ms.indexOf(m), gridRect) },
       { icon: 'edit', label: 'Sửa tên, ngày, giờ, ghi chú', act: () => openEditM(m) },
+      kidsAll().length > 1 && { icon: 'baby', label: 'Gắn / bỏ bé', act: async () => { const ids = await A.pickKids([m]); if (ids) { await A.setKidsMany([m], ids); if (inViewer) fillInfo(); refreshAll(st.cur?.key); A.toast('Đã gắn bé', 1200); } } },
+      { icon: 'download', label: 'Lưu về máy', act: () => A.saveOriginal(m) },
+      { sep: 1 },
       { icon: 'star', label: 'Đặt làm ảnh bìa sự kiện', act: () => setCover(m) },
-      kidsAll().length > 1 && { icon: 'baby', label: 'Gắn / bỏ bé', act: async () => { const ids = await A.pickKids([m]); if (ids) { await A.setKidsMany([m], ids); refreshAll(st.cur?.key); } } },
       { icon: 'image', label: 'Đặt làm hình nền', act: () => A.setBgFromMoment(m) },
       { icon: 'smile', label: 'Đặt làm avatar bé', act: () => A.avatarFromMoment(m) },
-      { icon: 'download', label: 'Lưu về máy', act: () => A.saveOriginal(m) },
+      inViewer && st.cur && !st.cur.merged && V.i > 0 && { icon: 'split', label: 'Tách sự kiện từ ảnh này', act: () => splitHere(m) },
       !inViewer && { icon: 'check', label: 'Chọn nhiều', act: () => { startSel('ev'); toggleSel(m.id); } },
-      { icon: 'trash', label: 'Xoá', danger: true, act: async () => { if (inViewer) { closeViewer(); } await A.trashMoments([m], 'Đã chuyển vào thùng rác'); refreshAll(st.cur?.key); } }
+      { icon: 'trash', label: 'Xoá', danger: true, act: async () => { if (inViewer) { viewerDelete(m); return; } await A.trashMoments([m], 'Đã chuyển vào thùng rác'); refreshAll(st.cur?.key); } }
     ] });
   }
   // ---------- chế độ chọn nhiều (trang sự kiện: ảnh; dòng thời gian: cả sự kiện) ----------
   const SEL = { on: false, scope: 'ev', ids: new Set() }, BULK = $('#bulk');
   function startSel(scope) {
+    if (scope === 'ev' && GRID.hidden) showGrid(true, true);
     SEL.on = true; SEL.scope = scope; SEL.ids.clear(); BULK.classList.add('on'); BULK.setAttribute('aria-hidden', 'false'); document.body.classList.add('selmode');
     (scope === 'ev' ? EVP : TL).classList.add('selm'); BULK.querySelector('[data-b=move]').hidden = scope !== 'ev'; updSel(); haptic(8);
   }
@@ -538,7 +710,7 @@ export function initTimeline(A) {
     grid.addEventListener('pointermove', e => mv(e.clientX, e.clientY));
     // khi đã giữ đủ lâu: chặn cuộn và đọc vị trí ngón tay từ touchmove (trình duyệt có thể huỷ pointer khi bắt đầu cuộn)
     grid.addEventListener('touchmove', e => { if (drag || pd?.fired) { e.preventDefault(); const p = e.touches[0]; if (p) mv(p.clientX, p.clientY); } }, { passive: false });
-    const up = () => { clearTimeout(t); if (pd?.fired) { pd.gi.classList.remove('press'); if (!drag && !SEL.on) { const m = st.cur?.ms.find(x => x.id === pd.gi.dataset.mid); if (m) photoMenu(m, pd.gi); } grid.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); }, { capture: true, once: true }); } pd = null; drag = false; };
+    const up = () => { clearTimeout(t); if (pd?.fired) { pd.gi.classList.remove('press'); if (!drag && !SEL.on) { const m = st.cur?.ms.find(x => x.id === pd.gi.dataset.mid); if (m) photoMenu(m, pd.gi); } const sw = ev => { ev.stopPropagation(); ev.preventDefault(); }; grid.addEventListener('click', sw, { capture: true, once: true }); setTimeout(() => grid.removeEventListener('click', sw, { capture: true }), 600); } pd = null; drag = false; };
     grid.addEventListener('pointerup', up); grid.addEventListener('pointercancel', e => { if (e.pointerType === 'touch' && pd?.fired) return; up(); });
     grid.addEventListener('touchend', up); grid.addEventListener('touchcancel', up);
     grid.addEventListener('contextmenu', e => { if (e.target.closest('.gi')) e.preventDefault(); });
@@ -583,94 +755,141 @@ export function initTimeline(A) {
   }
 
   // ---------- trình xem ảnh/video toàn màn hình ----------
-  const V = { list: [], i: 0, W: 0, H: 0, x: 0, z: { s: 1, x: 0, y: 0 }, slides: [], getRect: null, chrome: true, tray: 0, stop: null, urls: [] };
-  const track = PV.querySelector('.pv-track');
+  // không nút nào ngoài ✕ và ⋯; chạm 1 lần hiện/ẩn khung chữ + dải ảnh nhỏ (tự ẩn sau 2,5 giây)
+  const V = { list: [], i: 0, W: 0, H: 0, x: 0, z: { s: 1, x: 0, y: 0 }, getRect: null, ui: false, stop: null, urls: [], vid: null };
+  const track = PV.querySelector('.pv-track'), FI = PV.querySelector('.pv-fi'), FILM = PV.querySelector('.pv-film'), VC = PV.querySelector('.pv-vc');
   function fitRect(m) {
-    const W = innerWidth, top = V.insT ?? 0, bot = V.insB ?? 0, H = Math.max(200, innerHeight - top - bot), a = m.w && m.h ? m.w / m.h : 4 / 3;
+    const W = innerWidth, H = innerHeight, a = m.w && m.h ? m.w / m.h : 4 / 3;
     let w = W, h = w / a; if (h > H) { h = H; w = h * a; }
-    return { left: (W - w) / 2, top: top + (H - h) / 2, width: w, height: h };
+    return { left: (W - w) / 2, top: (H - h) / 2, width: w, height: h };
   }
-  function measureInsets() { const tr = PV.querySelector('.pv-tray'), tp = PV.querySelector('.pv-top'); V.insT = V.chrome ? tp.getBoundingClientRect().bottom + 6 : 0; V.insB = V.chrome ? tr.offsetHeight + 6 : 0; }
-  function slideHTML(m) { return `<div class="pv-s" data-mid="${m.id}"><div class="pv-m"></div></div>`; }
+  const slideHTML = m => `<div class="pv-s" data-mid="${m.id}"><div class="pv-m${m.type === 'video' ? ' v' : ''}"></div></div>`;
   async function fillSlide(sl, m, cur) {
     const box = sl.querySelector('.pv-m'), r = fitRect(m);
     box.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;
-    const tu = await thumbURL(m.id);
-    if (m.type === 'video') {
-      box.innerHTML = `<img src="${tu}" alt="">`;
-      if (cur) { const b = await A.dbGet('blobs', 'o_' + m.id); if (!b || sl.dataset.mid !== m.id) return; const u = URL.createObjectURL(b); V.urls.push(u); const v = document.createElement('video'); v.src = u; v.controls = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.autoplay = true; v.poster = tu; v.onplay = () => A.duck?.(true); v.onpause = v.onended = () => A.duck?.(false); box.innerHTML = ''; box.appendChild(v); }
-    } else {
-      box.innerHTML = `<img src="${tu}" alt="">`;
-      if (!m.heic) A.dbGet('blobs', 'o_' + m.id).then(b => { if (!b || sl.dataset.mid !== m.id) return; const u = URL.createObjectURL(b); V.urls.push(u); const im = new Image(); im.onload = () => { if (sl.dataset.mid === m.id) box.querySelector('img').src = u; }; im.src = u; });
-      else if (cur) A.toast('Ảnh HEIC — mở bằng Safari để xem bản gốc rõ nét', 2600);
-    }
+    const tu = await thumbURL(m.id); if (sl.dataset.mid !== m.id) return;
+    box.innerHTML = `<img src="${tu}" alt="">`;
+    if (m.type === 'video') { if (cur) startVideo(sl, m, tu); }
+    else if (!m.heic && cur) A.dbGet('blobs', 'o_' + m.id).then(b => { if (!b || sl.dataset.mid !== m.id) return; const u = URL.createObjectURL(b); V.urls.push(u); const im = new Image(); im.src = u; im.decode().then(() => { if (sl.dataset.mid === m.id && box.querySelector('img')) box.querySelector('img').src = u; }).catch(() => { }); });
+    else if (cur) A.toast('Ảnh HEIC — mở bằng Safari để xem bản gốc rõ nét', 2600);
   }
+  // video: tự phát khi vuốt tới, thanh điều khiển kính tự vẽ
+  async function startVideo(sl, m, tu) {
+    const b = await A.dbGet('blobs', 'o_' + m.id); if (!b || sl.dataset.mid !== m.id || V.list[V.i] !== m) return;
+    const u = URL.createObjectURL(b); V.urls.push(u); const v = document.createElement('video');
+    Object.assign(v, { src: u, playsInline: true, poster: tu, preload: 'auto' }); v.setAttribute('playsinline', '');
+    const box = sl.querySelector('.pv-m'); box.appendChild(v); V.vid = v;
+    v.addEventListener('playing', () => { v.classList.add('ok'); A.duck?.(true); updVC(); });
+    v.addEventListener('pause', () => { A.duck?.(false); updVC(); if (!V.ui) showUI(true); });
+    v.addEventListener('ended', () => { A.duck?.(false); updVC(); });
+    v.addEventListener('timeupdate', updVC); v.addEventListener('loadedmetadata', updVC);
+    try { await v.play(); } catch (e) { v.muted = true; try { await v.play(); } catch (e2) { } }
+    updVC();
+  }
+  function stopVideo() { const v = V.vid; if (v) { v.pause(); v.removeAttribute('src'); v.load?.(); } V.vid = null; A.duck?.(false); }
+  function updVC() {
+    const v = V.vid, m = V.list[V.i], isV = m?.type === 'video'; VC.hidden = !isV; PV.classList.toggle('isv', !!isV); if (!isV) return;
+    const d = v?.duration || m.dur || 0, t = v?.currentTime || 0;
+    VC.querySelector('[data-a=vplay]').innerHTML = icon(v && !v.paused ? 'pause' : 'play', 20, 2.2);
+    VC.querySelector('[data-a=vmute]').innerHTML = icon(v?.muted ? 'mute' : 'sound', 20, 1.9);
+    VC.querySelector('.pv-t0').textContent = fmtD(t); VC.querySelector('.pv-t1').textContent = fmtD(d);
+    if (!V.seeking) VC.querySelector('.pv-seek').value = d ? Math.round(t / d * 1000) : 0;
+    PV.querySelector('.pv-prog i').style.transform = `scaleX(${d ? (t / d).toFixed(4) : 0})`;
+    PV.classList.toggle('vpause', !!v && v.paused);
+  }
+  { const sk = VC.querySelector('.pv-seek');
+    sk.addEventListener('input', () => { V.seeking = true; const v = V.vid; if (v?.duration) { v.currentTime = sk.value / 1000 * v.duration; VC.querySelector('.pv-t0').textContent = fmtD(v.currentTime); } showUI(true); });
+    sk.addEventListener('change', () => { V.seeking = false; });
+    ['pointerdown', 'touchstart'].forEach(t => VC.addEventListener(t, e => e.stopPropagation(), { passive: true })); }
   function layoutSlides() {
-    V.W = innerWidth; V.H = innerHeight;
+    V.W = innerWidth; V.H = innerHeight; stopVideo();
     const idx = [V.i - 1, V.i, V.i + 1];
     track.innerHTML = idx.map(i => V.list[i] ? slideHTML(V.list[i]) : '<div class="pv-s empty"></div>').join('');
     [...track.children].forEach((sl, k) => { sl.style.transform = `translate3d(${(k - 1) * (V.W + 24)}px,0,0)`; const m = V.list[idx[k]]; if (m) fillSlide(sl, m, k === 1); });
     setX(0); V.z = { s: 1, x: 0, y: 0 }; applyZoom();
-    fillInfo();
+    fillInfo(); setBg(); filmSync(); updVC();
+  }
+  // nền: màu chủ đạo của ảnh + ảnh nhoè rất mờ phía sau
+  let bgT = 0;
+  function setBg() {
+    const m = V.list[V.i]; if (!m) return; const c = m.color || COL.get(m.id) || '#141022';
+    PV.style.setProperty('--pvc', c); const bi = PV.querySelector('.pv-bgi');
+    bi.classList.remove('ok'); clearTimeout(bgT); bgT = setTimeout(() => thumbURL(m.id).then(u => { if (V.list[V.i] !== m) return; bi.src = u; bi.decode?.().then(() => bi.classList.add('ok')).catch(() => { }); }), 180);
   }
   function fillInfo() {
     const m = V.list[V.i]; if (!m) return; PV.querySelector('.pv-count').textContent = `${V.i + 1} / ${V.list.length}`;
     PV.querySelector('.pv-ti').textContent = m.title || timeVN(m.ts);
     PV.querySelector('.pv-dt').textContent = m.title ? `${fmtLong(m.ts)} · ${timeVN(m.ts)}` : fmtLong(m.ts);
-    PV.querySelector('.pv-ag').textContent = A.ageText(A.kid(), m.ts);
+    const ks = kidsAll().length > 1 ? A.kidsOf(m).map(kidById).filter(Boolean) : [A.kid()];
+    PV.querySelector('.pv-ag').innerHTML = ks.map(k => `<span style="--c:${k.color || '#ff8fbf'}">${esc(A.ageText(k, m.ts))}</span>`).join('');
     const nt = PV.querySelector('.pv-nt'); nt.textContent = m.note || ''; nt.hidden = !m.note;
-    PV.querySelector('[data-a=split]').hidden = !(st.cur && !st.cur.merged && V.i > 0);
-    PV.querySelector('.pv-more').classList.toggle('chk', m.dateSrc === 'check' || m.dateSrc === 'file');
-    PV.querySelector('[data-a=kids]').hidden = kidsAll().length < 2;
-    PV.querySelector('[data-a=cover]').classList.toggle('on', !!st.cur && st.meta.covers[st.cur.key] === m.id);
   }
+  // dải ảnh nhỏ: chạm để nhảy, kéo để tua nhanh
+  const FW = 46;
+  function buildFilm() {
+    FI.innerHTML = V.list.map((m, i) => `<button class="pf${m.type === 'video' ? ' v' : ''}" data-i="${i}" style="--pc:${m.color || COL.get(m.id) || '#2a2340'}"><img data-mid="${m.id}" alt=""></button>`).join('');
+    FI.style.padding = `0 ${Math.max(0, (innerWidth - FW) / 2)}px`;
+    FI.querySelectorAll('img').forEach(im => filmIO.observe(im));
+  }
+  const filmIO = new IntersectionObserver(es => { for (const en of es) if (en.isIntersecting) { const im = en.target; filmIO.unobserve(im); thumbURL(im.dataset.mid).then(u => { if (u) { im.src = u; im.onload = () => im.classList.add('ok'); } }); } }, { root: FILM, rootMargin: '0px 300px' });
+  let filmProg = false, filmT = 0;
+  function filmSync(smooth) {
+    FI.querySelectorAll('.pf.on').forEach(b => b.classList.remove('on')); const b = FI.children[V.i]; if (!b) return; b.classList.add('on');
+    filmProg = true; FILM.scrollTo({ left: V.i * (FW + 4), behavior: smooth && !REDUCED ? 'smooth' : 'auto' }); clearTimeout(filmT); filmT = setTimeout(() => { filmProg = false; }, smooth ? 450 : 60);
+  }
+  FILM.addEventListener('scroll', () => {
+    if (filmProg || !PV.classList.contains('open')) return; showUI(true);
+    const i = clamp(Math.round(FILM.scrollLeft / (FW + 4)), 0, V.list.length - 1);
+    if (i !== V.i) { V.i = i; haptic(3); layoutSlides(); filmProg = true; clearTimeout(filmT); filmT = setTimeout(() => { filmProg = false; }, 30); FI.querySelectorAll('.pf.on').forEach(x => x.classList.remove('on')); FI.children[i]?.classList.add('on'); }
+  }, { passive: true });
+  FILM.addEventListener('click', e => { const b = e.target.closest('.pf'); if (!b) return; const i = +b.dataset.i; if (i !== V.i) { V.i = i; layoutSlides(); filmSync(true); } });
+  ['pointerdown', 'touchstart'].forEach(t => FILM.addEventListener(t, e => e.stopPropagation(), { passive: true }));
+  // khung chữ + nút: hiện khi chạm, tự ẩn sau 2,5 giây
+  let uiT = 0;
+  function showUI(on) {
+    if (on && !PV.classList.contains('open')) on = false; V.ui = on; PV.classList.toggle('ui', on); clearTimeout(uiT);
+    if (on) uiT = setTimeout(() => { if (V.seeking || (V.vid && V.vid.paused && !V.vid.ended && V.vid.currentTime > 0)) { showUI(true); return; } showUI(false); }, 2500);
+  }
+  PV.querySelector('.pv-ui').addEventListener('pointerdown', e => { if (e.target.closest('button, input')) showUI(true); });
   const curMedia = () => track.children[1]?.querySelector('.pv-m');
   const setX = x => { V.x = x; track.style.transform = `translate3d(${x}px,0,0)`; };
   const applyZoom = () => { const el = curMedia(); if (el) el.style.transform = V.z.s > 1.001 ? `translate3d(${V.z.x}px,${V.z.y}px,0) scale(${V.z.s})` : ''; };
   function openViewer(list, i, getRect) {
     V.list = list; V.i = clamp(i, 0, list.length - 1); V.getRect = getRect; V.urls.forEach(u => URL.revokeObjectURL(u)); V.urls = [];
-    PV.classList.add('open'); PV.setAttribute('aria-hidden', 'false'); document.body.classList.add('pvopen'); setChrome(true); setTray(1, false);
-    fillInfo(); measureInsets(); layoutSlides(); haptic(6);
+    PV.classList.add('open'); PV.setAttribute('aria-hidden', 'false'); document.body.classList.add('pvopen'); PV.classList.toggle('one', list.length < 2);
+    buildFilm(); layoutSlides(); haptic(6); showUI(true);
     const src = getRect?.(list[V.i].id), el = curMedia();
     if (src && el && !REDUCED) {
       const to = fitRect(list[V.i]), f = rectOf(src);
-      el.style.transition = 'none'; el.style.transform = `translate(${f.left - to.left}px,${f.top - to.top}px) scale(${f.width / to.width},${f.height / to.height})`; el.style.transformOrigin = '0 0';
-      void el.offsetWidth; el.style.transition = 'transform var(--sp-soft-ms) var(--sp-soft)'; el.style.transform = '';
+      el.style.transition = 'none'; el.style.transform = `translate(${f.left - to.left}px,${f.top - to.top}px) scale(${f.width / to.width},${f.height / to.height})`; el.style.transformOrigin = '0 0'; el.style.borderRadius = '6px';
+      void el.offsetWidth; el.style.transition = 'transform var(--sp-soft-ms) var(--sp-soft), border-radius .4s'; el.style.transform = ''; el.style.borderRadius = '0px';
       setTimeout(() => { el.style.transition = ''; el.style.transformOrigin = ''; }, 700);
     }
   }
-  function closeViewer(dy = 0) {
+  function closeViewer() {
     if (!PV.classList.contains('open')) return;
     const m = V.list[V.i], el = curMedia(), tgt = V.getRect?.(m.id);
-    track.querySelectorAll('video').forEach(v => v.pause()); A.duck?.(false);
+    stopVideo(); showUI(false); clearTimeout(uiT); V.stop?.(); filmProg = true;
     PV.classList.add('closing'); PV.classList.remove('open'); document.body.classList.remove('pvopen'); PV.setAttribute('aria-hidden', 'true');
     if (tgt && el && !REDUCED) {
       const to = rectOf(tgt), f = el.getBoundingClientRect(), base = fitRect(m);
       el.style.transformOrigin = '0 0'; el.style.transition = 'none';
       el.style.transform = `translate(${f.left - base.left}px,${f.top - base.top}px) scale(${f.width / base.width},${f.height / base.height})`; void el.offsetWidth;
-      el.style.transition = 'transform var(--sp-snappy-ms) var(--sp-snappy), border-radius .3s'; el.style.borderRadius = '10px';
+      el.style.transition = 'transform var(--sp-snappy-ms) var(--sp-snappy), border-radius .3s'; el.style.borderRadius = '6px'; el.querySelector('img') && (el.querySelector('img').style.objectFit = 'cover');
       el.style.transform = `translate(${to.left - base.left}px,${to.top - base.top}px) scale(${to.width / base.width},${to.height / base.height})`;
+      const cell = tgt.closest('.gi, .sc'); if (cell) { const ov = 0; cell.classList.add('flying'); setTimeout(() => { cell.classList.remove('flying'); if (cell.classList.contains('gi')) { cell.classList.remove('land'); void cell.offsetWidth; cell.classList.add('land'); } }, 430); void ov; }
     }
-    setTimeout(() => { if (!PV.classList.contains('open')) { PV.classList.remove('closing'); track.innerHTML = ''; V.urls.forEach(u => URL.revokeObjectURL(u)); V.urls = []; } }, 520);
+    setTimeout(() => { if (!PV.classList.contains('open')) { PV.classList.remove('closing'); track.innerHTML = ''; FI.innerHTML = ''; V.urls.forEach(u => URL.revokeObjectURL(u)); V.urls = []; } }, 520);
   }
   function go(d, v = 0) {
     const n = V.i + d; if (n < 0 || n >= V.list.length) { V.stop = animateSpring(V.x, 0, { k: 260, c: 20, v }, setX); return; }
-    V.stop?.(); haptic(5);
-    V.stop = animateSpring(V.x, -d * (V.W + 24), { k: 240, c: 26, v, eps: .6 }, setX, () => { V.i = n; layoutSlides(); });
+    V.stop?.(); haptic(5); V.vid?.pause();
+    V.stop = animateSpring(V.x, -d * (V.W + 24), { k: 220, c: 25, v, eps: .6 }, setX, () => { if (!PV.classList.contains('open')) return; V.i = n; layoutSlides(); filmSync(true); });
   }
-  function setChrome(on) { V.chrome = on; PV.classList.toggle('bare', !on); if (PV.classList.contains('open')) { measureInsets(); const el = curMedia(), m = V.list[V.i]; if (el && m) { const r = fitRect(m); el.style.transition = 'left var(--sp-soft-ms) var(--sp-soft), top var(--sp-soft-ms) var(--sp-soft), width var(--sp-soft-ms) var(--sp-soft), height var(--sp-soft-ms) var(--sp-soft)'; Object.assign(el.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' }); setTimeout(() => el.style.transition = '', 600); } } }
-  function setTray(f, anim = true) { // f: 0 = gọn, 1 = mở hết
-    const tr = PV.querySelector('.pv-tray'), H = tr.offsetHeight || 300, peek = 128, y0 = H - peek;
-    const target = (1 - f) * y0; V.tray = f;
-    if (!anim) { tr.style.transform = `translate3d(0,${target}px,0)`; return; }
-    const cur = new DOMMatrixReadOnly(getComputedStyle(tr).transform).m42 || 0;
-    V.tstop?.(); V.tstop = animateSpring(cur, target, { k: 300, c: 24 }, y => tr.style.transform = `translate3d(0,${y}px,0)`);
-  }
-  { // cử chỉ: vuốt ngang chuyển ảnh, vuốt xuống đóng, chụm phóng, chạm đúp phóng 2x
+  { // cử chỉ: vuốt ngang có đà, vuốt xuống đóng (ảnh thu về đúng ô), chụm / chạm đúp để phóng
     const ptr = new Map(); let g = null, lastTap = 0, tapT = 0;
     const bg = PV.querySelector('.pv-bg');
     track.addEventListener('pointerdown', e => {
-      if (e.target.closest('video') && e.clientY > innerHeight - 70) return;
       track.setPointerCapture(e.pointerId); ptr.set(e.pointerId, { x: e.clientX, y: e.clientY }); V.stop?.();
       if (ptr.size === 2) { const [a, b] = [...ptr.values()]; g = { mode: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), s0: V.z.s, x0: V.z.x, y0: V.z.y, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; return; }
       g = { mode: null, sx: e.clientX, sy: e.clientY, t: performance.now(), lx: e.clientX, ly: e.clientY, lt: performance.now(), vx: 0, vy: 0, x0: V.x, zx: V.z.x, zy: V.z.y };
@@ -682,69 +901,102 @@ export function initTimeline(A) {
         const cx = g.cx - innerWidth / 2, cy = g.cy - innerHeight / 2; V.z.s = s; V.z.x = g.x0 + (cx - g.x0) * (1 - s / g.s0); V.z.y = g.y0 + (cy - g.y0) * (1 - s / g.s0); applyZoom(); return;
       }
       const dx = e.clientX - g.sx, dy = e.clientY - g.sy, now = performance.now(), dt = Math.max(1, now - g.lt);
-      g.vx = (e.clientX - g.lx) / dt; g.vy = (e.clientY - g.ly) / dt; g.lx = e.clientX; g.ly = e.clientY; g.lt = now;
-      if (!g.mode) { if (Math.hypot(dx, dy) < 8) return; g.mode = V.z.s > 1.02 ? 'pan' : Math.abs(dx) > Math.abs(dy) ? 'swipe' : dy > 0 ? 'dismiss' : 'tray'; }
+      g.vx = g.vx * .3 + (e.clientX - g.lx) / dt * .7; g.vy = g.vy * .3 + (e.clientY - g.ly) / dt * .7; g.lx = e.clientX; g.ly = e.clientY; g.lt = now;
+      if (!g.mode) { if (Math.hypot(dx, dy) < 8) return; g.mode = V.z.s > 1.02 ? 'pan' : Math.abs(dx) > Math.abs(dy) ? 'swipe' : dy > 0 ? 'dismiss' : 'up'; if (g.mode === 'dismiss') showUI(false); }
       if (g.mode === 'swipe') { let x = g.x0 + dx; if ((V.i === 0 && x > 0) || (V.i === V.list.length - 1 && x < 0)) x = rubber(x, V.W * .7); setX(x); }
       else if (g.mode === 'dismiss') { const el = curMedia(); const k = 1 - clamp(dy / V.H, 0, 1) * .45; if (el) el.style.transform = `translate3d(${dx * .6}px,${dy}px,0) scale(${k})`; bg.style.opacity = clamp(1 - dy / (V.H * .7), 0, 1); PV.classList.add('drag'); }
       else if (g.mode === 'pan') { V.z.x = g.zx + dx; V.z.y = g.zy + dy; applyZoom(); }
-      else if (g.mode === 'tray' && dy < -30 && V.tray < 1) { setTray(1); g.mode = 'done'; }
+      else if (g.mode === 'up' && dy < -40 && !V.ui) { showUI(true); g.mode = 'done'; }
     });
     const up = e => {
       if (!ptr.has(e.pointerId)) return; ptr.delete(e.pointerId); if (ptr.size) return; const G = g; g = null; if (!G) return;
       PV.classList.remove('drag');
       if (G.mode === 'pinch') { if (V.z.s < 1.05) { const z0 = { ...V.z }; animateSpring(1, 0, { k: 300, c: 26, eps: .002 }, f => { V.z = { s: 1 + (z0.s - 1) * f, x: z0.x * f, y: z0.y * f }; applyZoom(); }); } return; }
-      if (G.mode === 'swipe') { const dx = V.x - G.x0, v = G.vx; const d = (dx < -V.W * .22 || v < -.45) ? 1 : (dx > V.W * .22 || v > .45) ? -1 : 0; if (d) go(d, v * 1000); else V.stop = animateSpring(V.x, 0, { k: 300, c: 22, v: v * 1000 }, setX); return; }
+      if (G.mode === 'swipe') { const dx = V.x - G.x0, v = G.vx; const d = (dx < -V.W * .2 || v < -.4) ? 1 : (dx > V.W * .2 || v > .4) ? -1 : 0; if (d) go(d, v * 1000); else V.stop = animateSpring(V.x, 0, { k: 300, c: 22, v: v * 1000 }, setX); return; }
       if (G.mode === 'dismiss') {
         const dy = e.clientY - G.sy;
-        if (dy > 120 || G.vy > .8) { closeViewer(dy); setTimeout(() => { bg.style.opacity = ''; }, 520); }
+        if (dy > 110 || G.vy > .7) { closeViewer(); setTimeout(() => { bg.style.opacity = ''; }, 520); }
         else { const el = curMedia(), dx0 = e.clientX - G.sx; animateSpring(1, 0, { k: 320, c: 24, eps: .002 }, f => { if (el) el.style.transform = f > .001 ? `translate3d(${dx0 * .6 * f}px,${dy * f}px,0) scale(${1 - clamp(dy / V.H, 0, 1) * .45 * f})` : ''; bg.style.opacity = 1 - clamp(dy * f / (V.H * .7), 0, 1); }); }
         return;
       }
       if (G.mode) return;
-      // chạm
+      // chạm: 1 lần = hiện/ẩn khung chữ (video: phát/dừng khi khung đang hiện), 2 lần = phóng
       const now = performance.now();
       if (now - lastTap < 300) { clearTimeout(tapT); lastTap = 0; zoomAt(e.clientX, e.clientY); return; }
-      lastTap = now; tapT = setTimeout(() => setChrome(!V.chrome), 300);
+      lastTap = now; tapT = setTimeout(() => { if (!PV.classList.contains('open')) return; const v = V.vid; if (v && V.ui && v.paused) { v.play().catch(() => { }); showUI(false); } else showUI(!V.ui); }, 280);
     };
     track.addEventListener('pointerup', up); track.addEventListener('pointercancel', up);
     track.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); V.z.s = clamp(V.z.s * Math.exp(-e.deltaY * .01), 1, 5); if (V.z.s <= 1.01) V.z = { s: 1, x: 0, y: 0 }; applyZoom(); }, { passive: false });
     function zoomAt(x, y) {
-      const z0 = { ...V.z }, target = z0.s > 1.05 ? { s: 1, x: 0, y: 0 } : { s: 2.2, x: -(x - innerWidth / 2) * 1.2, y: -(y - innerHeight / 2) * 1.2 };
-      haptic(6); animateSpring(0, 1, { k: 280, c: 22, eps: .002 }, f => { V.z = { s: z0.s + (target.s - z0.s) * f, x: z0.x + (target.x - z0.x) * f, y: z0.y + (target.y - z0.y) * f }; applyZoom(); });
+      const z0 = { ...V.z }, target = z0.s > 1.05 ? { s: 1, x: 0, y: 0 } : { s: 2.4, x: -(x - innerWidth / 2) * 1.4, y: -(y - innerHeight / 2) * 1.4 };
+      haptic(6); showUI(false); animateSpring(0, 1, { k: 280, c: 22, eps: .002 }, f => { V.z = { s: z0.s + (target.s - z0.s) * f, x: z0.x + (target.x - z0.x) * f, y: z0.y + (target.y - z0.y) * f }; applyZoom(); });
     }
-    // khay thông tin kéo lên/xuống
-    const tr = PV.querySelector('.pv-tray'); let td = null;
-    tr.querySelector('.grab').addEventListener('click', () => setTray(V.tray ? 0 : 1));
-    tr.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; td = { y: e.clientY, y0: new DOMMatrixReadOnly(getComputedStyle(tr).transform).m42 || 0, moved: false }; tr.setPointerCapture(e.pointerId); V.tstop?.(); });
-    tr.addEventListener('pointermove', e => { if (!td) return; const dy = e.clientY - td.y; if (Math.abs(dy) > 5) td.moved = true; const H = tr.offsetHeight, max = H - 128; let y = td.y0 + dy; if (y < 0) y = rubber(y, 120); if (y > max) y = max + rubber(y - max, 120); tr.style.transform = `translate3d(0,${y}px,0)`; });
-    const tup = e => { if (!td) return; const moved = td.moved, dy = e.clientY - td.y; td = null; if (!moved) return; setTray(dy < -20 ? 1 : dy > 20 ? 0 : V.tray); };
-    tr.addEventListener('pointerup', tup); tr.addEventListener('pointercancel', tup);
   }
   PV.addEventListener('click', async e => {
     const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a, m = V.list[V.i];
-    if (a === 'more') { photoMenu(m, null, b, true); return; }
-    if (a === 'kids') { const ids = await A.pickKids([m]); if (ids) { await A.setKidsMany([m], ids); fillInfo(); A.toast('Đã gắn bé', 1200); } return; }
-    if (a === 'cover') { setCover(m); fillInfo(); return; }
-    if (a === 'bg') { A.setBgFromMoment(m); return; }
-    if (a === 'avatar') { A.avatarFromMoment(m); return; }
-    if (a === 'close') closeViewer();
-    else if (a === 'save') A.saveOriginal(m);
-    else if (a === 'edit') openEditM(m);
-    else if (a === 'del') {
-      if (!(await A.ask('Xoá khoảnh khắc này?', `“${m.title || A.dmy(m.ts)}” sẽ vào thùng rác 30 ngày, khôi phục được.`, 'Xoá', true))) return;
-      V.list = V.list.filter(x => x !== m);
-      if (!V.list.length) { closeViewer(); } else { V.i = Math.min(V.i, V.list.length - 1); layoutSlides(); }
-      await A.trashMoments([m], 'Đã chuyển vào thùng rác'); refreshAll(st.cur?.key);
-    } else if (a === 'split') {
-      const e2 = st.cur; if (!e2) return; (st.meta.splits[e2.day] ||= []).push(m.ts); await saveMeta(); haptic(12);
-      closeViewer(); closeEvent(); render(); const k = keyOfMid(m.id); setTimeout(() => k && scrollToKey(k), 450); A.toast('Đã tách thành 2 sự kiện', 1800);
-    }
+    if (a === 'more') { showUI(true); clearTimeout(uiT); photoMenu(m, null, b, true); return; }
+    if (a === 'close') { closeViewer(); return; }
+    if (a === 'vplay') { const v = V.vid; if (v) { if (v.paused) v.play().catch(() => { }); else v.pause(); } showUI(true); return; }
+    if (a === 'vmute') { const v = V.vid; if (v) { v.muted = !v.muted; updVC(); } showUI(true); return; }
   });
+  async function viewerDelete(m) {
+    if (!(await A.ask('Xoá khoảnh khắc này?', `“${m.title || A.dmy(m.ts)}” sẽ vào thùng rác 30 ngày, khôi phục được.`, 'Xoá', true))) return;
+    V.list = V.list.filter(x => x !== m);
+    if (!V.list.length) closeViewer(); else { V.i = Math.min(V.i, V.list.length - 1); buildFilm(); layoutSlides(); }
+    await A.trashMoments([m], 'Đã chuyển vào thùng rác'); refreshAll(st.cur?.key);
+  }
+  async function splitHere(m) {
+    const e2 = st.cur; if (!e2) return; (st.meta.splits[e2.day] ||= []).push(m.ts); await saveMeta(); haptic(12);
+    closeViewer(); closeEvent(); render(); const k = keyOfMid(m.id); setTimeout(() => k && scrollToKey(k), 450); A.toast('Đã tách thành 2 sự kiện', 1800);
+  }
   addEventListener('keydown', e => {
-    if (PV.classList.contains('open')) { if (e.key === 'ArrowRight') { e.preventDefault(); go(1); } else if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); } else if (e.key === 'Escape') closeViewer(); e.stopImmediatePropagation(); return; }
+    if (EVS.classList.contains('open')) { if (e.key === 'Escape') { e.stopImmediatePropagation(); stopEvShow(); } return; }
+    if (PV.classList.contains('open')) { if (e.key === 'ArrowRight') { e.preventDefault(); go(1); } else if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); } else if (e.key === 'Escape') closeViewer(); else if (e.key === ' ' && V.vid) { e.preventDefault(); V.vid.paused ? V.vid.play() : V.vid.pause(); } e.stopImmediatePropagation(); return; }
     if (EVP.classList.contains('open') && e.key === 'Escape' && !document.querySelector('.modal.open')) { e.stopImmediatePropagation(); closeEvent(); }
   }, true);
-  addEventListener('resize', () => { if (PV.classList.contains('open')) layoutSlides(); });
+  addEventListener('resize', () => { if (PV.classList.contains('open')) { FI.style.padding = `0 ${Math.max(0, (innerWidth - FW) / 2)}px`; layoutSlides(); } });
+
+  // ---------- chiếu riêng một sự kiện: nhạc, ảnh trôi kiểu Ken Burns, chuyển cảnh mềm ----------
+  const EVS = $('#evs'), EST = EVS.querySelector('.evs-st'); const ES = { on: false, tok: 0, urls: [] };
+  const sleepT = (ms, tok) => new Promise(r => setTimeout(() => r(ES.tok === tok), ms));
+  async function playEvent(e) {
+    if (ES.on) return; const tok = ++ES.tok; ES.on = true; ES.e = e;
+    EVS.classList.add('open'); EVS.setAttribute('aria-hidden', 'false'); document.body.classList.add('evshow'); EST.innerHTML = '';
+    A.music?.(true); haptic(8);
+    const cap = EVS.querySelector('.evs-cap'), bar = EVS.querySelector('.evs-bar i');
+    cap.querySelector('small').textContent = fmtLong(e.ts0); cap.querySelector('b').textContent = e.title; cap.querySelector('span').textContent = A.family() ? '' : A.ageText(A.kid(), e.ts0);
+    cap.classList.remove('on', 'end'); void cap.offsetWidth; cap.classList.add('on');
+    const list = e.ms.slice(0, 40); let prev = null;
+    const getSrc = async m => { const b = (!m.heic && await A.dbGet('blobs', 'o_' + m.id)) || await A.dbGet('blobs', 't_' + m.id); if (!b) return ''; const u = URL.createObjectURL(b); ES.urls.push(u); return u; };
+    let nextSrc = list[0] && getSrc(list[0]);
+    if (!await sleepT(1800, tok)) return;
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i], src = await nextSrc; if (ES.tok !== tok) return; nextSrc = list[i + 1] && getSrc(list[i + 1]);
+      const L = document.createElement('div'); L.className = 'evs-l'; const R = rng(m.id + i), dir = R() > .5 ? 1 : -1;
+      L.style.setProperty('--x0', (R() * 6 - 3).toFixed(1) + '%'); L.style.setProperty('--y0', (R() * 6 - 3).toFixed(1) + '%'); L.style.setProperty('--x1', (dir * (2 + R() * 3)).toFixed(1) + '%'); L.style.setProperty('--y1', ((R() - .5) * 5).toFixed(1) + '%');
+      L.style.setProperty('--s0', R() > .5 ? '1.02' : '1.13'); L.style.setProperty('--s1', L.style.getPropertyValue('--s0') === '1.02' ? '1.14' : '1.03');
+      let hold = 4600;
+      if (m.type === 'video' && src) { const v = document.createElement('video'); Object.assign(v, { src, playsInline: true, muted: false, preload: 'auto' }); v.setAttribute('playsinline', ''); L.appendChild(v); L.classList.add('v'); A.duck?.(true); v.play().catch(() => { v.muted = true; v.play().catch(() => { }); }); hold = clamp(((m.dur || 6) + .2) * 1000, 3000, 12000); v.onended = () => { hold = 0; }; }
+      else { const b = await (await fetch(src)).blob(), cv = await fitCanvas(b, innerWidth, innerHeight, 1.16); L.style.setProperty('--kb', (hold + 1400) + 'ms'); if (cv) { cv.className = 'kbi'; L.appendChild(cv); } }
+      EST.appendChild(L); void L.offsetWidth; L.classList.add('on');
+      if (i === 0) setTimeout(() => cap.classList.remove('on'), 2400);
+      bar.style.transition = 'none'; bar.style.transform = `scaleX(${i / list.length})`; void bar.offsetWidth; bar.style.transition = `transform ${hold}ms linear`; bar.style.transform = `scaleX(${(i + 1) / list.length})`;
+      if (prev) { const p = prev; setTimeout(() => { p.querySelector('video')?.pause(); p.remove(); }, 1300); }
+      prev = L; const t0 = performance.now();
+      while (performance.now() - t0 < hold) { if (!await sleepT(120, tok)) return; }
+      if (m.type === 'video') { L.querySelector('video')?.pause(); A.duck?.(false); }
+    }
+    cap.querySelector('small').textContent = A.family() ? '' : A.ageText(A.kid(), e.ts1); cap.querySelector('b').textContent = '♡ ' + e.title; cap.querySelector('span').textContent = 'Hết rồi — chạm để quay lại';
+    cap.classList.add('on', 'end'); prev?.classList.add('dim');
+    if (await sleepT(3200, tok)) stopEvShow();
+  }
+  function stopEvShow() {
+    if (!ES.on) return; ES.tok++; ES.on = false; A.music?.(false); A.duck?.(false);
+    EVS.classList.remove('open'); EVS.setAttribute('aria-hidden', 'true'); document.body.classList.remove('evshow');
+    EST.querySelectorAll('video').forEach(v => v.pause()); const us = ES.urls; ES.urls = [];
+    setTimeout(() => { if (!ES.on) EST.innerHTML = ''; us.forEach(u => URL.revokeObjectURL(u)); }, 500);
+  }
+  EVS.addEventListener('click', e => { if (e.target.closest('.evs-x') || EVS.querySelector('.evs-cap.end')) { stopEvShow(); return; } EVS.classList.add('tap'); clearTimeout(EVS._t); EVS._t = setTimeout(() => EVS.classList.remove('tap'), 2500); });
   // sửa khoảnh khắc (ngày hiện rõ chữ để khỏi nhầm ngày/tháng)
   let editing = null;
   const dateLine = (inp, out) => { const t = A.parseYmd(inp.value); out.textContent = t ? fmtLong(t) : ''; };
@@ -767,6 +1019,6 @@ export function initTimeline(A) {
     guard: (ms = 550) => { st.guard = performance.now() + ms; },
     startSel, endSel, eventMenu, get hidePreg() { return st.hidePreg; },
     async setHidePreg(v) { st.hidePreg = v; await A.metaSet('hidePreg:' + (A.family() ? 'fam' : A.kid().id), v); render(); },
-    isOpen: () => EVP.classList.contains('open') || PV.classList.contains('open'), scroller: TL, viewer: V, dateLine
+    isOpen: () => EVP.classList.contains('open') || PV.classList.contains('open') || EVS.classList.contains('open'), scroller: TL, viewer: V, dateLine, playEvent, stopEvShow, layoutGrid, showGrid, strip: SP, get cur() { return st.cur; }
   };
 }
