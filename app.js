@@ -8,7 +8,7 @@ import { initProfile, KID_COLORS, defaultColor } from './hoso.js';
 import { initNhac } from './nhac.js';
 import { birthIntro, showOutro } from './modau.js';
 
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
 const MUTE = Q.has('im');
