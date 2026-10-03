@@ -15,7 +15,7 @@ const HTML = `
 <div id="evp" aria-hidden="true">
   <div class="evp-bg"><canvas class="evp-bgc" width="36" height="48"></canvas><i></i></div>
   <div class="evp-sc">
-    <header class="evp-head"><div class="evp-hx"><div class="evp-dt"></div><h2 class="evp-ti"></h2><div class="evp-chips"></div>
+    <header class="evp-head"><div class="evp-hx"><div class="evp-dt"></div><h2 class="evp-ti"><span class="tt" spellcheck="false"></span><i class="pen" aria-hidden="true">${icon('edit', 17, 2)}</i></h2><div class="evp-chips"></div>
       <div class="evp-cta"><button data-a="play" class="cta1">${icon('play', 18, 2.2)}<span>Chiếu</span></button></div></div></header>
     <div class="evp-strip" aria-label="Dải ảnh — quẹt ngang để xem"><div class="evp-rows"></div></div>
     <div class="evp-body">
@@ -526,7 +526,7 @@ export function initTimeline(A) {
   }
   function fillEvent(e) {
     EVP.querySelector('.evp-dt').textContent = e.days.length > 1 ? dateTxt(e) : fmtLong(e.ts0);
-    EVP.querySelector('.evp-ti').textContent = e.title;
+    if (!EVP.querySelector('.evp-ti').classList.contains('editing')) EVP.querySelector('.evp-ti .tt').textContent = e.title;
     const ag = A.family() ? '' : A.ageText(A.kid(), e.ts0, false);
     EVP.querySelector('.evp-chips').innerHTML = [e.mile ? `<span class="hc mile">${icon(e.mile.ic, 14, 2)}Cột mốc</span>` : '', ag ? `<span class="hc age">${esc(ag)}</span>` : '', `<span class="hc">${esc(countTxt(e))}</span>`].join('');
     EVP.querySelector('.evp-bt b').textContent = e.title; EVP.querySelector('.evp-bt small').textContent = A.dmy(e.ts0);
@@ -613,6 +613,20 @@ export function initTimeline(A) {
     else if (a === 'grid') showGrid(GRID.hidden, true);
   });
   EVP.querySelector('.evp-more').onclick = e => st.cur && eventMenu(st.cur, null, e.currentTarget);
+  // đặt tên sự kiện ngay tại chỗ: chạm vào tiêu đề
+  { const TI = EVP.querySelector('.evp-ti'), TT = TI.querySelector('.tt'); let old = '';
+    const start = () => { if (!st.cur || TI.classList.contains('editing')) return; old = TT.textContent; TI.classList.add('editing'); try { TT.contentEditable = 'plaintext-only'; } catch (e) { } if (TT.contentEditable !== 'plaintext-only') TT.contentEditable = 'true'; TT.focus(); const r = document.createRange(); r.selectNodeContents(TT); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); haptic(6); };
+    const finish = async save => { if (!TI.classList.contains('editing')) return; TI.classList.remove('editing'); TT.contentEditable = 'false'; const t = TT.textContent.replace(/\s+/g, ' ').trim().slice(0, 60); const e = st.cur; if (!save || !e || t === old) { TT.textContent = old; return; } await setTitle(e.key, t); A.toast(t ? 'Đã đặt tên “' + t + '”' : 'Đã dùng lại tên tự động', 1600); };
+    TI.addEventListener('click', start);
+    TT.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); TT.blur(); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); TT.blur(); } });
+    TT.addEventListener('blur', () => finish(true)); }
+  // lưu tên một sự kiện (một ngày / gộp ngày); tên trống = dùng tên tự động
+  async function setTitle(key, t) {
+    const e = st.byKey.get(key); if (!e) return;
+    if (e.group) { e.group.name = t || e.group.name; await A.saveGroups?.(); }
+    else if (t && t !== (e.mile?.label || e.auto)) st.meta.titles[key] = t; else delete st.meta.titles[key];
+    await saveMeta(); render(); if (st.cur && st.byKey.get(key)) { st.cur = st.byKey.get(key); fillEvent(st.cur); }
+  }
   const hint = t => { const h = EVP.querySelector('.evp-hint'); h.textContent = t || ''; h.hidden = !t; };
   // ---------- menu & thao tác sự kiện ----------
   function eventMenu(e, el, at) {
@@ -1015,7 +1029,7 @@ export function initTimeline(A) {
   return {
     async reload() { await loadMeta(); render(false); },
     render, refreshAll, scrollToKey, keyOfMid, openEvent, closeEvent, openViewer, closeViewer, openJump,
-    get events() { return st.events; }, get meta() { return st.meta; }, setMeta: async m => { st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, m); await saveMeta(); },
+    setTitle, get events() { return st.events; }, get meta() { return st.meta; }, setMeta: async m => { st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, m); await saveMeta(); },
     guard: (ms = 550) => { st.guard = performance.now() + ms; },
     startSel, endSel, eventMenu, get hidePreg() { return st.hidePreg; },
     async setHidePreg(v) { st.hidePreg = v; await A.metaSet('hidePreg:' + (A.family() ? 'fam' : A.kid().id), v); render(); },

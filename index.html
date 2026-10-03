@@ -791,6 +791,9 @@ body.v12:not(.tlfam) #tlv .rail { display: none; }
 #tbar .glassbtn { width: 40px; height: 40px; } #tbar #tbTheme { display: none; } #tbar .rt { gap: 8px; }
 #tbar .tt { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; padding: 0 6px; }
 #tabbar > button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+/* v1.4.1 — đặt tên tại chỗ */
+.evp-ti { cursor: text; } .evp-ti .tt { outline: none; border-radius: 10px; } .evp-ti .pen { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-left: 6px; border-radius: 50%; vertical-align: 4px; background: rgba(255,255,255,.16); opacity: .85; font-style: normal; }
+.evp-ti.editing { -webkit-line-clamp: unset; display: block; } .evp-ti.editing .tt { background: rgba(255,255,255,.14); box-shadow: 0 0 0 2px rgba(255,255,255,.55); padding: 0 6px; -webkit-user-select: text; user-select: text; } .evp-ti.editing .pen { display: none; }
 /* v1.4.1 — không bao giờ phải khai lại */
 .kfirst { margin: 4px 0 6px; padding: 14px; border-radius: 20px; background: rgba(255,255,255,.06); border: 1px dashed var(--glb); }
 .kf-b { width: 100%; min-height: 52px; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 700; border-radius: 26px; white-space: normal; text-align: center; }

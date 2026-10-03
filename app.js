@@ -1985,8 +1985,10 @@ async function saveAdd() {
   TL.refreshAll(null, ids); const k = target && TL.keyOfMid(target.id); if (k) setTimeout(() => TL.scrollToKey(k, { bounce: false }), 120);
   const own = news.length ? kidsOf(news[0]).map(id => cap(S.kids.find(x => x.id === id)?.name)).filter(Boolean).join(', ') : '';
   const evs = [...new Set(news.map(m => TL.keyOfMid(m.id)).filter(Boolean))].map(k2 => TL.events.find(e => e.key === k2)).filter(Boolean);
-  toast(evs.length === 1 ? `Đã thêm ${ids.length} ảnh vào “${evs[0].title}”` : evs.length > 1 ? `Đã thêm ${ids.length} ảnh vào ${evs.length} ngày` : `Đã thêm ${ids.length} khoảnh khắc vào dải của ${own}`, 2800);
-  updateNow(); maybeRemindBackup(ids.length);
+  const e1 = evs.length === 1 ? evs[0] : null, named = e1 && (TL.meta?.titles?.[e1.key] || e1.group);
+  if (e1 && !named) undoToast(`Đã thêm ${ids.length} ảnh vào ngày ${dmy(e1.ts0).slice(0, 5)} · Đặt tên?`, async () => { const t = await prompt2(`Đặt tên cho ngày ${dmy(e1.ts0)}`, '', 60); if (t?.trim()) { await TL.setTitle(e1.key, t.trim()); toast('Đã đặt tên “' + t.trim() + '”', 1600); } }, 6500, { label: 'Đặt tên', icon: 'edit' });
+  else toast(evs.length === 1 ? `Đã thêm ${ids.length} ảnh vào “${evs[0].title}”` : evs.length > 1 ? `Đã thêm ${ids.length} ảnh vào ${evs.length} ngày` : `Đã thêm ${ids.length} khoảnh khắc vào dải của ${own}`, 2800);
+  updateNow(); setTimeout(() => maybeRemindBackup(ids.length), e1 && !named ? 7000 : 0);
 }
 
 // nhập ảnh không qua hộp Thêm (dùng cho nhật ký): vẫn đọc ngày giờ chụp, làm ảnh nhỏ, lưu thành khoảnh khắc
@@ -2104,7 +2106,7 @@ async function maybeRemindBackup(added = 0) {
   const due = since >= 10 || (last ? now - last > 7 * 864e5 : (S.all.length >= 10 || now - Math.min(...S.all.map(m => m.created || now)) > 7 * 864e5));
   if (!due || now - lastAsk < 20 * 3600e3) return;
   await metaSet('bkRemind', now);
-  setTimeout(() => undoToast('💾 Sao lưu ngay — ảnh của bạn chỉ nằm trong máy này', () => doBackup(), 9000, { label: 'Sao lưu', icon: 'download' }), added ? 3200 : 0);
+  setTimeout(() => undoToast('💾 Sao lưu ngay — ảnh của bạn chỉ nằm trong máy này', () => doBackup(), 9000, { label: 'Sao lưu', icon: 'download' }), added ? 2600 : 0);
 }
 const b64u = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode(...u8.subarray(i, i + 8192)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 const unb64u = t => { const s = atob(t.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length + 3) % 4)); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
