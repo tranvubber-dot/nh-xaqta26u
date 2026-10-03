@@ -112,43 +112,44 @@ async function askPersist() {
 }
 
 // ---------- Đọc ngày chụp ----------
-function tiffDate(dv, t0) {
-  // t0 = vị trí đầu TIFF header ("II*\0" hoặc "MM\0*")
-  const le = dv.getUint16(t0) === 0x4949;
+// đọc MỌI khối EXIF (JPEG nhiều APP segment, HEIC item Exif), cả hai thứ tự byte; thêm XMP. Trả về chi tiết để soi lỗi.
+const EXDT = s => { const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(s || ''); return m && +m[1] >= 1990 ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : null; };
+function tiffTags(dv, t0) {
+  const le = dv.getUint16(t0) === 0x4949, L = dv.byteLength;
   const u16 = o => dv.getUint16(t0 + o, le), u32 = o => dv.getUint32(t0 + o, le);
-  const str = (o, n) => { let s = ''; for (let i = 0; i < n; i++) { const c = dv.getUint8(t0 + o + i); if (!c) break; s += String.fromCharCode(c); } return s; };
-  const readIfd = off => {
-    const out = {}; const n = u16(off);
-    if (n > 500) return out;
-    for (let i = 0; i < n; i++) {
-      const e = off + 2 + i * 12, tag = u16(e), type = u16(e + 2), cnt = u32(e + 4);
-      if (type === 2) out[tag] = str(cnt <= 4 ? e + 8 : u32(e + 8), cnt);
-      else if (type === 4 || type === 3) out[tag] = type === 4 ? u32(e + 8) : u16(e + 8);
-    }
-    return out;
-  };
-  const ifd0 = readIfd(u32(4));
-  let ex = {};
-  if (ifd0[0x8769]) ex = readIfd(ifd0[0x8769]);
-  const s = ex[0x9003] || ex[0x9004] || ifd0[0x0132];
-  const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(s || '');
-  if (!m || +m[1] < 1990) return null;
-  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  const str = (o, n) => { let s = ''; for (let i = 0; i < n && t0 + o + i < L; i++) { const c = dv.getUint8(t0 + o + i); if (!c) break; s += String.fromCharCode(c); } return s; };
+  const readIfd = off => { const out = {}; if (!off || t0 + off + 2 > L) return out; const n = u16(off); if (n > 500) return out;
+    for (let i = 0; i < n; i++) { const e = off + 2 + i * 12; if (t0 + e + 12 > L) break; const tag = u16(e), type = u16(e + 2), cnt = u32(e + 4);
+      if (type === 2) out[tag] = str(cnt <= 4 ? e + 8 : u32(e + 8), cnt); else if (type === 4 || type === 3) out[tag] = type === 4 ? u32(e + 8) : u16(e + 8); }
+    return out; };
+  const ifd0 = readIfd(u32(4)), ex = ifd0[0x8769] ? readIfd(ifd0[0x8769]) : {};
+  return { orig: ex[0x9003] || '', digi: ex[0x9004] || '', dt: ifd0[0x0132] || '', off: ex[0x9011] || '' };
 }
-async function exifDate(file) {
-  try {
-    const buf = new Uint8Array(await file.slice(0, 1 << 20).arrayBuffer());
-    const dv = new DataView(buf.buffer);
-    // tìm "Exif\0\0" rồi TIFF header (dùng được cho JPEG lẫn HEIC)
+async function readMeta(file) {
+  const info = { exif: [], xmp: '' };
+  const scan = buf => {
+    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
     for (let i = 0; i < buf.length - 14; i++) {
       if (buf[i] === 0x45 && buf[i + 1] === 0x78 && buf[i + 2] === 0x69 && buf[i + 3] === 0x66 && buf[i + 4] === 0 && buf[i + 5] === 0) {
         const t = i + 6, a = buf[t], b = buf[t + 1];
-        if ((a === 0x49 && b === 0x49 && buf[t + 2] === 0x2a) || (a === 0x4d && b === 0x4d && buf[t + 3] === 0x2a)) {
-          const r = tiffDate(dv, t); if (r) return r;
-        }
+        if ((a === 0x49 && b === 0x49 && buf[t + 2] === 0x2a) || (a === 0x4d && b === 0x4d && buf[t + 3] === 0x2a)) { try { info.exif.push(tiffTags(dv, t)); } catch (e) { } }
       }
     }
+    if (!info.xmp) { let txt = ''; for (let i = 0; i < buf.length; i += 32768) txt += String.fromCharCode.apply(null, buf.subarray(i, i + 32768)); const m = /(?:exif:DateTimeOriginal|xmp:CreateDate|photoshop:DateCreated)\s*(?:=\s*["']|>)\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)/.exec(txt); if (m) info.xmp = m[1]; }
+  };
+  try {
+    scan(new Uint8Array(await file.slice(0, Math.min(file.size, 1 << 20)).arrayBuffer()));
+    if (!info.exif.some(x => x.orig) && file.size > 1 << 20) scan(new Uint8Array(await file.slice(Math.max(1 << 20, file.size - (768 << 10)), file.size).arrayBuffer()));
   } catch (e) { }
+  return info;
+}
+// chỉ tin ngày CHỤP (DateTimeOriginal / Digitized / XMP); DateTime của IFD0 chỉ là ngày sửa tệp —
+// iPhone xuất ảnh qua ô chọn tệp hay ghi ngày lúc xuất vào đó, nên chỉ dùng khi không gần "bây giờ"
+async function exifDate(file, info) {
+  info = info || await readMeta(file);
+  for (const x of info.exif) { const t = EXDT(x.orig) || EXDT(x.digi); if (t) return t; }
+  if (info.xmp) { const t = Date.parse(info.xmp.length === 16 ? info.xmp + ':00' : info.xmp); if (t > 6e11) return t; }
+  for (const x of info.exif) { const t = EXDT(x.dt); if (t && Math.abs(Date.now() - t) > 3 * 864e5) return t; }
   return null;
 }
 async function videoDate(file) {
@@ -174,7 +175,7 @@ async function videoDate(file) {
           const dv = new DataView(buf.buffer, buf.byteOffset); const ver = buf[j + 4];
           const sec = ver === 1 ? Number(dv.getBigUint64(j + 8)) : dv.getUint32(j + 8);
           const t = (sec - 2082844800) * 1000;
-          if (t > 9.5e11 && t < Date.now() + 864e5) mv = t;
+          if (t > 9.5e11 && t < Date.now() + 864e5) { mv = t; try { file.vdSrc = 'mvhd'; } catch (e) { } }
         }
       }
     } catch (e) { }
@@ -211,6 +212,7 @@ function alignDates(rows) {
 }
 async function readDate(file, isVideo) {
   let t = isVideo ? await videoDate(file) : await exifDate(file);
+  if (t && isVideo && Math.abs(Date.now() - t) < 2 * 864e5 && file.vdSrc === 'mvhd') t = null; // mvhd gần "bây giờ" = lúc iPhone xuất tệp, không phải lúc quay
   if (t) return { ts: t, src: 'meta' };
   t = nameDate(file.name);
   if (t) return { ts: t, src: 'name' };
@@ -256,47 +258,34 @@ async function imageThumb(file) {
     return { blob: await canvasToBlob(t.c), w: 0, h: 0, color: '#ffd0c8', ok: false };
   } finally { URL.revokeObjectURL(url); }
 }
-function videoThumb(file) {
-  return new Promise(resolve => {
-    const url = URL.createObjectURL(file);
-    const v = document.createElement('video');
-    v.muted = true; v.playsInline = true; v.preload = 'auto'; v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
-    let done = false, dur = 0, tried = false;
-    const finish = async (ok) => {
-      if (done) return; done = true; clearTimeout(to);
-      let out;
-      if (ok && v.videoWidth) {
-        const t = drawThumb(v, v.videoWidth, v.videoHeight); const col = avgColor(t.x, t.w, t.h);
-        out = { blob: await canvasToBlob(t.c), w: v.videoWidth, h: v.videoHeight, color: col.hex, dur, ok: true };
-      } else {
-        const t = placeholderThumb('🎬');
-        out = { blob: await canvasToBlob(t.c), w: v.videoWidth || 0, h: v.videoHeight || 0, color: '#c9b8ff', dur, ok: false };
-      }
-      try { v.pause(); } catch (e) { }
-      v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url); resolve(out);
-    };
-    const grab = () => {
-      if (!v.videoWidth) return finish(false);
-      const t = drawThumb(v, v.videoWidth, v.videoHeight, 64); const col = avgColor(t.x, t.w, t.h);
-      if (col.lum < 14 && !tried) { // khung đen → phát thử (tắt tiếng) rồi chụp lại
-        tried = true;
-        v.play().then(() => setTimeout(() => { v.pause(); finish(true); }, 600)).catch(() => finish(true));
-        return;
-      }
-      finish(true);
-    };
-    let fixing = false;
-    v.onloadedmetadata = () => {
-      dur = isFinite(v.duration) ? v.duration : 0;
-      if (!dur && !fixing) { fixing = true; v.ondurationchange = () => { if (isFinite(v.duration) && v.duration > 0) { v.ondurationchange = null; dur = v.duration; v.currentTime = 0; setTimeout(() => v.onloadedmetadata(), 50); } }; v.currentTime = 1e7; return; }
-      const at = Math.min(1, dur ? dur / 2 : 0);
-      if (at > 0) { v.onseeked = () => { v.onseeked = null; requestAnimationFrame(() => setTimeout(grab, 60)); }; v.currentTime = at; }
-      else v.onloadeddata = () => setTimeout(grab, 60);
-    };
-    v.onerror = () => finish(false);
-    const to = setTimeout(() => finish(!!v.videoWidth), 8000);
-    v.src = url;
-  });
+// ảnh đại diện video — chịu được iOS WebKit: muted/playsinline đặt TRƯỚC src, gắn vào trang (không ẩn hẳn),
+// phát thử để có khung thật, chờ khung hình mới (requestVideoFrameCallback / timeupdate), chụp ~10% thời lượng, khung tối thì thử mốc khác
+function vmuted(v) { v.muted = true; v.defaultMuted = true; v.setAttribute('muted', ''); v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', ''); }
+const nextFrame = (v, ms = 1500) => new Promise(res => { let ok = false; const fin = () => { if (ok) return; ok = true; res(); }; if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => fin()); const tu = () => { if (v.currentTime > 0) { v.removeEventListener('timeupdate', tu); fin(); } }; v.addEventListener('timeupdate', tu); v.addEventListener('seeked', () => setTimeout(fin, 120), { once: true }); setTimeout(fin, ms); });
+const once = (el, ev, ms) => new Promise(res => { let t = 0; const f = () => { clearTimeout(t); el.removeEventListener(ev, f); res(true); }; el.addEventListener(ev, f); t = setTimeout(() => { el.removeEventListener(ev, f); res(false); }, ms); });
+async function videoThumb(file) {
+  const url = URL.createObjectURL(file), v = document.createElement('video');
+  vmuted(v); v.preload = 'auto'; v.crossOrigin = 'anonymous';
+  v.style.cssText = 'position:fixed;left:0;top:0;width:64px;height:64px;opacity:.011;pointer-events:none;z-index:-1';
+  document.body.appendChild(v); v.src = url;
+  let dur = 0, out = null;
+  try {
+    if (!(await once(v, 'loadedmetadata', 6000)) && !v.videoWidth) throw new Error('meta');
+    dur = isFinite(v.duration) ? v.duration : 0;
+    if (!dur) { v.currentTime = 1e7; await once(v, 'durationchange', 1500); dur = isFinite(v.duration) ? v.duration : 0; }
+    try { await v.play(); await nextFrame(v, 1200); v.pause(); } catch (e) { }
+    const tries = dur ? [.1, .3, .55, .02].map(k => Math.min(dur - .05, Math.max(.05, dur * k))) : [0];
+    for (const at of tries) {
+      if (Math.abs(v.currentTime - at) > .04) { v.currentTime = at; await once(v, 'seeked', 2500); }
+      await nextFrame(v, 700);
+      if (!v.videoWidth) continue;
+      const t = drawThumb(v, v.videoWidth, v.videoHeight), col = avgColor(t.x, t.w, t.h);
+      if (col.lum >= 16 || at === tries[tries.length - 1]) { out = { blob: await canvasToBlob(t.c), w: v.videoWidth, h: v.videoHeight, color: col.hex, dur, ok: col.lum >= 16 }; if (col.lum >= 16) break; }
+    }
+  } catch (e) { }
+  if (!out) { const t = placeholderThumb('🎬'); out = { blob: await canvasToBlob(t.c), w: v.videoWidth || 0, h: v.videoHeight || 0, color: '#c9b8ff', dur, ok: false }; }
+  try { v.pause(); } catch (e) { } v.removeAttribute('src'); v.load(); v.remove(); URL.revokeObjectURL(url);
+  return out;
 }
 
 // ---------- Sao lưu .nganha ----------
@@ -1902,7 +1891,16 @@ function refreshAddBtn() {
   b.textContent = ADD.busy ? 'Đang lưu…' : ADD.pending ? `Đang đọc ${ADD.pending} tệp…` : n ? `Lưu ${n} khoảnh khắc vào dòng thời gian` : 'Lưu vào dòng thời gian';
 }
 // sau khi đọc xong cả đợt: tự căn ngày rồi xếp sẵn theo nhóm ngày (không hỏi gì)
+// ?test: bảng "Chi tiết tệp" để soi tệp iPhone đưa vào (tên, loại, cỡ, lastModified, các thẻ ngày đọc được)
+async function renderAddDebug() {
+  if (!TEST) return; let box = $('#addDbg'); if (!box) { $('#addList').insertAdjacentHTML('afterend', '<details id="addDbg" class="dbg"><summary>🔍 Chi tiết tệp</summary><pre></pre></details>'); box = $('#addDbg'); }
+  const out = [];
+  for (const r of ADD.rows) { const f = r.file, m = r.isV ? null : await readMeta(f);
+    out.push(`${f.name} · ${f.type || '?'} · ${fmtSize(f.size)} · lastModified ${new Date(f.lastModified).toLocaleString('vi-VN')}\n  → ${new Date(r.ts).toLocaleString('vi-VN')} [${r.src}]` + (m ? `\n  EXIF: ${m.exif.map(x => `gốc=${x.orig || '-'} số hoá=${x.digi || '-'} sửa=${x.dt || '-'}${x.off ? ' ' + x.off : ''}`).join(' | ') || 'không có'} · XMP: ${m.xmp || '-'}` : `\n  video: ${f.vdSrc || 'creationdate'}`)); }
+  box.querySelector('pre').textContent = out.join('\n\n');
+}
 function regroupAdd() {
+  if (TEST) setTimeout(renderAddDebug, 0);
   if (ADD.pending) return;
   alignDates(ADD.rows);
   const rows = ADD.rows.filter(r => r.ready || r.bad).sort((a, b) => (a.ts || 0) - (b.ts || 0)), list = $('#addList');
