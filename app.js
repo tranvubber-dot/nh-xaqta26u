@@ -2,8 +2,10 @@
 // Mọi dữ liệu chỉ nằm trong máy người dùng (IndexedDB). Không gửi đi đâu.
 import * as THREE from './lib/three.module.min.js';
 import { initDiary } from './nhatky.js';
+import { installSprings, initSheets, icon, haptic, fmtLong, IOS } from './ui.js';
+import { initTimeline } from './dongthoigian.js';
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
 const MUTE = Q.has('im');
@@ -32,7 +34,10 @@ const parseYmd = (s, keepFrom) => {
   return new Date(+m[1], +m[2] - 1, +m[3], o ? o.getHours() : 12, o ? o.getMinutes() : 0, o ? o.getSeconds() : 0).getTime();
 };
 const dayStart = ts => { const d = new Date(ts); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+const cap = t => { t = String(t ?? '').trim(); return t ? t.charAt(0).toLocaleUpperCase('vi') + t.slice(1) : t; };
+const KN = () => cap(S.kid?.name);
 function ageText(kid, ts, withName = true) {
+  if (kid) kid = { ...kid, name: cap(kid.name) };
   if (!kid || !kid.birth) return '';
   const nm = withName ? kid.name + ' ' : '';
   const b = parseYmd(kid.birth), d0 = dayStart(ts), b0 = dayStart(b);
@@ -278,9 +283,10 @@ async function buildBackup(onProg) {
     }
     onProg?.(i / Math.max(1, moments.length));
   }
-  const diaries = await dbAll('diaries');
+  const diaries = await dbAll('diaries'), settings = { ev: {}, bg: {} };
+  for (const k of kids) { const e = await metaGet('ev:' + k.id), g = await metaGet('bg:' + k.id); if (e) settings.ev[k.id] = e; if (g) settings.bg[k.id] = g; const b = await dbGet('blobs', 'bg_' + k.id); if (b) { blobs.push({ key: 'bg_' + k.id, type: b.type || 'image/jpeg', size: b.size, off }); parts.push(b); off += b.size; } }
   for (const d of diaries) { const b = await dbGet('blobs', 'd_' + d.id); if (b) { blobs.push({ key: 'd_' + d.id, type: b.type || 'image/jpeg', size: b.size, off }); parts.push(b); off += b.size; } }
-  const header = new TextEncoder().encode(JSON.stringify({ app: 'NganHaCuaCon', v: 1, ver: VERSION, created: Date.now(), children: kids, moments, diaries, blobs }));
+  const header = new TextEncoder().encode(JSON.stringify({ app: 'NganHaCuaCon', v: 1, ver: VERSION, created: Date.now(), children: kids, moments, diaries, settings, blobs }));
   return new Blob([new TextEncoder().encode('NGANHA01' + String(header.length).padStart(12, '0')), header, ...parts], { type: 'application/octet-stream' });
 }
 async function readBackup(file) {
@@ -314,6 +320,8 @@ async function importBackup(file, onProg) {
     const b = bmap.get('d_' + d.id); if (b) await dbPut('blobs', file.slice(base + b.off, base + b.off + b.size, b.type), 'd_' + d.id);
     await dbPut('diaries', d); nd++;
   }
+  for (const [kid, v] of Object.entries(hd.settings?.ev || {})) if (!(await metaGet('ev:' + kid))) await metaSet('ev:' + kid, v);
+  for (const [kid, v] of Object.entries(hd.settings?.bg || {})) if (!(await metaGet('bg:' + kid))) { await metaSet('bg:' + kid, v); const b = bmap.get('bg_' + kid); if (b) await dbPut('blobs', file.slice(base + b.off, base + b.off + b.size, b.type), 'bg_' + kid); }
   return { nk, nm, skip, nd };
 }
 
@@ -415,12 +423,14 @@ const S = {
 };
 const V3 = THREE.Vector3;
 const UP = new V3(0, 1, 0);
+// hình nền (theo từng bé): 'auto' = theo phong cách, 'scene' = cảnh 3D, 'grad' = màu chuyển sắc, 'image' = ảnh của bạn
+var BG = { cfg: null, flat: false, url: null };
 
 // ---------- Renderer ----------
 const canvas = $('#scene');
 const DPR_MAX = 2;
 let dpr = Math.min(devicePixelRatio || 1, DPR_MAX);
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: !MOBILE || dpr < 2, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: TEST });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !MOBILE || dpr < 2, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: TEST });
 renderer.setPixelRatio(dpr);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
@@ -523,15 +533,15 @@ TX.neb = [0, 1, 2].map(k => canvasTex(256, 256, (x, w) => {
 
 // ---------- Bầu trời 2 phong cách ----------
 const sky = new THREE.Mesh(new THREE.SphereGeometry(3000, 32, 18), new THREE.ShaderMaterial({
-  uniforms: { uMix: { value: 0 } }, side: THREE.BackSide, depthWrite: false,
+  uniforms: { uMix: { value: 0 }, uN1: { value: new V3(.075, .04, .17) }, uN2: { value: new V3(.018, .016, .07) }, uN3: { value: new V3(.14, .05, .2) }, uD1: { value: new V3(1, .79, .66) }, uD2: { value: new V3(1, .9, .86) }, uD3: { value: new V3(.99, .83, .92) }, uD4: { value: new V3(.97, .78, .88) } }, side: THREE.BackSide, depthWrite: false,
   vertexShader: `varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
-  fragmentShader: `uniform float uMix; varying vec3 vD;
+  fragmentShader: `uniform float uMix; uniform vec3 uN1, uN2, uN3, uD1, uD2, uD3, uD4; varying vec3 vD;
   void main(){ float y = vD.y;
-    vec3 night = mix(vec3(.075,.04,.17), vec3(.018,.016,.07), smoothstep(-.05, .85, y));
-    night = mix(night, vec3(.14,.05,.2), smoothstep(.1, -.6, y) * .7);
-    vec3 dawn = mix(vec3(1.,.79,.66), vec3(1.,.9,.86), smoothstep(.0, .28, y));
-    dawn = mix(dawn, vec3(.99,.83,.92), smoothstep(.28, .9, y));
-    dawn = mix(dawn, vec3(.97,.78,.88), smoothstep(-.02, -.55, y));
+    vec3 night = mix(uN1, uN2, smoothstep(-.05, .85, y));
+    night = mix(night, uN3, smoothstep(.1, -.6, y) * .7);
+    vec3 dawn = mix(uD1, uD2, smoothstep(.0, .28, y));
+    dawn = mix(dawn, uD3, smoothstep(.28, .9, y));
+    dawn = mix(dawn, uD4, smoothstep(-.02, -.55, y));
     gl_FragColor = vec4(mix(night, dawn, uMix), 1.); }`
 }));
 sky.renderOrder = -10; scene.add(sky);
@@ -868,7 +878,7 @@ function buildBooks() {
     const P = pts.geometry.attributes.position.array, C = pts.geometry.attributes.color.array, Z = pts.geometry.attributes.size.array;
     for (let i = 0; i < n; i++) { const a = i / n * 6.283 + Math.random() * .4, r = 1.9 + Math.random() * .7; P.set([Math.cos(a) * r, Math.sin(a) * r * 1.2, (Math.random() - .5) * .8], i * 3); setCol(C, i, PAL_N[i % 2 ? 1 : 3]); Z[i] = .35 + Math.random() * .45; }
     const spin = new THREE.Group(); spin.add(halo, mesh, ribbon); g.add(spin, pts);
-    const lab = makeLabel([{ t: 'Nhật ký · ' + dmy(d.ts).slice(0, 5), size: 46, c: '#fff', dc: '#8d3a66' }], .62); lab.position.set(0, -2.35, 0); g.add(lab);
+    const lab = makeLabel([{ t: 'Nhật ký · ' + dmy(d.ts).slice(0, 5), size: 46, c: '#fff', dc: '#8d3a66' }], .62); lab.position.set(0, -2.35, 0); lab.material.depthTest = false; lab.renderOrder = 12; g.add(lab);
     mesh.userData.book = d.id; G.hits.push(mesh); G.group.add(g);
     const b = { d, s, g, spin, mesh, lab, card, yaw: 0, phase: Math.random() * 6, pop: 0 }; G.books.push(b);
     dbGet('blobs', 'd_' + d.id).then(bl => { if (!bl) return; const u = URL.createObjectURL(bl); loadImg(u).then(im => { const t = new THREE.Texture(im); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAX_ANISO; t.needsUpdate = true; if (G.books.includes(b)) { cover.map = t; cover.color.set('#fff'); cover.needsUpdate = true; } else t.dispose(); URL.revokeObjectURL(u); }).catch(() => URL.revokeObjectURL(u)); });
@@ -916,7 +926,7 @@ function buildStar(it, p) {
   rays.position.z = -.4;
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.glow, color: '#ffd38a', transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false })); halo.scale.setScalar(11);
   const spin = new THREE.Group(); spin.add(rays, mesh); g.add(halo, spin);
-  const lab = makeLabel([{ t: `Ngày ${S.kid.name} chào đời`, size: 64, c: '#fff3c4', dc: '#a8481c', glow: 'rgba(255,190,90,.95)' }, { t: dmy(parseYmd(S.kid.birth)), size: 44, w: 700, c: '#ffd0e4', dc: '#c4577f' }], 2.4);
+  const lab = makeLabel([{ t: `Ngày ${KN()} chào đời`, size: 64, c: '#fff3c4', dc: '#a8481c', glow: 'rgba(255,190,90,.95)' }, { t: dmy(parseYmd(S.kid.birth)), size: 44, w: 700, c: '#ffd0e4', dc: '#c4577f' }], 2.4);
   lab.position.set(0, 3.3, 0); g.add(lab);
   const hit = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.star = it; g.add(hit); G.hits.push(hit);
   G.group.add(g); G.star = { it, g, spin, halo, mesh, lab };
@@ -930,7 +940,7 @@ function buildGate(it, p) {
   const P = pts.geometry.attributes.position.array, C = pts.geometry.attributes.color.array, Z = pts.geometry.attributes.size.array;
   for (let i = 0; i < n; i++) { const a = i / n * 6.283; P.set([Math.cos(a) * 5.2, Math.sin(a) * 5.2, 0], i * 3); setCol(C, i, PAL_N[i % 2 ? 1 : 3]); Z[i] = .8 + Math.random() * 1.2; }
   g.add(glow, ring, pts); G.group.add(g);
-  const lab = makeLabel([{ t: String(it.year), size: 120, c: '#ffe7a8', dc: '#c25a1c', glow: 'rgba(255,180,90,.95)' }, { t: it.age >= 1 ? `${S.kid.name} tròn ${it.age} tuổi` : `Năm ${it.year}`, size: 46, c: '#ffd0e4', dc: '#a8406e' }], 3.4);
+  const lab = makeLabel([{ t: String(it.year), size: 120, c: '#ffe7a8', dc: '#c25a1c', glow: 'rgba(255,180,90,.95)' }, { t: it.age >= 1 ? `${KN()} tròn ${it.age} tuổi` : `Năm ${it.year}`, size: 46, c: '#ffd0e4', dc: '#a8406e' }], 3.4);
   lab.position.copy(p).add(new V3(0, 1.2 + 5.2 + 2.6, 0)); G.group.add(lab);
   const gate = { it, g, ring, glow, pts, lab, flash: 0, passed: false }; G.gates.push(gate); it.gate = gate;
 }
@@ -1074,7 +1084,88 @@ function applyThemeMats() {
   if (G.lines) { G.lines.material.blending = dawn ? THREE.NormalBlending : THREE.AdditiveBlending; G.lines.material.opacity = dawn ? .5 : .55; }
   if (dust) { const C = dust.geometry.attributes.color; if (dust.userData.dawn !== dawn) { dust.userData.dawn = dawn; const pal = dawn ? PAL_D : PAL_N; for (let i = 0; i < C.count; i++) setCol(C.array, i, pal[(i * 7) % pal.length], .7 + ((i * 13) % 10) / 33); C.needsUpdate = true; } }
   if (G.glow) { const C = G.glow.geometry.attributes.color, n = G.cards.length; if (G.glow.userData.dawn !== dawn) { G.glow.userData.dawn = dawn; G.cards.forEach((c, i) => { const col = dawn ? new THREE.Color(1, .97, .94) : new THREE.Color(c.m.color || '#ff9cc6').convertLinearToSRGB().lerp(new THREE.Color(1, .62, .82), .55); setCol(C.array, i, col); setCol(C.array, n + i, dawn ? new THREE.Color(1, .6, .4) : new THREE.Color(1, .9, .75)); }); C.needsUpdate = true; } }
-  const bg = new THREE.Color('#0b0a24').lerp(new THREE.Color('#fde4d6'), m); scene.background = null; renderer.setClearColor(bg);
+  const bg = new THREE.Color('#0b0a24').lerp(new THREE.Color('#fde4d6'), m); scene.background = null;
+  const flat = !!BG.flat, spk = BG.cfg ? BG.cfg.sparkle !== false : true;
+  if (flat) renderer.setClearColor(0x000000, 0); else renderer.setClearColor(bg, 1);
+  sky.visible = !flat; nebGroup.visible = !flat; starPts.visible = !flat; cloudGroup.visible = !flat;
+  sparkStars.visible = spk; bokeh.visible = spk; petals.visible = spk && !flat; bubbles.visible = spk;
+  if (flat) { envNight.visible = true; envDawn.visible = true; for (const mt of [sparkStars.material, bokeh.material, bubbles.material]) mt.uniforms.uOpacity.value = mt.userData.base * .9; }
+}
+
+// ---------- Hình nền: cảnh 3D, màu chuyển sắc, ảnh riêng ----------
+const SCN = {
+  night: { n: 'Đêm ngân hà', theme: 'night', sky: [[.075, .04, .17], [.018, .016, .07], [.14, .05, .2]], neb: ['#7a3cff', '#ff4fa3', '#3c6bff', '#b04cff', '#ff7a7a', '#4fb8ff', '#ff5fd0'], bok: ['#ff8fbf', '#ffd27f', '#c3b2ff', '#ffffff', '#9fd8ff', '#ffb3d6'], sw: 'radial-gradient(circle at 50% 35%,#4a2a86,#140f3a 55%,#07061a)' },
+  ocean: { n: 'Biển sao xanh', theme: 'night', sky: [[.03, .1, .22], [.006, .02, .06], [.02, .17, .26]], neb: ['#1f6bff', '#19c3c9', '#3c3bff', '#2a9dff', '#5fe0d0', '#4fb8ff', '#7a8cff'], bok: ['#7fe3ff', '#bff4ff', '#8fb4ff', '#ffffff', '#5fd0c8', '#ffe2a8'], sw: 'radial-gradient(circle at 50% 30%,#1d6d9c,#062042 55%,#020814)' },
+  dawn: { n: 'Bình minh', theme: 'dawn', sky: [[1, .79, .66], [1, .9, .86], [.99, .83, .92], [.97, .78, .88]], cloud: '#ffffff', sw: 'linear-gradient(180deg,#ffe3ee,#ffd9c6 55%,#ffc29c)' },
+  pink: { n: 'Mây hồng', theme: 'dawn', sky: [[1, .7, .83], [1, .85, .93], [.97, .8, .98], [.98, .7, .87]], cloud: '#ffe2f0', sw: 'linear-gradient(180deg,#ffe6f3,#ffc4de 55%,#f3b2d8)' }
+};
+const GRADS = {
+  keo: { n: 'Kẹo bông', css: 'linear-gradient(160deg,#ffd1e8,#c9d7ff 55%,#e9d4ff)', dark: false },
+  hoanghon: { n: 'Hoàng hôn', css: 'linear-gradient(170deg,#2a1b5c,#a8457a 55%,#ffb36b)', dark: true },
+  bacha: { n: 'Bạc hà', css: 'linear-gradient(160deg,#d8fff1,#bfe9ff 60%,#fff6d8)', dark: false },
+  demtim: { n: 'Đêm tím', css: 'radial-gradient(ellipse at 30% 10%,#5b2a8c,#16123a 60%,#070615)', dark: true }
+};
+const TINTS = ['#ff8fbf', '#ffd27f', '#9fe1cb', '#8fb4ff', '#c3a6ff', '#000000'];
+const BG_DEF = { kind: 'auto', scene: 'night', grad: 'keo', blur: 14, dim: .25, tint: .12, tintC: '#ff8fbf', sparkle: true, lum: .5 };
+function recolorPts(p, pal) { const C = p.geometry.attributes.color, cols = pal.map(h => new THREE.Color(h).convertLinearToSRGB()); for (let i = 0; i < C.count; i++) setCol(C.array, i, cols[i % cols.length]); C.needsUpdate = true; }
+function setScene(name) {
+  const c = SCN[name], u = sky.material.uniforms; if (!c) return;
+  if (c.theme === 'night') { [u.uN1, u.uN2, u.uN3].forEach((x, i) => x.value.set(...c.sky[i])); nebGroup.children.forEach((sp, i) => sp.material.color.set(c.neb[i % c.neb.length])); recolorPts(bokeh, c.bok); }
+  else { [u.uD1, u.uD2, u.uD3, u.uD4].forEach((x, i) => x.value.set(...c.sky[i])); clouds.forEach(sp => sp.material.color.set(c.cloud)); }
+  BG.scene = name;
+}
+async function bgUrl() {
+  if (BG.url) return BG.url; const b = S.kid && await dbGet('blobs', 'bg_' + S.kid.id); if (!b) return null;
+  BG.url = URL.createObjectURL(b); return BG.url;
+}
+async function loadBg() {
+  if (BG.url) { URL.revokeObjectURL(BG.url); BG.url = null; }
+  BG.cfg = { ...BG_DEF, ...((S.kid && await metaGet('bg:' + S.kid.id)) || {}) };
+  await applyBg();
+}
+let bgSaveT = 0;
+function saveBg() { clearTimeout(bgSaveT); bgSaveT = setTimeout(() => { if (S.kid && BG.cfg) metaSet('bg:' + S.kid.id, BG.cfg); }, 250); }
+async function applyBg() {
+  const c = BG.cfg; if (!c) return;
+  const L = $('#bgl'), gr = L.querySelector('.gr'), im = L.querySelector('.im'), tn = L.querySelector('.tn'), dm = L.querySelector('.dm');
+  const scene = c.kind === 'scene' ? c.scene : c.kind === 'auto' ? S.theme : null;
+  BG.flat = !scene;
+  let th = S.theme;
+  if (scene) { setScene(scene); th = SCN[scene].theme; gr.style.background = 'none'; im.style.backgroundImage = 'none'; tn.style.opacity = 0; dm.style.opacity = 0; }
+  else if (c.kind === 'grad') { const g = GRADS[c.grad] || GRADS.keo; gr.style.background = g.css; im.style.backgroundImage = 'none'; tn.style.opacity = 0; dm.style.opacity = 0; th = g.dark ? 'night' : 'dawn'; }
+  else {
+    const u = await bgUrl(); gr.style.background = '#1a1430'; im.style.backgroundImage = u ? `url("${u}")` : 'none';
+    im.style.filter = c.blur > 0 ? `blur(${c.blur}px)` : 'none'; tn.style.background = c.tintC; tn.style.opacity = c.tint; dm.style.opacity = c.dim;
+    th = c.dim >= .35 || (c.lum ?? .5) * (1 - c.dim) < .5 ? 'night' : 'dawn';
+  }
+  if (th !== S.theme) setTheme(th, true);
+  applyThemeMats();
+}
+async function setBgImage(blob) {
+  const u = URL.createObjectURL(blob);
+  try {
+    const im = await loadImg(u), k = Math.min(1, 2048 / Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+    const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, c.width, c.height);
+    const t = document.createElement('canvas'); t.width = t.height = 24; t.getContext('2d').drawImage(c, 0, 0, 24, 24);
+    const d = t.getContext('2d').getImageData(0, 0, 24, 24).data; let l = 0; for (let i = 0; i < d.length; i += 4) l += (d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11) / 255; l /= 576;
+    const jb = await canvasToBlob(c, .9); await dbPut('blobs', jb, 'bg_' + S.kid.id);
+    if (BG.url) { URL.revokeObjectURL(BG.url); BG.url = null; }
+    Object.assign(BG.cfg, { kind: 'image', lum: l }); await applyBg(); saveBg(); renderBgUi(); haptic(10);
+  } catch (e) { toast('Ảnh này chưa mở được (ảnh HEIC thì bạn thử mở bằng Safari nhé)', 3500); }
+  finally { URL.revokeObjectURL(u); }
+}
+function renderBgUi() {
+  const c = BG.cfg; if (!c) return; const box = $('#bgList'); if (!box) return;
+  const items = [['auto', 'Theo phong cách', 'linear-gradient(135deg,#140f3a 0 50%,#ffd9c6 50%)'], ...Object.entries(SCN).map(([k, v]) => ['scene:' + k, v.n, v.sw]), ...Object.entries(GRADS).map(([k, v]) => ['grad:' + k, v.n, v.css]), ['image', 'Ảnh của bạn', BG.url ? `url('${BG.url}')` : 'linear-gradient(135deg,#ffb1d2,#ffd27f)']];
+  const cur = c.kind === 'scene' ? 'scene:' + c.scene : c.kind === 'grad' ? 'grad:' + c.grad : c.kind;
+  box.innerHTML = items.map(([k, n, bg]) => `<button data-bg="${k}" class="${k === cur ? 'on' : ''}"><i style="background:${bg};background-size:cover;background-position:center"></i><span>${n}</span></button>`).join('');
+  $('#bgImgBox').hidden = c.kind !== 'image';
+  $('#bgSpk').checked = c.sparkle !== false;
+  const sl = (id, v, f) => { const el = $(id); el.value = v; el.nextElementSibling.textContent = f(v); };
+  sl('#bgBlur', c.blur, v => v + 'px'); sl('#bgDim', Math.round(c.dim * 100), v => v + '%'); sl('#bgTint', Math.round(c.tint * 100), v => v + '%');
+  $('#bgTintC').innerHTML = TINTS.map(t => `<i data-t="${t}" style="background:${t}" class="${t === c.tintC ? 'on' : ''}"></i>`).join('');
+  $('#bgKid').textContent = S.kid ? KN() : 'bé';
 }
 
 // ---------- Máy quay ----------
@@ -1106,9 +1197,11 @@ function focusPose(c, pos, look, dist) {
   pos.copy(C).addScaledVector(tmpA, d); look.copy(C);
 }
 function nearestStop(s) { let b = null, bd = 1e9; for (const st of G.stops) { const d = Math.abs(st.s - s); if (d < bd) { bd = d; b = st; } } return b; }
+function setRenderDpr() { const want = S.mode === 'tl' ? Math.min(dpr, MOBILE ? 1 : 1.25) : dpr; if (renderer.getPixelRatio() !== want) { renderer.setPixelRatio(want); renderer.setSize(innerWidth, innerHeight, false); } }
 function setMode(m, arg) {
   if (m !== 'intro') leaveIntro(true);
-  const prev = S.mode; S.mode = m;
+  const prev = S.mode; S.mode = m; setRenderDpr();
+  if (m === 'tl') { cam.k = 1.4; }
   $('#bOverview').classList.toggle('on', m === 'overview');
   if (m === 'overview') {
     OV.dist = fitDist(); tmpA.copy(cam.pos); OV.az = Math.atan2(tmpA.z, tmpA.x); cam.k = 2.2; OV.user = S.time - 3;
@@ -1129,7 +1222,10 @@ function updateCamera(dt) {
     if (tween.t >= tween.dur) { const f = tween.done; tween = null; f?.(); }
   } else {
     const m = S.mode;
-    if (m === 'overview' || m === 'intro' || m === 'empty') {
+    if (m === 'tl') { // nền của dòng sự kiện: máy quay trôi chậm, lệch theo vị trí cuộn
+      OV.az += dt * .012; const d = 128, f = S.tlScroll || 0;
+      cam.tPos.set(Math.sin(1.18) * Math.cos(OV.az) * d, Math.cos(1.18) * d + 10 - f * 34, Math.sin(1.18) * Math.sin(OV.az) * d); cam.tLook.set(0, -6 - f * 26, 0);
+    } else if (m === 'overview' || m === 'intro' || m === 'empty') {
       if (S.time - OV.user > 4) OV.az += dt * .045;
       overviewPose(cam.tPos, cam.tLook);
     } else if (m === 'fly') {
@@ -1263,6 +1359,8 @@ function onTap(x, y) {
   const h = pickAt(x, y); if (!h) return;
   const u = h.object.userData;
   if (u.book) { openBook(u.book); return; }
+  if (u.card && document.body.classList.contains('galaxy')) { haptic(10); exitGalaxy(u.card.m.id); return; }
+  if (u.star && document.body.classList.contains('galaxy')) { const b = TL.events[TL.events.length - 1]; exitGalaxy(b?.ms[0]?.id); return; }
   if (u.card) openLB(u.card.i);
   else if (u.portal) { if (S.mode !== 'fly') setMode('fly', u.portal.s); openAdd(); }
   else if (u.star) { setMode('fly', u.star.s); }
@@ -1324,6 +1422,8 @@ canvas.addEventListener('wheel', e => {
 addEventListener('keydown', e => {
   if (e.target.closest?.('input,textarea,select')) return;
   if (D?.isOpen()) return;
+  if (S.mode === 'tl' || TL?.isOpen()) return;
+  if (document.body.classList.contains('galaxy') && e.key === 'Escape' && !$('.modal.open')) { exitGalaxy(); return; }
   if ($('.modal.open')) { if (e.key === 'Escape') closeModal($('.modal.open')); return; }
   if (S.mode === 'show') { if (e.key === 'Escape' || e.key === ' ') { e.preventDefault(); stopShow(); } return; }
   if (S.lbIdx >= 0) {
@@ -1372,10 +1472,10 @@ function updateNow() {
   $('#nowC').textContent = n ? `${n} khoảnh khắc` : 'Chưa có khoảnh khắc nào';
   if (!st) {
     const ms = S.moments;
-    $('#nowD').textContent = ms.length ? `${dmy(ms[0].ts)} – ${dmy(ms[ms.length - 1].ts)}` : `Dải ngân hà của ${S.kid.name}`;
+    $('#nowD').textContent = ms.length ? `${dmy(ms[0].ts)} – ${dmy(ms[ms.length - 1].ts)}` : `Dải ngân hà của ${KN()}`;
     $('#nowA').textContent = '🌌 Toàn cảnh';
   } else if (st.card) { $('#nowD').textContent = dmy(st.card.m.ts); $('#nowA').textContent = ageText(S.kid, st.card.m.ts); }
-  else if (st.kind === 'star') { $('#nowD').textContent = dmy(parseYmd(S.kid.birth)); $('#nowA').textContent = `⭐ Ngày ${S.kid.name} chào đời`; }
+  else if (st.kind === 'star') { $('#nowD').textContent = dmy(parseYmd(S.kid.birth)); $('#nowA').textContent = `⭐ Ngày ${KN()} chào đời`; }
   else if (st.kind === 'portal') { $('#nowD').textContent = 'Khoảnh khắc tiếp theo…'; $('#nowA').textContent = '➕ Chạm vào cổng sáng để thêm'; }
 }
 const scrubRange = () => { const a = G.stops[0]?.s ?? 0, b = G.sEnd || a + 1; return [a, Math.max(b, a + 1)]; };
@@ -1410,7 +1510,7 @@ function updateScrubKnob() {
 // ---------- Hộp thoại, thông báo ----------
 let toastT = 0;
 function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms); }
-function openModal(m) { m.classList.add('open'); }
+function openModal(m) { m.classList.add('open'); haptic(5); }
 function closeModal(m) { if (m.id === 'mKid' && !S.kids.length) return; if (m.id === 'mAdd' && ADD.busy) return; m.classList.remove('open'); if (m.id === 'mAdd') resetAdd(); if (m.id === 'mAsk') askDone?.(false); }
 $$('.modal').forEach(m => { m.addEventListener('pointerdown', e => { if (e.target === m) m.dataset.down = 1; }); m.addEventListener('click', e => { if (e.target === m && m.dataset.down) closeModal(m); m.dataset.down = ''; }); m.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(m))); });
 let askDone = null;
@@ -1423,7 +1523,8 @@ $('#askYes').onclick = () => askDone?.(true);
 
 // ---------- Bé ----------
 const avatar = n => (n || '?').trim().charAt(0).toUpperCase();
-function renderKidBtn() { $('#kidName').textContent = S.kid ? S.kid.name : '…'; $('#kidBtn .av').textContent = S.kid ? avatar(S.kid.name) : '✨'; }
+function renderKidBtn() { const tt = $('#tbTitle'); if (tt) tt.textContent = S.kid ? KN() : ''; renderKidBtn0(); }
+function renderKidBtn0() { $('#kidName').textContent = S.kid ? KN() : '…'; $('#kidBtn .av').textContent = S.kid ? avatar(KN()) : '✨'; }
 async function selectKid(id, intro = true) {
   S.kid = S.kids.find(k => k.id === id) || S.kids[0]; if (!S.kid) return;
   await metaSet('curKid', S.kid.id);
@@ -1431,11 +1532,12 @@ async function selectKid(id, intro = true) {
   S.diaries = (await dbAll('diaries')).filter(d => d.kidId === S.kid.id);
   closeLBNow(); hover.c = null; hover.vidC = null;
   buildGalaxy(); renderKidBtn(); buildScrub();
-  if (intro) playIntro(); else { setMode('overview'); updateNow(); }
+  document.body.classList.remove('intro', 'galaxy');
+  await TL.reload(); await loadBg(); setMode('tl'); updateNow();
 }
 function renderKidMenu() {
   const m = $('#kidMenu');
-  m.innerHTML = S.kids.map(k => `<button data-id="${k.id}" class="${k.id === S.kid?.id ? 'on' : ''}"><span class="av" style="width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#ff9cc6,#ffd27f);color:#fff;font-size:14px">${esc(avatar(k.name))}</span><span>${esc(k.name)}</span><span style="margin-left:auto;font-size:12px;color:var(--muted)">${k.birth ? dmy(parseYmd(k.birth)) : ''}</span></button>`).join('')
+  m.innerHTML = S.kids.map(k => `<button data-id="${k.id}" class="${k.id === S.kid?.id ? 'on' : ''}"><span class="av" style="width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#ff9cc6,#ffd27f);color:#fff;font-size:14px">${esc(avatar(cap(k.name)))}</span><span>${esc(cap(k.name))}</span><span style="margin-left:auto;font-size:12px;color:var(--muted)">${k.birth ? dmy(parseYmd(k.birth)) : ''}</span></button>`).join('')
     + `<div style="height:1px;background:var(--line);margin:4px 6px"></div><button data-act="edit">✏️ Sửa thông tin ${esc(S.kid?.name || 'bé')}</button><button data-act="add">➕ Thêm bé</button>`;
 }
 $('#kidBtn').onclick = e => { e.stopPropagation(); const m = $('#kidMenu'); if (m.hidden) { renderKidMenu(); m.hidden = false; } else m.hidden = true; };
@@ -1449,9 +1551,9 @@ addEventListener('pointerdown', e => { if (!e.target.closest('#kidMenu,#kidBtn')
 let kidEditing = null;
 function openKid(kid) {
   kidEditing = kid; const first = !S.kids.length;
-  $('#kidTitle').textContent = first ? 'Chào bạn! 👋' : kid ? `Sửa thông tin ${kid.name}` : 'Thêm một bé';
+  $('#kidTitle').textContent = first ? 'Chào bạn! 👋' : kid ? `Sửa thông tin ${cap(kid.name)}` : 'Thêm một bé';
   $('#kidLead').textContent = first ? 'Cùng tạo dải ngân hà kỷ niệm cho con nhé. Ngày sinh giúp app tính con bao nhiêu tuổi ở mỗi tấm ảnh.' : kid ? 'Đổi tên hoặc ngày sinh — tuổi trên mọi tấm ảnh sẽ tự tính lại.' : 'Mỗi bé có một dải ngân hà riêng.';
-  $('#kidIn').value = kid?.name || ''; $('#kidBd').value = kid?.birth || '';
+  $('#kidIn').value = kid?.name || ''; $('#kidBd').value = kid?.birth || ''; kidBdHint();
   $('#kidCancel').hidden = first; $('#kidDel').hidden = !kid || S.kids.length < 1;
   $('#kidOk').textContent = kid ? 'Lưu' : 'Bắt đầu ✨';
   openModal($('#mKid')); setTimeout(() => $('#kidIn').focus(), 350);
@@ -1473,7 +1575,7 @@ $('#kidIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kidBd'
 $('#kidDel').onclick = async () => {
   const k = kidEditing; if (!k) return;
   const n = (await dbAll('moments')).filter(m => m.kidId === k.id);
-  if (!(await ask(`Xoá ${k.name}?`, `Toàn bộ ${n.length} khoảnh khắc của ${k.name} sẽ bị xoá khỏi máy này. Nên tạo bản sao lưu trước. Không hoàn tác được.`, 'Xoá hẳn', true))) return;
+  if (!(await ask(`Xoá ${cap(k.name)}?`, `Toàn bộ ${n.length} khoảnh khắc của ${cap(k.name)} sẽ bị xoá khỏi máy này. Nên tạo bản sao lưu trước. Không hoàn tác được.`, 'Xoá hẳn', true))) return;
   for (const m of n) { await dbDel('blobs', 'o_' + m.id); await dbDel('blobs', 't_' + m.id); await dbDel('moments', m.id); }
   for (const d of (await dbAll('diaries')).filter(d => d.kidId === k.id)) { await dbDel('diaries', d.id); await dbDel('blobs', 'd_' + d.id); }
   await dbDel('kids', k.id); S.kids = S.kids.filter(x => x.id !== k.id);
@@ -1487,7 +1589,7 @@ function playIntro() {
   if (!S.kid) return;
   S.mode = 'intro'; document.body.classList.add('intro'); document.body.classList.remove('hide-intro');
   $('#intro').style.display = '';
-  const pre = 'Dải ngân hà của ', nm = S.kid.name; let i = 0;
+  const pre = 'Dải ngân hà của ', nm = KN(); let i = 0;
   const L = (ch, col) => `<span class="letter"${col ? ` style="animation-delay:${(.25 + i * .045).toFixed(3)}s;color:${col}"` : ` style="animation-delay:${(.25 + i * .045).toFixed(3)}s"`}>${(i++, ch === ' ' ? '&nbsp;' : esc(ch))}</span>`;
   const NC = S.theme === 'dawn' ? ['#e0487f', '#f07a2c', '#d0569a', '#e8892f'] : ['#ff8fbf', '#ffd27f', '#9fe1cb', '#ffb3d6'];
   $('#introTitle').innerHTML = [...pre].map(c => L(c)).join('') + '<br class="br"><span class="nm2">' + [...nm].map((c, k) => L(c, NC[k % NC.length])).join('') + '</span>';
@@ -1641,11 +1743,11 @@ function openAdd() {
   if (S.mode === 'show') stopShow();
   openModal($('#mAdd')); refreshAddBtn();
 }
-function resetAdd() { for (const r of ADD.rows) if (r.url) URL.revokeObjectURL(r.url); ADD.rows = []; $('#addList').innerHTML = ''; $('#addProg').style.display = 'none'; $('#addProg i').style.width = 0; refreshAddBtn(); }
+function resetAdd() { ADD.day = null; if ($('#addDay')) { $('#addDay').value = ''; $('#addDayH').textContent = ''; } for (const r of ADD.rows) if (r.url) URL.revokeObjectURL(r.url); ADD.rows = []; $('#addList').innerHTML = ''; $('#addProg').style.display = 'none'; $('#addProg i').style.width = 0; refreshAddBtn(); }
 function refreshAddBtn() {
-  const b = $('#addSave'), n = ADD.rows.length;
+  const b = $('#addSave'), n = ADD.rows.length; const bar = $('#addBar'); if (bar) { bar.hidden = n < 1; if (n && !$('#addDay').value) { $('#addDay').value = ymd(ADD.rows.find(r => r.ts)?.ts || Date.now()); $('#addDay').dispatchEvent(new Event('input')); } }
   b.disabled = !n || ADD.pending > 0 || ADD.busy;
-  b.textContent = ADD.busy ? 'Đang lưu…' : ADD.pending ? `Đang đọc ${ADD.pending} tệp…` : n ? `✨ Lưu ${n} khoảnh khắc vào dòng thời gian` : '✨ Lưu vào dòng thời gian';
+  b.textContent = ADD.busy ? 'Đang lưu…' : ADD.pending ? `Đang đọc ${ADD.pending} tệp…` : n ? `Lưu ${n} khoảnh khắc vào dòng thời gian` : 'Lưu vào dòng thời gian';
 }
 function rowAge(r) { r.el.querySelector('.age').textContent = ageText(S.kid, r.ts); }
 async function addFiles(list) {
@@ -1656,7 +1758,7 @@ async function addFiles(list) {
   for (const f of files) {
     const isV = /^video\//.test(f.type) || /\.(mov|mp4|m4v|webm|3gp)$/i.test(f.name);
     const el = document.createElement('div'); el.className = 'row-add';
-    el.innerHTML = `<div class="th"><span class="pl">⏳</span></div><div><input class="r-ti" maxlength="80" placeholder="Đặt tên (không bắt buộc)"><div class="ln"><input class="r-dt" type="date"><span class="age"></span><span class="badge" style="display:none"></span></div></div>`;
+    el.innerHTML = `<input type="checkbox" class="ck" aria-label="Chọn ảnh này"><div class="th"><span class="pl">⏳</span></div><div><input class="r-ti" maxlength="80" placeholder="Đặt tên (không bắt buộc)"><div class="ln"><input class="r-dt" type="date"><span class="age"></span><span class="badge" style="display:none"></span></div></div>`;
     $('#addList').appendChild(el); el.style.animationDelay = Math.min(ADD.rows.length, 8) * .05 + 's';
     const r = { file: f, isV, el, ts: 0, src: '', th: null, url: null, ready: false }; ADD.rows.push(r); ADD.pending++; refreshAddBtn();
     try {
@@ -1664,16 +1766,15 @@ async function addFiles(list) {
       r.ts = dt.ts; r.src = dt.src; r.th = th; r.url = URL.createObjectURL(th.blob);
       el.querySelector('.th').style.backgroundImage = `url("${r.url}")`;
       el.querySelector('.pl').textContent = isV ? '▶ ' + fmtDur(th.dur) : '';
-      el.querySelector('.r-dt').value = ymd(r.ts);
       const bd = el.querySelector('.badge'); bd.style.display = '';
       const heicNo = !isV && !th.ok && isHeic(f);
       if (heicNo) heic++;
       if (heicNo) { bd.className = 'badge warn'; bd.textContent = 'HEIC · mở bằng Safari để xem'; }
       else if (r.src === 'meta') { bd.className = 'badge'; bd.textContent = 'ngày chụp tự đọc'; }
       else if (r.src === 'name') { bd.className = 'badge'; bd.textContent = 'ngày đọc từ tên tệp'; }
-      else if (r.src === 'file') { bd.className = 'badge warn'; bd.textContent = 'theo ngày của tệp'; }
-      else { bd.className = 'badge warn'; bd.textContent = 'kiểm tra lại ngày'; }
-      rowAge(r);
+      else { bd.className = 'badge file'; bd.innerHTML = icon('warn', 13, 2.2) + '<span>ngày lưu tệp – kiểm tra lại</span>'; el.querySelector('.ck').checked = true; }
+      if (ADD.day && ymd(r.ts) !== ADD.day) { r.ts = parseYmd(ADD.day, r.ts); r.src = 'user'; bd.className = 'badge'; bd.textContent = 'đặt theo ngày của sự kiện'; }
+      el.querySelector('.r-dt').value = ymd(r.ts); rowAge(r);
       el.querySelector('.r-dt').addEventListener('change', e => { const t = parseYmd(e.target.value, r.ts); if (t) { r.ts = t; r.src = 'user'; rowAge(r); const b2 = el.querySelector('.badge'); b2.className = 'badge'; b2.textContent = 'bạn đã chỉnh ngày'; } });
       r.ready = true;
     } catch (e) { console.warn(e); el.querySelector('.pl').textContent = '⚠️'; r.bad = true; }
@@ -1713,26 +1814,26 @@ async function saveAdd() {
   ADD.busy = false; $('#mAdd').classList.remove('open'); resetAdd();
   if (!ids.length) return;
   buildGalaxy(); buildScrub();
-  const news = G.cards.filter(c => ids.includes(c.m.id));
-  news.forEach(c => { c.pop = -2; });
-  const target = news.reduce((a, b) => b.m.ts > a.m.ts ? b : a, news[0]);
-  leaveIntro(true); closeLBNow(); setMode('fly', target.s); cam.k = 1.8;
-  toast(ids.length > 1 ? `✨ Đã thêm ${ids.length} khoảnh khắc` : '✨ Đã thêm vào dòng thời gian');
+  const news = S.moments.filter(m => ids.includes(m.id)), target = news.reduce((a, b) => b.ts > a.ts ? b : a, news[0]);
+  leaveIntro(true); closeLBNow(); if (S.mode !== 'tl') exitGalaxy();
+  TL.refreshAll(null, ids); const k = TL.keyOfMid(target.id); if (k) setTimeout(() => TL.scrollToKey(k, { bounce: false }), 120);
+  toast(ids.length > 1 ? `Đã thêm ${ids.length} khoảnh khắc` : 'Đã thêm vào dòng thời gian');
   updateNow();
 }
 
 // nhập ảnh không qua hộp Thêm (dùng cho nhật ký): vẫn đọc ngày giờ chụp, làm ảnh nhỏ, lưu thành khoảnh khắc
-async function importFilesQuiet(files, onProg) {
+async function importFilesQuiet(files, onProg, day) {
   const list = [...files].filter(okFile), ids = []; await askPersist();
   for (let i = 0; i < list.length; i++) {
     const f = list[i], isV = /^video\//.test(f.type) || /\.(mov|mp4|m4v|webm|3gp)$/i.test(f.name);
     const [dt, th] = await Promise.all([readDate(f, isV), isV ? videoThumb(f) : imageThumb(f)]);
+    if (day && ymd(dt.ts) !== day) { dt.ts = parseYmd(day, dt.ts); dt.src = 'user'; }
     const id = uid();
     await dbPut('blobs', f, 'o_' + id); await dbPut('blobs', th.blob, 't_' + id);
     const m = { id, kidId: S.kid.id, ts: dt.ts, title: '', note: '', type: isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: th.dur || 0, w: th.w, h: th.h, color: th.color, heic: !isV && !th.ok && isHeic(f), dateSrc: dt.src, created: Date.now() + i };
     await dbPut('moments', m); S.moments.push(m); ids.push(id); onProg?.(i + 1, list.length);
   }
-  buildGalaxy(); buildScrub(); updateNow();
+  buildGalaxy(); buildScrub(); updateNow(); TL.render();
   return ids;
 }
 async function diaryChanged() {
@@ -1741,9 +1842,10 @@ async function diaryChanged() {
   const keep = FL.s, m = S.mode;
   buildGalaxy(); buildScrub();
   if (m === 'fly' || m === 'focus') { if (m === 'focus' && S.lbIdx < 0) S.mode = 'fly'; FL.s = FL.tgt = keep; }
-  updateNow();
+  updateNow(); TL.refreshAll(TL.isOpen() ? undefined : null);
 }
 function flyToBook(id) {
+  if (S.mode === 'tl' || !document.body.classList.contains('galaxy')) { const e = TL.events.find(x => x.diaries.some(d => d.id === id)); if (e) { TL.scrollToKey(e.key); setTimeout(() => { const el = document.querySelector(`.ev[data-key="${CSS.escape(e.key)}"] .bk`); el?.animate([{ transform: 'scale(1.5)' }, { transform: 'none' }], { duration: 700, easing: getComputedStyle(document.documentElement).getPropertyValue('--sp-wobbly') || 'ease-out' }); }, 700); } return; }
   const b = (G.books || []).find(x => x.d.id === id); if (!b) return;
   leaveIntro(true); closeLBNow(); setMode('fly', b.card.s); cam.k = 2;
   setTimeout(() => { b.pop = 1; Burst.fire(b.g.position, 70, 7); }, 1300);
@@ -1752,12 +1854,12 @@ function flyToBook(id) {
 // ---------- Cài đặt ----------
 async function renderSettings() {
   const ms = await dbAll('moments');
-  $('#kidsList').innerHTML = S.kids.map(k => `<div class="kid-row"><span class="av" style="width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#ff9cc6,#ffd27f);color:#fff;font-weight:700">${esc(avatar(k.name))}</span><div><div class="n">${esc(k.name)}</div><div class="b">Sinh ${dmy(parseYmd(k.birth))} · ${ms.filter(m => m.kidId === k.id).length} khoảnh khắc</div></div><span class="sp"></span><button data-kid="${k.id}">✏️ Sửa</button></div>`).join('');
+  $('#kidsList').innerHTML = S.kids.map(k => `<div class="kid-row"><span class="av" style="width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#ff9cc6,#ffd27f);color:#fff;font-weight:700">${esc(avatar(cap(k.name)))}</span><div><div class="n">${esc(cap(k.name))}</div><div class="b">Sinh ${dmy(parseYmd(k.birth))} · ${ms.filter(m => m.kidId === k.id).length} khoảnh khắc</div></div><span class="sp"></span><button data-kid="${k.id}">✏️ Sửa</button></div>`).join('');
   $$('#segTheme button').forEach(b => b.classList.toggle('on', b.dataset.v === S.theme));
   $$('#segMusic button').forEach(b => b.classList.toggle('on', b.dataset.v === S.music));
   $('#musicHint').textContent = S.music === 'builtin' ? 'Giai điệu hộp nhạc dịu êm do app tự chơi — không lo bản quyền.' : S.music === 'file' ? `Đang dùng: ${S.musicName || 'bài của bạn'} · bấm “Bài của bạn” lần nữa để đổi bài.` : 'Trình chiếu không có nhạc.';
   $('#verTxt').textContent = 'Ngân Hà Của Con · v' + VERSION;
-  renderGem();
+  renderGem(); renderBgUi();
   try {
     const e = await navigator.storage?.estimate?.(), p = await navigator.storage?.persisted?.();
     $('#storeInfo').textContent = e ? `Đang dùng ${fmtSize(e.usage || 0)} trong máy${p ? ' · đã bật lưu bền vững ✓' : ''}.` : '';
@@ -1810,12 +1912,12 @@ async function doImport(f) {
 // ---------- Phong cách ----------
 function setTheme(t, anim = true) {
   S.theme = t; document.body.dataset.theme = t; S.mixT = t === 'dawn' ? 1 : 0; if (!anim) { S.mix = S.mixT; applyThemeMats(); }
-  $('#themeIco').textContent = t === 'dawn' ? '🌌' : '🌅'; $('#bTheme').title = t === 'dawn' ? 'Đổi sang Đêm ngân hà' : 'Đổi sang Bình minh';
+  $('#themeIco').textContent = t === 'dawn' ? '🌌' : '🌅'; const tb = $('#tbTheme'); if (tb) { tb.innerHTML = icon(t === 'dawn' ? 'moon' : 'sun', 22, 1.9); tb.title = t === 'dawn' ? 'Đổi sang Đêm ngân hà' : 'Đổi sang Bình minh'; } $('#bTheme').title = t === 'dawn' ? 'Đổi sang Đêm ngân hà' : 'Đổi sang Bình minh';
   document.querySelector('meta[name="theme-color"]').content = t === 'dawn' ? '#fde4d6' : '#0b0a24';
   refreshLabels(); metaSet('theme', t);
 }
-$('#bTheme').onclick = () => { setTheme(S.theme === 'dawn' ? 'night' : 'dawn'); toast(S.theme === 'dawn' ? '🌅 Bình minh' : '🌌 Đêm ngân hà', 1400); };
-$('#bOverview').onclick = () => { leaveIntro(); if (S.mode === 'overview') setMode('fly'); else { if (S.lbIdx >= 0) closeLBNow(); setMode('overview'); } };
+$('#bTheme').onclick = () => { const t = S.theme === 'dawn' ? 'night' : 'dawn'; if (BG.cfg && BG.cfg.kind === 'scene') BG.cfg.kind = 'auto'; setTheme(t); applyBg(); saveBg(); toast(t === 'dawn' ? 'Bình minh' : 'Đêm ngân hà', 1400); };
+$('#bOverview').onclick = () => { if (document.body.classList.contains('galaxy')) exitGalaxy(); else enterGalaxy(); };
 $('#bAdd').onclick = () => { leaveIntro(); openAdd(); };
 $('#bShow').onclick = () => { leaveIntro(); startShow(); };
 
@@ -1825,7 +1927,7 @@ async function startShow() {
   if (!S.kid) return;
   if (!G.cards.length) { toast('Thêm vài khoảnh khắc rồi mình cùng xem nhé ✨'); openAdd(); return; }
   closeLBNow(); $('#kidMenu').hidden = true; leaveIntro(true);
-  S.mode = 'show'; document.body.classList.add('showing'); hover.c = null;
+  S.mode = 'show'; setRenderDpr(); document.body.classList.add('showing', 'galaxy'); hover.c = null;
   SH.list = [];
   for (const it of G.items) {
     if (it.kind === 'star') SH.list.push(G.stops.find(s => s.kind === 'star'));
@@ -1841,7 +1943,7 @@ function capSet(t, s) { const c = $('#cap'); c.classList.remove('on'); const tok
 function capOff() { capTok++; $('#cap').classList.remove('on'); }
 function showYear(g) {
   if (g.shown === SH.runId) return; g.shown = SH.runId;
-  const y = $('#year'); y.querySelector('.y').textContent = g.it.year; y.querySelector('.s').textContent = g.it.age >= 1 ? `${S.kid.name} tròn ${g.it.age} tuổi` : '';
+  const y = $('#year'); y.querySelector('.y').textContent = g.it.year; y.querySelector('.s').textContent = g.it.age >= 1 ? `${KN()} tròn ${g.it.age} tuổi` : '';
   y.classList.remove('on'); void y.offsetWidth; y.classList.add('on'); SH.yearT = performance.now();
   clearTimeout(showYear.t); showYear.t = setTimeout(() => y.classList.remove('on'), 3300);
   Burst.fire(g.g.position, 90, 10);
@@ -1888,7 +1990,7 @@ function updateShow(dt) {
     SH.camS = lerp(SH.fromS, SH.toS, p) - 6;
     if (SH.t >= SH.dur) {
       SH.phase = 'hold'; SH.t = 0; const st = SH.cur;
-      if (SH.final) { capSet('Hành trình vẫn đang tiếp tục…', `Khoảnh khắc tiếp theo của ${S.kid.name} đang chờ bạn ✨`); SH.hold = 4.5; }
+      if (SH.final) { capSet('Hành trình vẫn đang tiếp tục…', `Khoảnh khắc tiếp theo của ${KN()} đang chờ bạn ✨`); SH.hold = 4.5; }
       else if (st.kind === 'book') {
         SH.hold = 99; st.book.pop = 1; Burst.fire(st.book.g.position, 50, 6);
         D.openViewer(st.book.d.id, { auto: { flips: 3 }, onClose: () => { if (S.mode === 'show' && SH.cur === st) SH.t = SH.hold = Math.min(SH.t, 99) ; } });
@@ -1898,7 +2000,7 @@ function updateShow(dt) {
         capSet(m.title || dmy(m.ts), m.title ? `${dmy(m.ts)} · ${ageText(S.kid, m.ts)}` : ageText(S.kid, m.ts));
         SH.hold = 4 + (performance.now() - (SH.yearT || 0) < 3300 ? 1.5 : 0);
         if (m.type === 'video') { startCardVideo(st.card); SH.hold = clamp((m.dur || 4) + .3, 4, 10.3); }
-      } else { capSet(`Ngày ${S.kid.name} chào đời`, dmy(parseYmd(S.kid.birth))); SH.hold = 4; Burst.fire(G.star.g.position, 80, 9); }
+      } else { capSet(`Ngày ${KN()} chào đời`, dmy(parseYmd(S.kid.birth))); SH.hold = 4; Burst.fire(G.star.g.position, 80, 9); }
     }
   } else if (SH.phase === 'hold') {
     tmpA.subVectors(SH.to.look, SH.to.pos).normalize(); cam.pos.addScaledVector(tmpA, dt * .12);
@@ -1915,10 +2017,9 @@ function stopShow(ended) {
   Music.stop(); capOff(); $('#year').classList.remove('on');
   document.body.classList.remove('showing');
   const st = SH.cur; S.mode = 'fly';
-  const s = ended ? (G.cards.length ? G.cards[G.cards.length - 1].s : G.sEnd) : st ? st.s : FL.s;
-  setMode('fly', s); cam.k = 2;
   SH.runId = (SH.runId || 0) + 1;
-  if (ended) toast('Hết rồi — bạn thêm khoảnh khắc mới để dải ngân hà dài thêm nhé ✨', 3500);
+  exitGalaxy(ended ? null : (st?.card?.m.id || st?.book?.card?.m.id));
+  if (ended) toast('Hết rồi — bạn thêm khoảnh khắc mới để dải ngân hà dài thêm nhé', 3500);
 }
 $('#stopShow').onclick = e => { e.stopPropagation(); stopShow(); };
 SH.runId = 1;
@@ -1926,7 +2027,7 @@ SH.runId = 1;
 // ---------- Kích thước & vòng lặp ----------
 function resize() {
   const w = innerWidth, h = innerHeight;
-  renderer.setPixelRatio(dpr); renderer.setSize(w, h, false);
+  renderer.setPixelRatio(S.mode === 'tl' ? Math.min(dpr, MOBILE ? 1 : 1.25) : dpr); renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.fov = w / h < .9 ? 64 : 55; camera.updateProjectionMatrix();
   if (S.kid) buildScrub();
 }
@@ -1938,13 +2039,12 @@ function frame(dt) {
   if (Math.abs(S.mix - S.mixT) > .0005) { S.mix += clamp(S.mixT - S.mix, -dt / 1.4, dt / 1.4); applyThemeMats(); }
   updateShow(dt);
   updateCamera(dt);
-  updateHover(dt);
-  updateCards(dt);
+  const tl = S.mode === 'tl'; G.group.visible = !tl; if (bandMesh) bandMesh.visible = !tl; if (dust) dust.visible = !tl; core.visible = !tl;
+  if (!tl) { updateHover(dt); updateCards(dt); updateBooks(dt); Stream.update(dt, camera.position); }
   updateEnv(dt);
-  updateBooks(dt);
-  Stream.update(dt, camera.position);
   Burst.update(dt);
-  updateScrubKnob();
+  if (!tl) updateScrubKnob();
+  if (tl && (perf.frames & 1) && !TEST) return; // nền dòng sự kiện vẽ 30 khung/giây để dành sức cho cuộn
   renderer.render(scene, camera);
 }
 function loop(now) {
@@ -1961,8 +2061,89 @@ function loop(now) {
 document.addEventListener('visibilitychange', () => { last = performance.now(); });
 
 // ---------- Nhật ký truyện tranh ----------
-const D = initDiary({ dbGet, dbPut, dbDel, dbAll, metaGet, kid: () => S.kid, allMoments: () => S.moments, ageText, dmy, ymd, WD, toast, ask, shareOrDownload,
+const D = initDiary({ dbGet, dbPut, dbDel, dbAll, metaGet, kid: () => S.kid ? { ...S.kid, name: KN() } : null, allMoments: () => S.moments, ageText, dmy, ymd, WD, toast, ask, shareOrDownload,
   importFiles: importFilesQuiet, openModal, closeModal, loadImgBlob: b => loadImg(URL.createObjectURL(b)), noAccent, MUTE, TEST, audio: () => Music.audio(), onChange: diaryChanged, flyToBook });
+
+// ---------- Dòng sự kiện (màn chính v1.2) ----------
+async function deleteMoment(m) {
+  await dbDel('blobs', 'o_' + m.id); await dbDel('blobs', 't_' + m.id); await dbDel('moments', m.id);
+  S.moments = S.moments.filter(x => x.id !== m.id); buildGalaxy(); buildScrub(); updateNow();
+}
+async function updateMoment(m, moved) {
+  await dbPut('moments', m);
+  if (moved) { buildGalaxy(); buildScrub(); } else { const c = G.cards.find(x => x.m.id === m.id); if (c) Stream.refresh(c); }
+}
+async function makeDiary(ms) {
+  if (!ms.length) return; let list = ms.slice().sort((a, b) => a.ts - b.ts);
+  if (list.length > 24) { const k = list.length / 24; list = Array.from({ length: 24 }, (_, i) => list[Math.floor(i * k)]); toast('Ngày này nhiều ảnh quá — app chọn 24 ảnh tiêu biểu, bạn đổi ảnh trong trình chỉnh được', 3800); }
+  const d = await D.build(list); await D.saveDiary(d, true); TL.closeEvent(); D.openEditor(d.id);
+}
+function openKidMenu(a) { const m = $('#kidMenu'); renderKidMenu(); const r = a.getBoundingClientRect(); m.style.top = (r.bottom + 8) + 'px'; m.style.left = Math.max(12, Math.min(r.left, innerWidth - 250)) + 'px'; m.hidden = false; }
+const TL = initTimeline({ kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.moments, diaries: () => S.diaries || [], dbGet, metaGet, metaSet, ymd, dmy, WD, parseYmd, dayStart, ageText, openModal, closeModal, toast, ask,
+  openDiary: id => D.openViewer(id), openKidMenu, openAdd: () => openAdd(), makeDiary, importFiles: importFilesQuiet, saveOriginal, deleteMoment, updateMoment, duck: v => Music.duck(v), onScroll: f => { S.tlScroll = f; } });
+let gxHint = false;
+function tabOn(t) { $$('#tabbar [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === t)); }
+function enterGalaxy() {
+  TL.closeViewer(); TL.closeEvent(); $('#kidMenu').hidden = true;
+  document.body.classList.add('galaxy'); setMode('overview'); cam.k = 1.25; tabOn('gx'); haptic(10);
+  if (!gxHint) { gxHint = true; setTimeout(() => toast('Chạm một tấm ảnh để về đúng ngày đó trên dòng thời gian', 3400), 900); }
+}
+function exitGalaxy(mid) {
+  closeLBNow(); TL.guard(); document.body.classList.remove('galaxy'); setMode('tl'); tabOn('tl');
+  if (mid) { const k = TL.keyOfMid(mid); if (k) setTimeout(() => TL.scrollToKey(k), 420); }
+}
+function initBars() {
+  $('#tabbar').innerHTML = `<button data-t="tl" class="on">${icon('timeline', 25, 1.8)}<span>Dòng thời gian</span></button><button data-t="diary">${icon('book', 25, 1.8)}<span>Nhật ký</span></button><button data-t="add" class="big" aria-label="Thêm ảnh, video"><i>${icon('plus', 30, 2.4)}</i></button><button data-t="show">${icon('play', 25, 1.8)}<span>Chiếu</span></button><button data-t="set">${icon('gear', 25, 1.8)}<span>Cài đặt</span></button>`;
+  $('#tabbar').addEventListener('click', e => {
+    const b = e.target.closest('[data-t]'); if (!b) return; const t = b.dataset.t; haptic(6);
+    if (t === 'tl') { if (document.body.classList.contains('galaxy')) exitGalaxy(); else if (TL.isOpen()) { TL.closeViewer(); TL.closeEvent(); } else TL.scroller.scrollTo({ top: 0, behavior: 'smooth' }); }
+    else if (t === 'diary') $('#bDiary').click();
+    else if (t === 'add') { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); openAdd(); }
+    else if (t === 'show') { TL.closeViewer(); TL.closeEvent(); $('#bShow').click(); }
+    else if (t === 'set') $('#bSet').click();
+  });
+  $('#tbGx').innerHTML = icon('galaxy', 23, 1.8); $('#tbGx').onclick = () => $('#bOverview').click();
+  $('#tbTheme').innerHTML = icon(S.theme === 'dawn' ? 'moon' : 'sun', 22, 1.9); $('#tbTheme').onclick = () => $('#bTheme').click();
+  $('#gxBack').innerHTML = icon('back', 20, 2.2) + '<span>Dòng thời gian</span>'; $('#gxBack').onclick = () => exitGalaxy();
+  // thanh công cụ của hộp Thêm: đặt cùng một ngày cho nhiều ảnh
+  $('#addList').insertAdjacentHTML('beforebegin', `<div class="addbar" id="addBar" hidden><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="addAll" class="ck"> Chọn tất cả</label><input type="date" id="addDay" aria-label="Ngày"><button id="addSetDay">${icon('calendar', 17)}<span>Đặt cùng 1 ngày cho các ảnh đã chọn</span></button><div class="datehint" id="addDayH" style="width:100%;margin:0"></div></div>`);
+  $('#addAll').onchange = e => ADD.rows.forEach(r => { const c = r.el.querySelector('.ck'); if (c) c.checked = e.target.checked; });
+  $('#addDay').addEventListener('input', () => { const t = parseYmd($('#addDay').value); $('#addDayH').textContent = t ? fmtLong(t) : ''; });
+  $('#addSetDay').onclick = () => {
+    const day = $('#addDay').value; if (!parseYmd(day)) { toast('Bạn chọn ngày trước nhé'); return; }
+    let n = 0; for (const r of ADD.rows) { if (!r.ready || !r.el.querySelector('.ck')?.checked) continue; r.ts = parseYmd(day, r.ts); r.src = 'user'; r.el.querySelector('.r-dt').value = day; rowAge(r); const b = r.el.querySelector('.badge'); b.className = 'badge'; b.textContent = 'bạn đã chỉnh ngày'; n++; }
+    toast(n ? `Đã đặt ngày ${dmy(parseYmd(day))} cho ${n} ảnh` : 'Bạn đánh dấu chọn ảnh trước nhé', 2000);
+  };
+  // ngày sinh: hiện chữ rõ để khỏi nhầm ngày/tháng
+  const kh = () => { const t = parseYmd($('#kidBd').value); $('#kidBdH').textContent = t ? 'Sinh ' + fmtLong(t) : ''; };
+  $('#kidBd').addEventListener('input', kh); $('#kidBd').addEventListener('change', kh); kidBdHint = kh;
+  // hình nền
+  $('#bgList').addEventListener('click', e => {
+    const b = e.target.closest('[data-bg]'); if (!b) return; const v = b.dataset.bg, c = BG.cfg; haptic(6);
+    if (v === 'auto') c.kind = 'auto'; else if (v.startsWith('scene:')) { c.kind = 'scene'; c.scene = v.slice(6); } else if (v.startsWith('grad:')) { c.kind = 'grad'; c.grad = v.slice(5); }
+    else { c.kind = 'image'; bgUrl().then(u => { if (!u) $('#bgFile').click(); }); }
+    applyBg(); saveBg(); renderBgUi();
+  });
+  $('#bgPickFile').onclick = () => $('#bgFile').click();
+  $('#bgFile').onchange = e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) setBgImage(f); };
+  $('#bgPickKid').onclick = async () => {
+    const g = $('#bgKidGrid'); g.hidden = !g.hidden; if (g.hidden) return;
+    const ms = S.moments.filter(m => m.type === 'image').sort((a, b) => b.ts - a.ts).slice(0, 48);
+    g.innerHTML = ms.length ? ms.map(m => `<button data-mid="${m.id}"></button>`).join('') : '<p class="hint">Chưa có ảnh nào của bé.</p>';
+    for (const b of g.querySelectorAll('[data-mid]')) dbGet('blobs', 't_' + b.dataset.mid).then(t => { if (t) b.style.backgroundImage = `url("${URL.createObjectURL(t)}")`; });
+  };
+  $('#bgKidGrid').addEventListener('click', async e => { const b = e.target.closest('[data-mid]'); if (!b) return; const m = S.moments.find(x => x.id === b.dataset.mid); const o = !m.heic && await dbGet('blobs', 'o_' + m.id); setBgImage(o || await dbGet('blobs', 't_' + m.id)); $('#bgKidGrid').hidden = true; });
+  const sl = (id, key, k) => $(id).addEventListener('input', e => { BG.cfg[key] = +e.target.value / k; e.target.nextElementSibling.textContent = e.target.value + (key === 'blur' ? 'px' : '%'); applyBg(); saveBg(); });
+  sl('#bgBlur', 'blur', 1); sl('#bgDim', 'dim', 100); sl('#bgTint', 'tint', 100);
+  $('#bgTintC').addEventListener('click', e => { const t = e.target.dataset.t; if (!t) return; BG.cfg.tintC = t; if (!BG.cfg.tint) BG.cfg.tint = .2; applyBg(); saveBg(); renderBgUi(); });
+  $('#bgSpk').onchange = e => { BG.cfg.sparkle = e.target.checked; applyThemeMats(); saveBg(); };
+  // bottom sheet kéo được + lùi nền khi mở
+  initSheets(m => closeModal(m));
+  const upd = () => document.body.classList.toggle('sheet', !!document.querySelector('.modal.open'));
+  const mo = new MutationObserver(upd); document.querySelectorAll('.modal').forEach(m => mo.observe(m, { attributes: true, attributeFilter: ['class'] }));
+}
+var kidBdHint = () => { };
+installSprings(); initBars();
 
 // ---------- Khởi động ----------
 async function boot() {
@@ -2032,7 +2213,7 @@ if (TEST) {
   const waitAdd = async () => { for (let k = 0; k < 600 && (ADD.pending || ADD.rows.some(r => !r.ready && !r.bad)); k++) await sleep(50); };
   window.T = {
     openKid, S, G, FL, OV, cam, SH, ADD, Stream, Music, perf, camera, renderer, scene, frame, setMode, openLB, closeLB, lbNav, startShow, stopShow, setTheme, openAdd, addFiles, saveAdd, doImport, buildBackup, readBackup, ageText, exifDate, videoDate, readDate, selectKid, dbAll, dbGet,
-    fakePhoto, fakeVideo, D, openBook, diaryChanged, importFilesQuiet, exifSeg,
+    fakePhoto, fakeVideo, D, TL, BG, applyBg, loadBg, setBgImage, enterGalaxy, exitGalaxy, renderBgUi, openBook, diaryChanged, importFilesQuiet, exifSeg,
     // giả lập Gemini (không cần khoá thật): trả JSON mẫu, ghi lại yêu cầu để kiểm
     mockGemini(out, status = 200) {
       T.gemReqs = []; const real = T.realFetch || (T.realFetch = window.fetch.bind(window));

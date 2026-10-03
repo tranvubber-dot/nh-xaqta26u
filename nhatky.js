@@ -169,6 +169,7 @@ export function autoText(d, ctx) {
       if (p.fx && ++fxN > 2) p.fx = null;
     });
   });
+  if (ctx.src) layoutAuto(d, ctx.src);
   return d;
 }
 function mkBubble(text, type, side, R) {
@@ -390,6 +391,55 @@ export function renderPage(d, pi, opt) {
   x.setTransform(1, 0, 0, 1, 0, 0);
   return { canvas: cv, geo, items };
 }
+// ---------- Xếp chữ tự động: không chồng nhau, tránh che mặt người nếu được ----------
+const MC = (() => { const c = document.createElement('canvas'); c.width = c.height = 8; return c.getContext('2d'); })();
+function skinGrid(src, gm, crop) {
+  const W = 28, H = Math.max(8, Math.round(28 * gm.bh / gm.bw)), c = mkCanvas(W, H), x = c.getContext('2d', { willReadFrequently: true });
+  drawCover(x, src, W, H, crop); const d = x.getImageData(0, 0, W, H).data, g = new Float32Array(W * H); let sx = 0, sy = 0, n = 0;
+  for (let i = 0, j = 0; j < W * H; i += 4, j++) { const r = d[i], gg = d[i + 1], b = d[i + 2], cb = 128 - .169 * r - .331 * gg + .5 * b, cr = 128 + .5 * r - .419 * gg - .081 * b; if (cr > 137 && cr < 175 && cb > 82 && cb < 128 && r > 90 && r > b) { g[j] = 1; sx += j % W; sy += (j / W) | 0; n++; } }
+  return { W, H, g, cx: n > 6 ? (sx / n + .5) / W : .5, cy: n > 6 ? (sy / n + .5) / H : .45, n };
+}
+export function layoutAuto(d, src) {
+  d.pages.forEach((pg, pi) => {
+    const geo = pageGeom(pg, pi);
+    pg.panels.forEach((p, k) => {
+      const gm = geo[k]; if (!gm) return;
+      const im = src?.(p.mid), sk = im ? skinGrid(im, gm, p.crop) : null, placed = [];
+      const skin = bx => { if (!sk) return 0; let a = 0, n = 0; const x0 = clamp(Math.floor((bx.x - gm.bx) / gm.bw * sk.W), 0, sk.W - 1), x1 = clamp(Math.ceil((bx.x + bx.w - gm.bx) / gm.bw * sk.W), 1, sk.W), y0 = clamp(Math.floor((bx.y - gm.by) / gm.bh * sk.H), 0, sk.H - 1), y1 = clamp(Math.ceil((bx.y + bx.h - gm.by) / gm.bh * sk.H), 1, sk.H); for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { a += sk.g[y * sk.W + x]; n++; } return n ? a / n : 0; };
+      const ov = bx => { let a = 0; for (const q of placed) a += Math.max(0, Math.min(bx.x + bx.w, q.x + q.w) - Math.max(bx.x, q.x)) * Math.max(0, Math.min(bx.y + bx.h, q.y + q.h) - Math.max(bx.y, q.y)); return a / (bx.w * bx.h); };
+      if (p.caption) { const b0 = captionBox(MC, p.caption, gm.bx + p.caption.u * gm.bw, gm.by + p.caption.v * gm.bh, gm.bw - 24); b0.x = clamp(b0.x, gm.bx + 10, gm.bx + gm.bw - 10 - b0.w); b0.y = clamp(b0.y, gm.by + 10, gm.by + gm.bh - 10 - b0.h); placed.push({ x: b0.x - 6, y: b0.y - 6, w: b0.w + 12, h: b0.h + 12 }); }
+      const US = [.2, .35, .5, .65, .8], VS = [.15, .27, .4, .6, .78];
+      (p.bubbles || []).forEach(b => {
+        if (b.auto === false) { const sh = bubbleShape(MC, b, 0, 0, 0, 0, clamp(gm.bw * .6, 150, 330)); placed.push({ x: gm.bx + b.u * gm.bw - sh.rx, y: gm.by + b.v * gm.bh - sh.ry, w: sh.rx * 2, h: sh.ry * 2 }); return; }
+        const sh = bubbleShape(MC, b, 0, 0, 0, 0, clamp(gm.bw * .6, 150, 330)), m = 14;
+        let best = null, bc = 1e9;
+        for (const u of US) for (const v of VS) {
+          const cx = clamp(gm.bx + u * gm.bw, gm.bx + m + sh.rx, gm.bx + gm.bw - m - sh.rx), cy = clamp(gm.by + v * gm.bh, gm.by + m + sh.ry, gm.by + gm.bh - m - sh.ry);
+          const bx = { x: cx - sh.rx - 8, y: cy - sh.ry - 8, w: sh.rx * 2 + 16, h: sh.ry * 2 + 16 };
+          const cost = ov(bx) * 60 + skin(bx) * 9 + (v > .5 ? .8 : 0) + Math.hypot(u - (b.u ?? .5), v - (b.v ?? .25)) * .9;
+          if (cost < bc) { bc = cost; best = { cx, cy, bx }; }
+        }
+        b.u = (best.cx - gm.bx) / gm.bw; b.v = (best.cy - gm.by) / gm.bh;
+        // đuôi chĩa về phía mặt (vùng màu da) hoặc giữa khung
+        const tx = sk ? sk.cx : .5, ty = sk ? sk.cy : .5, dx = tx - b.u, dy = ty - b.v, L = Math.hypot(dx * gm.bw, dy * gm.bh) || 1, reach = Math.min(L * .55, sh.ry + 70);
+        b.tu = clamp(b.u + dx * gm.bw / L * reach / gm.bw + (dx * gm.bw / L) * (sh.rx * .3) / gm.bw, .04, .96); b.tv = clamp(b.v + dy * gm.bh / L * reach / gm.bh + (dy * gm.bh / L) * (sh.ry * .3) / gm.bh, .04, .96);
+        placed.push(best.bx);
+      });
+      (p.sfx || []).forEach(sf => {
+        if (sf.auto === false) return;
+        const b0 = sfxBox(MC, sf, 0, 0); let best = null, bc = 1e9;
+        for (const u of [.25, .5, .75]) for (const v of [.64, .76, .88, .32, .5]) {
+          const cx = gm.bx + u * gm.bw, cy = gm.by + v * gm.bh, bx = { x: cx - b0.w / 2, y: cy - b0.h / 2, w: b0.w, h: b0.h };
+          const out = Math.max(0, gm.bx - bx.x) + Math.max(0, bx.x + bx.w - gm.bx - gm.bw) + Math.max(0, gm.by - bx.y) + Math.max(0, bx.y + bx.h - gm.by - gm.bh);
+          const cost = ov(bx) * 60 + skin(bx) * 6 + out / 80 + Math.hypot(u - (sf.u ?? .5), v - (sf.v ?? .78)) * .6;
+          if (cost < bc) { bc = cost; best = { u, v, bx }; }
+        }
+        sf.u = best.u; sf.v = best.v; placed.push(best.bx);
+      });
+    });
+  });
+  d.lv = 2; return d;
+}
 function fitTxt(x, t, max, size, min, w) { for (let z = size; z >= min; z--) { x.font = FONT(w, z); if (x.measureText(t).width <= max) return t; } return t; }
 
 // =====================================================================
@@ -548,7 +598,7 @@ export function initDiary(A) {
     const age = A.ageText(kid, a);
     return { title: d.title, short: `${d.title} · ${A.dmy(a)}`, sub: `${when} · ${ms.length} khoảnh khắc${age ? ' · ' + age : ''}` };
   }
-  const ctxFor = d => ({ months: kidMonths(A.kid(), d.ts), ts: mid => momById(mid)?.ts, close: mid => CLOSE.get(mid) });
+  const ctxFor = d => ({ months: kidMonths(A.kid(), d.ts), ts: mid => momById(mid)?.ts, close: mid => CLOSE.get(mid), src: mid => SRC.get(mid + ':s') || SRC.get(mid) || null });
   // ảnh cận mặt: tỉ lệ màu da ở giữa ảnh nhỏ
   const CLOSE = new Map();
   async function closeness(mid) {
@@ -657,7 +707,7 @@ export function initDiary(A) {
     ED.querySelector('.dti').value = d.title;
     ED.querySelector('.dai').hidden = !(await A.metaGet('geminiKey'));
     ED.classList.add('open'); document.body.classList.add('dopen');
-    busy(true); await loadAll(d); busy(false);
+    busy(true); await loadAll(d); if (!d.lv) layoutAuto(d, srcFn(false)); busy(false);
     for (const p of d.pages) for (const q of p.panels) await closeness(q.mid);
     strip(); edUi(); draw();
   }
@@ -721,7 +771,7 @@ export function initDiary(A) {
       p.crop = { cx: clamp((s0.cx ?? .5) - dx / (src.width * k), 0, 1), cy: clamp((s0.cy ?? (src.height > src.width ? .4 : .5)) - dy / (src.height * k), 0, 1), z: s0.z || 1 };
       dirty(); draw(true); return;
     }
-    const it = selItem(); if (!it) return;
+    const it = selItem(); if (!it) return; it.auto = false;
     if (D.hit.tail) { it.tu = D.start.tu + dx / g.bw; it.tv = D.start.tv + dy / g.bh; }
     else { it.u = D.start.u + dx / g.bw; it.v = D.start.v + dy / g.bh; if (D.hit.kind === 'bubble') { it.tu = D.start.tu + dx / g.bw; it.tv = D.start.tv + dy / g.bh; } }
     dirty(); draw();
@@ -797,14 +847,14 @@ export function initDiary(A) {
     } else if (a.startsWith('add-')) {
       const k = E.sel ? E.sel.p : 0, p = page.panels[k]; if (!p) return; const t = a.slice(4);
       if (t === 'cap') { if (p.caption) { E.sel = { p: k, kind: 'caption', i: 0 }; } else { p.caption = { text: `${timeVN(momById(p.mid)?.ts || Date.now())} · `, u: .035, v: .045 }; E.sel = { p: k, kind: 'caption', i: 0 }; } }
-      else if (t === 'sfx') { p.sfx = p.sfx || []; p.sfx.push({ text: 'BÙM!', u: .5, v: .72, size: 100, angle: -8, color: BANK.colors[p.sfx.length % 6] }); E.sel = { p: k, kind: 'sfx', i: p.sfx.length - 1 }; }
+      else if (t === 'sfx') { p.sfx = p.sfx || []; p.sfx.push({ text: 'BÙM!', u: .5, v: .72, size: 100, angle: -8, color: BANK.colors[p.sfx.length % 6], auto: false }); E.sel = { p: k, kind: 'sfx', i: p.sfx.length - 1 }; }
       else {
         p.bubbles = p.bubbles || [];
         // tìm chỗ trống trong khung: ít đè lên chữ đã có nhất
         const g = E.geo[k], mine = E.items.filter(it => it.p === k), cand = [[.5, .22], [.28, .22], [.72, .22], [.5, .5], [.28, .72], [.72, .72], [.5, .78]];
         let best = cand[0], bs = 1e18;
         for (const [u, v] of cand) { const cx = g.bx + u * g.bw, cy = g.by + v * g.bh, bw = Math.min(260, g.bw * .55), bh = 90; let ov = 0; for (const it of mine) { const b = it.box; ov += Math.max(0, Math.min(cx + bw / 2, b.x + b.w) - Math.max(cx - bw / 2, b.x)) * Math.max(0, Math.min(cy + bh / 2, b.y + b.h) - Math.max(cy - bh / 2, b.y)); } if (ov < bs - 1) { bs = ov; best = [u, v]; } }
-        p.bubbles.push({ text: t === 'shout' ? 'Oaaa!' : t === 'think' ? 'Hmm…' : 'Xin chào!', type: t, u: best[0], v: best[1], tu: best[0] + (best[0] > .5 ? -.12 : .12), tv: best[1] + (best[1] > .5 ? -.2 : .22) });
+        p.bubbles.push({ text: t === 'shout' ? 'Oaaa!' : t === 'think' ? 'Hmm…' : 'Xin chào!', type: t, auto: false, u: best[0], v: best[1], tu: best[0] + (best[0] > .5 ? -.12 : .12), tv: best[1] + (best[1] > .5 ? -.2 : .22) });
         E.sel = { p: k, kind: 'bubble', i: p.bubbles.length - 1 };
       }
       dirty(); edUi(); draw(); const tx = ED.querySelector('.dtx'); setTimeout(() => { tx.focus(); tx.select(); }, 50);
@@ -874,7 +924,7 @@ Yêu cầu: tiếng Việt có dấu, dễ thương, tích cực, hợp tuổi b
       if (!r.ok) throw await apiErr(r);
       const j = await r.json(), txt = j.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
       if (!txt) throw new Error(j.promptFeedback?.blockReason ? 'Gemini từ chối viết cho bộ ảnh này' : 'Gemini không trả lời — bạn thử lại nhé');
-      const out = JSON.parse(txt); applyAI(d, out, fl);
+      const out = JSON.parse(txt); applyAI(d, out, fl); layoutAuto(d, srcFn(false));
       dirty(); edUi(); draw(); A.toast('✨ AI đã viết lời xong — bạn sửa thêm tuỳ thích', 2500);
     } catch (er) { console.warn(er); A.toast(er.name === 'TypeError' ? 'Không kết nối được tới Google — bạn kiểm tra mạng nhé' : er.message, 5000); }
     finally { btn.disabled = false; btn.textContent = old; busy(false); }
@@ -897,7 +947,7 @@ Yêu cầu: tiếng Việt có dấu, dễ thương, tích cực, hợp tuổi b
   const V = { d: null, urls: [], idx: 0, spread: false, busy: false, auto: null };
   const book = BK.querySelector('.book');
   async function renderAllPages(d) {
-    await loadAll(d); const out = [];
+    await loadAll(d); if (!d.lv) layoutAuto(d, srcFn(false)); const out = [];
     const sc = Math.min(1, Math.max(.5, (innerHeight * Math.min(2, devicePixelRatio || 1)) / PH));
     for (let i = 0; i < d.pages.length; i++) {
       const r = renderPage(d, i, { scale: sc, mode: d.mode, src: srcFn(false), header: header(d) });
