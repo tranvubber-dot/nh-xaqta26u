@@ -278,8 +278,8 @@ function wrap(x, text, maxw) {
 const BSIZE = { say: 34, shout: 40, think: 31 }, BMAX = { say: 300, shout: 330, think: 280 };
 // tính hình bong bóng (đơn vị trang)
 export function bubbleShape(x, b, cx, cy, tx, ty, maxw) {
-  const size = BSIZE[b.type] || 34; x.font = FONT(700, size);
-  const lines = wrap(x, b.text || ' ', Math.min(maxw || 1e9, BMAX[b.type] || 300)), lh = size * 1.22;
+  const fs = b.fs || 1, size = Math.round((BSIZE[b.type] || 34) * fs); x.font = FONT(700, size);
+  const lines = wrap(x, b.text || ' ', Math.min(maxw || 1e9, BMAX[b.type] || 300) * Math.max(1, fs * .9)), lh = size * 1.22;
   const tw = Math.max(40, ...lines.map(l => x.measureText(l).width)), th = lh * lines.length;
   return { lines, lh, size, cx, cy, rx: tw / 2 + (b.type === 'think' ? 50 : 42), ry: th / 2 + (b.type === 'think' ? 36 : 30), tx, ty };
 }
@@ -309,7 +309,7 @@ function drawBubble(x, b, sh, ink = 5) {
 }
 const lerpN = (a, b, t) => a + (b - a) * t;
 export function captionBox(x, c, px, py, maxW = 900) {
-  let size = c.dark ? 26 : 30; x.font = FONT(700, size);
+  let size = Math.round((c.dark ? 26 : 30) * (c.fs || 1)); x.font = FONT(700, size);
   while (size > 17 && x.measureText(c.text || ' ').width > maxW - 32) { size--; x.font = FONT(700, size); }
   const tw = Math.min(x.measureText(c.text || ' ').width, maxW - 32), padX = 16;
   return { x: px, y: py, w: tw + padX * 2, h: size + 16 * 1.6, size };
@@ -365,6 +365,9 @@ export function renderPage(d, pi, opt) {
   if (pi === 0) {
     x.fillStyle = '#2b1838'; x.font = FONT(700, 64); x.textAlign = 'left'; x.fillText(fitTxt(x, H.title || '', PW - PM * 2 - 200, 64, 40, 700), PM, 72);
     x.fillStyle = '#b04a78'; fitTxt(x, H.sub || '', PW - PM * 2, 30, 20, 600); x.fillText(H.sub || '', PM + 4, 140, PW - PM * 2);
+  } else if (H.chap?.(pi)) {
+    const c = H.chap(pi); x.fillStyle = '#b04a78'; x.font = FONT(700, 24); x.textAlign = 'left'; x.fillText(c.no, PM, 46);
+    x.fillStyle = '#2b1838'; fitTxt(x, c.t, PW - PM * 2 - 200, 40, 24, 700); x.fillText(c.t, PM, 86, PW - PM * 2 - 180);
   } else {
     x.fillStyle = '#2b1838'; x.font = FONT(700, 40); x.textAlign = 'left'; x.fillText(fitTxt(x, H.short || H.title || '', PW - PM * 2 - 200, 40, 26, 700), PM, 70);
   }
@@ -539,18 +542,18 @@ const HTML = `
     <div class="dside glass">
       <div class="drow dnav"><button data-a="prev">‹ Trang trước</button><span class="dpg"></span><button data-a="next">Trang sau ›</button></div>
       <h4>Kiểu trang</h4><div class="seg dmode"><button data-v="color">🎨 Màu</button><button data-v="bw">🖤 Trắng đen</button></div>
-      <div class="dsel" hidden><h4 class="dselt">Chữ đang chọn</h4><textarea class="dtx" rows="2" maxlength="80"></textarea><div class="dcolors"></div><div class="drow"><button data-a="del-item" class="danger">🗑 Xoá chữ này</button></div></div>
+      <div class="dsel" hidden><h4 class="dselt">Chữ đang chọn</h4><textarea class="dtx" rows="2" maxlength="80"></textarea><div class="dcolors"></div><div class="drow"><button data-a="btype">💬 Đổi kiểu bong bóng</button><button data-a="fs+">A+ Chữ to</button><button data-a="fs-">A− Chữ nhỏ</button><button data-a="del-item" class="danger">🗑 Xoá chữ này</button></div></div>
       <div class="dselp" hidden><h4>Khung ảnh đang chọn</h4><p class="dhint">Kéo trên ảnh để chỉnh vùng cắt.</p><div class="drow"><button data-a="zin">🔍 Phóng</button><button data-a="zout">🔍 Thu</button><button data-a="fx">✨ Hiệu ứng</button><button data-a="swap">🔁 Đổi ảnh</button><button data-a="rmp" class="danger">✖ Bỏ khung</button></div></div>
       <div class="dgrp"><h4>Thêm chữ vào khung</h4><button data-a="add-say">💬 Bong bóng</button><button data-a="add-shout">❗ Hét</button><button data-a="add-think">💭 Suy nghĩ</button><button data-a="add-sfx">💥 Tiếng động</button><button data-a="add-cap">🏷 Ô chữ</button></div>
       <div class="dgrp"><h4>Lời thoại</h4><button data-a="reroll">🎲 Ghép lời khác</button><button data-a="ai" class="dai" hidden>✨ AI viết lời</button></div>
-      <div class="dgrp"><h4>Trang</h4><button data-a="tpl">🔀 Đổi bố cục</button><button data-a="addpg">➕ Thêm trang</button><button data-a="delpg">🗑 Bỏ trang này</button></div>
+      <div class="dgrp"><h4>Trang</h4><button data-a="tpl">🔀 Đổi bố cục</button><button data-a="addpg">➕ Thêm trang</button><button data-a="duppg">⧉ Nhân đôi trang</button><button data-a="coverpg">⭐ Đặt làm bìa</button><button data-a="delpg">🗑 Bỏ trang này</button></div>
       <div class="dgrp"><h4>Thứ tự khung — kéo ảnh để đổi chỗ</h4><div class="dstrip"></div></div>
       <div class="dgrp" style="margin-top:16px"><button data-a="deld" class="danger">Xoá nhật ký này</button></div>
     </div>
   </div>
 </div>
 <div id="dBook">
-  <div class="bkbar"><span class="bkt"></span><span class="sp"></span><button class="glass" data-a="edit">✏️ <span class="lb">Sửa</span></button><button class="glass" data-a="dl">⬇️ <span class="lb">Lưu trang thành ảnh</span></button><button class="glass" data-a="close">✕</button></div>
+  <div class="bkbar"><span class="bkt"></span><span class="sp"></span><button class="glass" data-a="more" aria-label="Tuỳ chọn">⋯ <span class="lb">Tuỳ chọn</span></button><button class="glass" data-a="edit">✏️ <span class="lb">Sửa</span></button><button class="glass" data-a="dl">⬇️ <span class="lb">Lưu trang thành ảnh</span></button><button class="glass" data-a="close">✕</button></div>
   <div class="bkstage"><div class="book"></div></div>
   <button class="bknav l glass" data-a="bprev" aria-label="Trang trước">‹</button><button class="bknav r glass" data-a="bnext" aria-label="Trang sau">›</button>
   <div class="bkpg"></div>
@@ -599,7 +602,10 @@ export function initDiary(A) {
     const when = sameDay ? `${A.WD[da.getDay()]} · ${A.dmy(a)} · ${hm(a)} – ${hm(b)}` : `${A.dmy(a).slice(0, 5)} – ${A.dmy(b)}`;
     const ks = (d.kids?.length > 1 && A.kids) ? A.kids().filter(k => d.kids.includes(k.id)) : [kid];
     const age = ks.map(k => A.ageText(k, a)).filter(Boolean).join(' · ');
-    return { title: d.title, short: `${d.title} · ${A.dmy(a)}`, sub: `${when} · ${ms.length} khoảnh khắc${age ? ' · ' + age : ''}` };
+    const chaps = d.pages.map((p, i) => p.chap ? i : -1).filter(i => i >= 0), multi = chaps.length > 1;
+    const chapLine = pi => { const pg = d.pages[pi], t = pg?.chap && A.parseYmd(pg.chap); if (!t) return null; const ag = ks.map(k => A.ageText(k, t)).filter(Boolean).join(' · '); return { no: `Chương ${chaps.indexOf(pi) + 1}`, t: `${A.WD[new Date(t).getDay()]} · ${A.dmy(t)}${ag ? ' · ' + ag : ''}` }; };
+    const sub = multi && chaps[0] === 0 ? (c => `${c.no} · ${c.t} · ${ms.length} khoảnh khắc`)(chapLine(0)) : `${when} · ${ms.length} khoảnh khắc${age ? ' · ' + age : ''}`;
+    return { title: d.title, short: `${d.title} · ${A.dmy(a)}`, sub, chap: multi ? chapLine : () => null };
   }
   const ctxFor = d => ({ gender: A.kid()?.gender, months: kidMonths(A.kid(), d.ts), ts: mid => momById(mid)?.ts, close: mid => CLOSE.get(mid), src: mid => SRC.get(mid + ':s') || SRC.get(mid) || null });
   // ảnh cận mặt: tỉ lệ màu da ở giữa ảnh nhỏ
@@ -619,22 +625,27 @@ export function initDiary(A) {
   // ---------- tạo nhật ký ----------
   async function build(ms, roll = 0) {
     ms = ms.slice().sort((a, b) => a.ts - b.ts);
+    const dayOf = m => A.ymd(m.ts), dayList = [...new Set(ms.map(dayOf))];
     const kid = A.kid(), kidsIn = [...new Set(ms.flatMap(m => A.kidsOf(m)))], d = { id: uid(), kidId: kidsIn.includes(kid.id) ? kid.id : kidsIn[0] || kid.id, kids: kidsIn, ts: ms[0].ts, day: A.ymd(ms[0].ts), title: kidsIn.length > 1 ? 'Nhật ký cả nhà' : titleFor((A.kids?.().find(k => k.id === kidsIn[0]) || kid).name), mode: 'color', roll, pages: [], created: Date.now(), updated: Date.now() };
     const R = rng(d.id);
     const infos = []; for (const m of ms) infos.push({ a: m.w && m.h ? m.w / m.h : 1.33, close: await closeness(m.id) });
     let k = 0, prev = null;
-    for (const n of splitPages(ms.length)) {
-      const tpl = pickTemplate(infos.slice(k, k + n), prev, R);
-      d.pages.push({ tpl, seed: Math.floor(R() * 1e6), panels: ms.slice(k, k + n).map(m => ({ mid: m.id, crop: null })) });
-      prev = tpl; k += n;
+    for (const day of dayList) { // mỗi ngày là một chương, bắt đầu trang mới
+      const cnt = ms.filter(m => dayOf(m) === day).length; let first = true;
+      for (const n of splitPages(cnt)) {
+        const tpl = pickTemplate(infos.slice(k, k + n), prev, R);
+        d.pages.push({ tpl, seed: Math.floor(R() * 1e6), panels: ms.slice(k, k + n).map(m => ({ mid: m.id, crop: null })), ...(dayList.length > 1 && first ? { chap: day } : {}) });
+        prev = tpl; k += n; first = false;
+      }
     }
+    if (dayList.length > 1) d.title = `Nhật ký ${A.dmy(ms[0].ts).slice(0, 5)} – ${A.dmy(ms[ms.length - 1].ts)}`;
     autoText(d, ctxFor(d));
     return d;
   }
   async function saveDiary(d, quiet) {
     d.updated = Date.now(); clean(d);
     await A.dbPut('diaries', JSON.parse(JSON.stringify(d)));
-    try { await loadAll(d, true); const r = renderPage(d, 0, { scale: .3, mode: d.mode, src: srcFn(true), header: header(d) }); const b = await new Promise(res => r.canvas.toBlob(res, 'image/jpeg', .86)); if (b) await A.dbPut('blobs', b, 'd_' + d.id); } catch (e) { console.warn(e); }
+    try { await loadAll(d, true); const r = renderPage(d, clamp(d.cover || 0, 0, d.pages.length - 1), { scale: .3, mode: d.mode, src: srcFn(true), header: header(d) }); const b = await new Promise(res => r.canvas.toBlob(res, 'image/jpeg', .86)); if (b) await A.dbPut('blobs', b, 'd_' + d.id); } catch (e) { console.warn(e); }
     await A.onChange(d, quiet);
   }
   // ---------- hộp Nhật ký: danh sách + tạo mới ----------
@@ -644,14 +655,53 @@ export function initDiary(A) {
   async function openList() {
     if (!A.kid()) return;
     freeUrls(); step('list');
-    const ds = (await A.dbAll('diaries')).filter(d => d.kidId === A.kid().id).sort((a, b) => b.ts - a.ts), box = MD.querySelector('.dlist');
+    const ds = (await A.dbAll('diaries')).filter(d => !d.deleted && (A.family?.() || d.kidId === A.kid().id || (d.kids || []).includes(A.kid().id))).sort((a, b) => b.ts - a.ts), box = MD.querySelector('.dlist');
     box.innerHTML = ds.length ? '' : `<p class="hint" style="grid-column:1/-1">Chưa có nhật ký nào. Bấm “Tạo nhật ký mới” để bắt đầu nhé!</p>`;
     for (const d of ds) {
       const b = await A.dbGet('blobs', 'd_' + d.id), u = b ? URL.createObjectURL(b) : ''; if (u) urls.push(u);
-      const el = document.createElement('div'); el.className = 'it'; el.innerHTML = `<img alt="" ${u ? `src="${u}"` : ''}><div>${esc2(d.title)}<br><span style="color:var(--muted)">${A.dmy(d.ts)}</span></div>`;
-      el.onclick = () => { A.closeModal(MD); openViewer(d.id); }; box.appendChild(el);
+      const el = document.createElement('div'); el.className = 'it'; el.dataset.id = d.id; el.innerHTML = `<img alt="" ${u ? `src="${u}"` : ''}><div>${esc2(d.title)}<br><span style="color:var(--muted)">${A.dmy(d.ts)} · ${d.pages.length} trang</span></div><button class="it-more glassbtn" aria-label="Tuỳ chọn">${A.icon('more', 20, 2.2)}</button>`;
+      el.onclick = e => { if (e.target.closest('.it-more')) { diaryMenu(d.id, null, e.target.closest('.it-more')); return; } A.closeModal(MD); openViewer(d.id); }; box.appendChild(el);
     }
     A.openModal(MD);
+  }
+  if (A.longPress) A.longPress(MD, '.dlist .it', el => diaryMenu(el.dataset.id, el));
+  // ---------- tuỳ chọn một cuốn nhật ký (dùng chung: danh sách, trình xem, sách trên thẻ) ----------
+  async function diaryMenu(id, el, at, pi) {
+    const d = await A.dbGet('diaries', id); if (!d) return; clean(d);
+    const multi = d.pages.filter(p => p.chap).length > 1;
+    A.contextMenu({ el, at, title: esc2(d.title), items: [
+      { icon: 'book', label: 'Xem nhật ký', act: () => { A.closeModal(MD); openViewer(id); } },
+      { icon: 'edit', label: 'Sửa trang, lời thoại', act: () => { A.closeModal(MD); closeViewer(); openEditor(id); } },
+      { icon: 'edit', label: 'Đổi tên cuốn', act: () => renameDiary(d) },
+      { icon: 'image', label: pi != null ? `Đặt trang ${pi + 1} làm bìa` : 'Chọn trang làm bìa', act: () => pi != null ? setCover(d, pi) : pickCover(d) },
+      pi != null && { icon: 'plus', label: `Nhân đôi trang ${pi + 1}`, act: () => dupPage(d, pi) },
+      pi != null && d.pages.length > 1 && { icon: 'trash', label: `Xoá trang ${pi + 1}`, danger: true, act: () => delPage(d, pi) },
+      multi && { icon: 'split', label: 'Tách mỗi ngày thành một cuốn', act: () => splitDiary(d) },
+      { icon: 'trash', label: 'Xoá cả cuốn', danger: true, act: async () => { if (!(await A.ask('Xoá cuốn nhật ký này?', `“${d.title}” sẽ vào thùng rác 30 ngày (khôi phục được). Ảnh, video vẫn còn nguyên.`, 'Xoá cuốn', true))) return; A.closeModal(MD); closeViewer(); closeEditor(); await A.trashDiary(d); } }
+    ] });
+  }
+  async function renameDiary(d) {
+    const t = await A.prompt('Đổi tên nhật ký', d.title, 60); if (t == null) return;
+    d.title = t.trim() || d.title; await saveDiary(d, true); A.toast('Đã đổi tên', 1400); if (V.d?.id === d.id) { BK.querySelector('.bkt').textContent = `${d.title} · ${A.dmy(d.ts)}`; openViewer(d.id); } if (MD.classList.contains('open')) openList();
+  }
+  async function setCover(d, pi) { d.cover = pi; await saveDiary(d, true); A.toast(`Đã đặt trang ${pi + 1} làm bìa`, 1600); if (MD.classList.contains('open')) openList(); }
+  async function pickCover(d) {
+    const items = d.pages.map((p, i) => ({ icon: i === (d.cover || 0) ? 'star' : 'image', label: `Trang ${i + 1}${p.chap ? ' · ' + A.dmy(A.parseYmd(p.chap)) : ''}${i === (d.cover || 0) ? ' (bìa hiện tại)' : ''}`, act: () => setCover(d, i) }));
+    A.contextMenu({ title: 'Trang nào làm bìa?', items });
+  }
+  async function dupPage(d, pi) { d.pages.splice(pi + 1, 0, JSON.parse(JSON.stringify({ ...d.pages[pi], chap: undefined }))); await saveDiary(d, true); A.toast(`Đã nhân đôi trang ${pi + 1}`, 1500); if (V.d?.id === d.id) { const i = V.idx; await openViewer(d.id); V.idx = i; layout(); } }
+  async function delPage(d, pi) {
+    const old = JSON.parse(JSON.stringify(d)); const was = d.pages[pi]; d.pages.splice(pi, 1); if (was.chap && d.pages[pi] && !d.pages[pi].chap) d.pages[pi].chap = was.chap;
+    if ((d.cover || 0) >= d.pages.length) d.cover = 0; await saveDiary(d, true);
+    if (V.d?.id === d.id) await openViewer(d.id);
+    A.undoToast(`Đã xoá trang ${pi + 1}`, async () => { await saveDiary(old, true); if (V.d?.id === d.id) openViewer(d.id); });
+  }
+  async function splitDiary(d) {
+    const parts = []; let cur = null;
+    for (const p of d.pages) { if (p.chap || !cur) { cur = { day: p.chap || d.day, pages: [] }; parts.push(cur); } cur.pages.push({ ...p, chap: undefined }); }
+    for (const pt of parts) { const nd = { ...JSON.parse(JSON.stringify(d)), id: uid(), pages: pt.pages, cover: 0, day: pt.day, ts: A.parseYmd(pt.day) || d.ts, title: titleFor(A.kid().name) + ' · ' + A.dmy(A.parseYmd(pt.day) || d.ts).slice(0, 5), created: Date.now() }; await saveDiary(nd, true); }
+    d.deleted = Date.now(); await A.dbPut('diaries', d); await A.onChange(null, true); closeViewer();
+    A.toast(`Đã tách thành ${parts.length} cuốn`, 2000); if (MD.classList.contains('open')) openList();
   }
   const esc2 = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function openNew() { pickMode = 'new'; step('src'); A.openModal(MD); }
@@ -690,16 +740,10 @@ export function initDiary(A) {
   async function fromMoments(ms) {
     if (!ms.length) { step('src'); return; }
     const days = new Map(); for (const m of ms.sort((a, b) => a.ts - b.ts)) { const k = A.ymd(m.ts); if (!days.has(k)) days.set(k, []); days.get(k).push(m); }
-    let groups = [ms];
-    if (days.size > 1) {
-      A.closeModal(MD);
-      const split = await A.ask(`Ảnh thuộc ${days.size} ngày khác nhau`, 'Mỗi nhật ký thường là một ngày. Bạn muốn tách mỗi ngày một nhật ký, hay gộp tất cả vào một cuốn?', '📚 Tách mỗi ngày', false, '📖 Gộp một cuốn');
-      if (split) groups = [...days.values()];
-    }
     A.closeModal(MD);
-    const made = []; for (const g of groups) { const d = await build(g); await saveDiary(d, true); made.push(d); }
-    A.toast(made.length > 1 ? `Đã tạo ${made.length} nhật ký ✨` : 'Đã tạo nhật ký ✨ Bạn chỉnh lời, khung tuỳ thích nhé', 3500);
-    openEditor(made[0].id);
+    const d = await build(ms); await saveDiary(d, true);
+    A.toast(days.size > 1 ? `Đã tạo 1 cuốn nhật ký ${days.size} chương (mỗi ngày một chương)` : 'Đã tạo nhật ký — bạn chỉnh lời, khung tuỳ thích nhé', 3500);
+    openEditor(d.id);
   }
   // ---------- trình chỉnh trang ----------
   const E = { d: null, pi: 0, sel: null, geo: null, items: null, cache: new Map(), dirty: false, raf: 0, quick: false, drag: null };
@@ -865,7 +909,11 @@ export function initDiary(A) {
       const s = E.sel, p = curPanel(); if (!s?.kind || !p) return;
       if (s.kind === 'caption') p.caption = null; else if (s.kind === 'bubble') p.bubbles.splice(s.i, 1); else p.sfx.splice(s.i, 1);
       E.sel = { p: s.p }; dirty(); edUi(); draw();
-    } else if (a === 'zin' || a === 'zout') zoom(a === 'zin' ? 1.15 : 1 / 1.15);
+    } else if (a === 'btype') { const it = selItem(); if (!it || E.sel.kind !== 'bubble') return; const o = ['say', 'shout', 'think']; it.type = o[(o.indexOf(it.type) + 1) % 3]; dirty(); draw(); A.toast({ say: 'Bong bóng thường', shout: 'Bong bóng hét', think: 'Bong bóng suy nghĩ' }[it.type], 1000); }
+    else if (a === 'fs+' || a === 'fs-') { const it = selItem(); if (!it) return; if (E.sel.kind === 'sfx') it.size = clamp((it.size || 100) * (a === 'fs+' ? 1.15 : 1 / 1.15), 50, 200); else it.fs = clamp((it.fs || 1) * (a === 'fs+' ? 1.12 : 1 / 1.12), .65, 1.8); dirty(); draw(); }
+    else if (a === 'duppg') { d.pages.splice(E.pi + 1, 0, JSON.parse(JSON.stringify({ ...page, chap: undefined }))); E.pi++; dirty(); strip(); edUi(); draw(); A.toast('Đã nhân đôi trang', 1200); }
+    else if (a === 'coverpg') { d.cover = E.pi; dirty(); A.toast(`Trang ${E.pi + 1} sẽ làm bìa (bấm Lưu)`, 1600); }
+    else if (a === 'zin' || a === 'zout') zoom(a === 'zin' ? 1.15 : 1 / 1.15);
     else if (a === 'fx') { const p = curPanel(); if (!p) return; const order = [null, 'focus', 'speed', 'sparkle']; p.fx = order[(order.indexOf(p.fx ?? null) + 1) % order.length]; dirty(); edUi(); draw(); }
     else if (a === 'swap') { const p = curPanel(); if (!p) return; openPicker('swap', async ids => { if (!ids[0]) return; await loadSrc(ids[0]); p.mid = ids[0]; p.crop = null; dirty(); strip(); draw(); }, 1, true); }
     else if (a === 'rmp') {
@@ -877,8 +925,8 @@ export function initDiary(A) {
     } else if (a === 'reroll') { d.roll = (d.roll || 0) + 1; autoText(d, ctxFor(d)); E.sel = null; dirty(); edUi(); draw(); A.toast('🎲 Đã ghép lời mới — bấm nữa để đổi tiếp', 1600); }
     else if (a === 'ai') aiWrite(b);
     else if (a === 'deld') {
-      if (!(await A.ask('Xoá nhật ký này?', 'Chỉ xoá trang truyện. Ảnh, video vẫn còn nguyên trong dải ngân hà.', 'Xoá nhật ký', true))) return;
-      await A.dbDel('diaries', d.id); await A.dbDel('blobs', 'd_' + d.id); closeEditor(); await A.onChange(null); A.toast('Đã xoá nhật ký');
+      if (!(await A.ask('Xoá nhật ký này?', 'Cuốn nhật ký vào thùng rác 30 ngày (khôi phục được). Ảnh, video vẫn còn nguyên.', 'Xoá nhật ký', true))) return;
+      closeEditor(); await A.trashDiary(d);
     }
   });
   function closeEditor() { ED.classList.remove('open'); document.body.classList.remove('dopen'); E.d = null; E.cache.clear(); }
@@ -1028,6 +1076,7 @@ Yêu cầu: tiếng Việt có dấu, dễ thương, tích cực, hợp tuổi b
     if (a === 'close') closeViewer();
     else if (a === 'bnext') flip(1); else if (a === 'bprev') flip(-1);
     else if (a === 'edit') { const id = V.d.id; closeViewer(); openEditor(id); }
+    else if (a === 'more') { const [L, R] = spreadPages(V.idx), N = V.d.pages.length; diaryMenu(V.d.id, null, b, R != null && R < N ? R : L); }
     else if (a === 'dl') {
       const [L, R] = spreadPages(V.idx), N = V.d.pages.length, i = R != null && R < N ? R : L;
       const r = renderPage(V.d, i, { scale: 1, mode: V.d.mode, src: srcFn(false), header: header(V.d) });
@@ -1052,6 +1101,7 @@ Yêu cầu: tiếng Việt có dấu, dễ thương, tích cực, hợp tuổi b
   return {
     openList, openNew, openEditor, openViewer, closeViewer, build, saveDiary, renderPage, header, autoText, pickModel, applyAI,
     get viewer() { return V; }, get editor() { return E; }, isOpen: () => BK.classList.contains('open') || ED.classList.contains('open'),
+    diaryMenu, renameDiary, splitDiary,
     setAiVisible: v => { ED.querySelector('.dai').hidden = !v; }, resetModel: () => { MODEL = null; }, movePanel, draw
   };
 }

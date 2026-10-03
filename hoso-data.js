@@ -48,6 +48,25 @@ export function solar2lunar(dd, mm, yy) {
   return { d: ld, m: lm, y: ly, leap: !!leap };
 }
 
+export function jdToDate(jd) {
+  let a, b, c; if (jd > 2299160) { a = jd + 32044; b = INT((4 * a + 3) / 146097); c = a - INT(b * 146097 / 4); } else { b = 0; c = jd + 32082; }
+  const d = INT((4 * c + 3) / 1461), e = c - INT(1461 * d / 4), m = INT((5 * e + 2) / 153);
+  return { d: e - INT((153 * m + 2) / 5) + 1, m: m + 3 - 12 * INT(m / 10), y: b * 100 + d - 4800 + INT(m / 10) };
+}
+// âm → dương (null nếu tháng nhuận không có trong năm đó)
+export function lunar2solar(ld, lm, ly, leap = false) {
+  let a11, b11;
+  if (lm < 11) { a11 = month11(ly - 1); b11 = month11(ly); } else { a11 = month11(ly); b11 = month11(ly + 1); }
+  const k = INT(0.5 + (a11 - 2415021.076998695) / 29.530588853); let off = lm - 11; if (off < 0) off += 12;
+  if (b11 - a11 > 365) { const lo = leapOffset(a11); let lmn = lo - 2; if (lmn < 0) lmn += 12; if (leap && lm !== lmn) return null; if (leap || off >= lo) off += 1; }
+  else if (leap) return null;
+  return jdToDate(newMoon(k + off) + ld - 1);
+}
+// ngày dương của sinh nhật âm (ngày ld tháng lm) trong năm âm ly; tháng thiếu thì lấy ngày cuối tháng
+export function lunarBirthday(ld, lm, ly) {
+  for (let d = ld; d >= Math.min(ld, 28); d--) { const s = lunar2solar(d, lm, ly, false); if (!s) return null; const back = solar2lunar(s.d, s.m, s.y); if (back.m === lm && back.d === d && !back.leap) return s; }
+  return null;
+}
 export const CAN = ['Giáp', 'Ất', 'Bính', 'Đinh', 'Mậu', 'Kỷ', 'Canh', 'Tân', 'Nhâm', 'Quý'];
 export const CHI = ['Tý', 'Sửu', 'Dần', 'Mão', 'Thìn', 'Tỵ', 'Ngọ', 'Mùi', 'Thân', 'Dậu', 'Tuất', 'Hợi'];
 export const CON = ['Chuột', 'Trâu', 'Hổ', 'Mèo', 'Rồng', 'Rắn', 'Ngựa', 'Dê', 'Khỉ', 'Gà', 'Chó', 'Lợn'];

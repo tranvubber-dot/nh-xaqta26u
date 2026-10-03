@@ -168,7 +168,7 @@ body.showing #top > * { pointer-events: none; }
 body.lbopen #top, body.lbopen #bottom { opacity: 0; pointer-events: none; }
 body.lbopen #top > * { pointer-events: none; }
 
-#toast { position: fixed; left: 50%; top: calc(80px + var(--safe-t)); transform: translate(-50%, -20px); z-index: 60; padding: 11px 18px; border-radius: 16px; font-weight: 700; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; max-width: calc(100% - 32px); text-align: center; }
+#toast { position: fixed; left: 50%; top: calc(80px + var(--safe-t)); transform: translate(-50%, -20px); z-index: 60; padding: 11px 18px; border-radius: 16px; font-weight: 700; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; width: max-content; text-align: center; max-width: calc(100% - 32px); text-align: center; }
 #toast.on { opacity: 1; transform: translate(-50%, 0); }
 #dropAll { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; font-size: 26px; font-weight: 700; background: rgba(255, 126, 179, .18); border: 4px dashed var(--accent); opacity: 0; pointer-events: none; transition: opacity .2s; }
 #dropAll.on { opacity: 1; }
@@ -575,6 +575,99 @@ body.tlfam #tlv .rail { display: none; }
 .confetti { position: fixed; inset: 0; z-index: 70; pointer-events: none; overflow: hidden; }
 .confetti i { position: absolute; top: -20px; width: var(--w); height: calc(var(--w) * 1.6); border-radius: 2px; animation: cf var(--d) cubic-bezier(.2,.6,.4,1) forwards; }
 @keyframes cf { to { transform: translate3d(var(--x), 110vh, 0) rotate(var(--r)); } }
+
+/* ===================== v1.3.1 — sửa / xoá / tuỳ chỉnh ở mọi màn ===================== */
+.cd, .gi, .pol img, .gi img, .lt-av, .rhead, .dlist .it { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.cm { position: fixed; inset: 0; z-index: 90; }
+.cm-bg { position: absolute; inset: 0; background: rgba(8,5,30,.32); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); opacity: 0; transition: opacity .25s; }
+.cm.on .cm-bg { opacity: 1; }
+.cm-pv { position: fixed; margin: 0; z-index: 1; pointer-events: none; transform: translateY(var(--ly, 0)) scale(1); transition: transform var(--sp-bouncy-ms) var(--sp-bouncy); }
+.cm.on .cm-pv { transform: translateY(var(--ly, 0)) scale(1.04); filter: drop-shadow(0 18px 40px rgba(0,0,0,.35)); }
+.cm.off .cm-pv { transform: translateY(0) scale(1); transition-duration: .2s; }
+.cm-list { position: fixed; z-index: 2; max-height: calc(100vh - 24px); overflow: auto; border-radius: 18px; padding: 6px; background: var(--hsbg, rgba(30,22,60,.95)); border: 1px solid var(--glb); box-shadow: 0 20px 60px rgba(0,0,0,.35), inset 0 1px 0 var(--glh); transform: scale(.6); opacity: 0; transition: transform var(--sp-bouncy-ms) var(--sp-bouncy), opacity .18s; }
+.cm.on .cm-list { transform: none; opacity: 1; } .cm.off .cm-list { transform: scale(.85); opacity: 0; transition-duration: .18s; }
+.cm-t { padding: 10px 12px 8px; font-size: 13px; font-weight: 700; color: var(--muted); border-bottom: 1px solid var(--line); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-list button { width: 100%; justify-content: flex-start; gap: 12px; min-height: 46px; padding: 0 12px; border: none; border-radius: 12px; background: transparent; font-size: 15.5px; font-weight: 600; text-align: left; white-space: normal; }
+.cm-list button:hover { background: var(--btn-h); }
+.cm-list button .ic { color: var(--accent); flex: none; } .cm-list button.danger, .cm-list button.danger .ic { color: var(--danger); }
+.utoast { position: fixed; z-index: 95; left: 50%; bottom: calc(var(--tabh, 66px) + 22px + var(--safe-b)); display: flex; align-items: center; gap: 12px; width: max-content; max-width: calc(100% - 28px); padding: 10px 10px 10px 18px; border-radius: 22px; overflow: hidden; color: var(--text); font-weight: 700; font-size: 14.5px;
+  background: var(--hsbg, rgba(30,22,60,.95)); border: 1px solid var(--glb); box-shadow: 0 14px 40px rgba(0,0,0,.35), inset 0 1px 0 var(--glh); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  transform: translate(-50%, 40px) scale(.9); opacity: 0; transition: transform var(--sp-bouncy-ms) var(--sp-bouncy), opacity .25s; }
+.utoast.on { transform: translate(-50%, 0); opacity: 1; }
+.utoast button { flex: none; height: 40px; gap: 5px; padding: 0 14px; border-radius: 20px; color: #fff; border: none; background: linear-gradient(135deg, #ff7eb3, #ffb36b); }
+.utoast i { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--accent); transform-origin: 0 0; animation: utBar linear forwards; }
+@keyframes utBar { to { transform: scaleX(0); } }
+/* thanh chọn nhiều */
+#bulk { position: fixed; z-index: 41; left: 10px; right: 10px; bottom: calc(8px + var(--safe-b)); max-width: 620px; margin: 0 auto; padding: 10px 12px 12px; border-radius: 26px; background: linear-gradient(180deg, var(--gl1), var(--hsbg)); border: 1px solid var(--glb); box-shadow: inset 0 1px 0 var(--glh), 0 18px 50px rgba(0,0,0,.35); -webkit-backdrop-filter: blur(26px) saturate(1.6); backdrop-filter: blur(26px) saturate(1.6);
+  transform: translateY(140%); transition: transform var(--sp-bouncy-ms) var(--sp-bouncy); }
+#bulk.on { transform: none; }
+.bk-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; } .bk-top .bk-n { flex: 1; font-size: 15px; }
+.bk-top button { height: 38px; }
+.bk-acts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.bk-acts button { flex-direction: column; gap: 3px; height: 58px; padding: 0 2px; border-radius: 16px; font-size: 11px; white-space: normal; text-align: center; line-height: 1.1; }
+.bk-acts button[hidden] { display: none !important; }
+.bk-acts button:disabled { opacity: .35; }
+body.selmode #tabbar { transform: translateY(140%); opacity: 0; pointer-events: none; }
+.gi::after, .ev .cd::after { content: ""; }
+.selm .gi::after, #tl.selm .ev .cd > .selck { content: ""; position: absolute; right: 6px; top: 6px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; background: rgba(0,0,0,.25); box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.selm .gi.sel::after { background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/16px no-repeat; }
+.selm .gi.sel img { transform: scale(.86); border-radius: 8px; } .gi img { transition: transform var(--sp-bouncy-ms) var(--sp-bouncy), opacity .3s; }
+.gi.press img { transform: scale(.9); }
+#tl.selm .ev .cd { cursor: pointer; } #tl.selm .ev.sel .cd { box-shadow: 0 0 0 3px var(--accent), var(--sh); transform: scale(.97); }
+#tl.selm .ev .cd::after { content: ""; position: absolute; right: 12px; top: 12px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--text); opacity: .7; }
+#tl.selm .ev.sel .cd::after { opacity: 1; border-color: #fff; background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/16px no-repeat; }
+/* trang sự kiện: 8 nút thấy ngay + ⋯ */
+.evp-acts { grid-template-columns: repeat(4, 1fr); }
+.evp-acts button { height: 74px; } .evp-acts button.danger, .evp-acts button.danger .ic { color: var(--danger); }
+.evp-more { position: fixed; z-index: 31; top: calc(10px + var(--safe-t)); right: 12px; opacity: 0; transform: scale(.6); pointer-events: none; }
+#evp.open .evp-more { opacity: 1; transform: none; pointer-events: auto; transition: transform var(--sp-bouncy-ms) var(--sp-bouncy) .12s, opacity .2s .12s; }
+.evp-hint { margin: 10px 0 0; padding: 10px 14px; border-radius: 14px; font-weight: 700; font-size: 14px; color: #6b3b10; background: linear-gradient(135deg, #fff1c4, #ffcf6e); }
+#evp.pick .gi { box-shadow: 0 0 0 2px #ffcf6e; animation: pickPulse 1.4s ease-in-out infinite; }
+@keyframes pickPulse { 50% { box-shadow: 0 0 0 4px #ffcf6e; } }
+/* trình xem: thanh nút luôn hiện */
+.pv-tray { padding-bottom: calc(14px + var(--safe-b)); }
+.pv-tray .grab { display: none; }
+.pv-tray .pv-ti { padding-top: 14px; }
+.pv-more { padding-top: 10px; }
+.pv-acts { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.pv-acts button { height: 58px; font-size: 11.5px; }
+.pv-acts button[hidden] { display: none !important; }
+.pv-acts button.on { border-color: #ffd36b; color: #ffd36b; }
+.pv-top .glassbtn:last-child { margin-left: auto; }
+.pv-kids { display: none !important; }
+/* hồ sơ */
+.hs-tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+.hs-tools button { height: 44px; } .hs-tools button.danger, .hs-tools button.danger .ic { color: var(--danger); }
+.hs-bday { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 16px; border-radius: 18px; color: #6b3b10; background: linear-gradient(135deg, #fff1c4, #ffcf6e); box-shadow: 0 0 24px rgba(255,200,90,.6); animation: hsPop var(--sp-wobbly-ms) var(--sp-wobbly); }
+.hs-more { position: fixed; z-index: 33; top: calc(10px + var(--safe-t)); right: 12px; opacity: 0; pointer-events: none; } #hs.open .hs-more { opacity: 1; pointer-events: auto; }
+/* thùng rác */
+#trList { display: grid; gap: 10px; margin-top: 10px; }
+.tr-k { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 16px; background: var(--field); }
+.tr-k img { width: 42px; height: 42px; border-radius: 50%; } .tr-k > span:nth-child(2) { flex: 1; display: grid; } .tr-k small { color: var(--muted); font-weight: 600; } .tr-k .ic-b { color: var(--accent); }
+.tr-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.tr-g button { position: relative; padding: 0; aspect-ratio: 1; border-radius: 12px; overflow: hidden; flex-direction: column; justify-content: flex-end; }
+.tr-g button i { position: absolute; inset: 0; background: var(--btn) center/cover; transition: transform var(--sp-bouncy-ms) var(--sp-bouncy); }
+.tr-g button small { position: relative; width: 100%; padding: 12px 4px 4px; font-size: 10.5px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.6)); }
+.tr-g button.on { box-shadow: 0 0 0 3px var(--accent); } .tr-g button.on i { transform: scale(.88); border-radius: 8px; }
+/* hộp Thêm: nhóm theo ngày */
+.add-day { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 2px 0; font-size: 14px; color: var(--sub); } .add-day b { color: var(--text); } .add-day span { font-size: 13px; color: var(--accent); font-weight: 700; }
+.row-add { grid-template-columns: 74px 1fr !important; }
+/* danh sách nhật ký: nút ⋯ */
+.dlist .it { position: relative; } .it-more { position: absolute; top: 6px; right: 6px; width: 40px; height: 40px; }
+
+/* nhắc sinh nhật */
+.bdb { position: relative; z-index: 6; display: flex; gap: 12px; align-items: center; margin: 4px 0 16px calc(var(--lx) * -1 + 14px); padding: 12px 14px; border-radius: 22px; background: linear-gradient(135deg, color-mix(in srgb, var(--c, #ff8fbf), transparent 72%), transparent), var(--pane); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); border: 1px solid color-mix(in srgb, var(--c, #ff8fbf), transparent 40%); box-shadow: 0 0 26px color-mix(in srgb, var(--c, #ff8fbf), transparent 65%); animation: giIn var(--sp-bouncy-ms) var(--sp-bouncy); }
+#tl.wide .bdb { margin-left: auto; margin-right: auto; max-width: 620px; }
+.bdb.today { animation: giIn var(--sp-bouncy-ms) var(--sp-bouncy), bdGlow 2.4s ease-in-out infinite alternate; } @keyframes bdGlow { to { box-shadow: 0 0 40px color-mix(in srgb, var(--c), transparent 35%); } }
+.bdb img { width: 48px; height: 48px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2.5px var(--c); }
+.bdb b { font-size: 15.5px; line-height: 1.35; } .bdb-a { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; } .bdb-a button { height: 34px; font-size: 13px; padding: 0 12px; gap: 6px; }
+.kid-row { flex-wrap: wrap; } .kid-row .kr-acts { display: flex; gap: 6px; width: 100%; padding-left: 0; margin-top: 4px; flex-wrap: wrap; } .kid-row .kr-acts button { height: 36px; padding: 0 11px; font-size: 13px; gap: 5px; }
+.bdb.flt { --c: #ffd27f; font-weight: 700; } .bdb.flt span { flex: 1; } .bdb.flt button { height: 36px; }
+#mNhac .tog small, .tog small { display: block; font-weight: 600; font-size: 12.5px; color: var(--muted); }
+.nh-h { margin: 16px 0 2px; font-size: 14px; color: var(--sub); }
+.nh-ok { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 14px; background: rgba(159,225,203,.16); color: var(--ok); font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+.nh-hd { margin-top: 14px; } .nh-hd summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+.nh-steps { margin: 8px 0 0; padding-left: 20px; line-height: 1.6; font-size: 14px; } .nh-steps li { margin-bottom: 6px; }
 @media (prefers-reduced-motion: reduce) { #tlv .rail i { animation: none; } .ev { opacity: 1; transform: none; } }
 </style>
 </head>
@@ -595,7 +688,7 @@ body.tlfam #tlv .rail { display: none; }
   </div>
 </div>
 <div id="kidMenu" class="glass" hidden></div>
-<div id="tbar"><div class="bgp glassbar"></div><button id="gxBack" class="glassbar"></button><span class="sp"></span><div class="tt" id="tbTitle"></div><div class="rt"><button class="glassbtn" id="tbGx" aria-label="Toàn cảnh ngân hà"></button><button class="glassbtn" id="tbTheme" aria-label="Đổi phong cách"></button></div></div>
+<div id="tbar"><div class="bgp glassbar"></div><button id="gxBack" class="glassbar"></button><span class="sp"></span><div class="tt" id="tbTitle"></div><div class="rt"><button class="glassbtn" id="tbGx" aria-label="Toàn cảnh ngân hà"></button><button class="glassbtn" id="tbTheme" aria-label="Đổi phong cách"></button><button class="glassbtn" id="tbMore" aria-label="Tuỳ chọn"></button></div></div>
 <nav id="tabbar" class="glassbar" aria-label="Thanh điều hướng"></nav>
 
 <div id="bottom" class="glass">
@@ -678,6 +771,7 @@ body.tlfam #tlv .rail { display: none; }
     <input type="file" id="bgFile" accept="image/*" hidden></div>
   <div class="sec"><h3>Nhạc khi trình chiếu</h3><div class="seg" id="segMusic"><button data-v="builtin">🎐 Hộp nhạc</button><button data-v="file">🎵 Bài của bạn</button><button data-v="off">🔇 Tắt</button></div>
     <p class="hint" id="musicHint"></p><input type="file" id="musicIn" accept="audio/*" hidden></div>
+  <div class="sec"><h3>Thùng rác</h3><p class="hint" style="margin-top:0">Xoá nhầm? Mọi thứ đã xoá được giữ 30 ngày.</p><button id="bTrash" style="margin-top:8px">Mở thùng rác</button></div>
   <div class="sec"><h3>Sao lưu</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="bExport">💾 Tạo bản sao lưu</button><button id="bImport">📂 Mở bản sao lưu</button></div>
     <input type="file" id="importIn" accept=".nganha,application/octet-stream" hidden>
     <p class="hint">Ảnh, video chỉ nằm trong máy này. Thỉnh thoảng hãy tạo bản sao lưu và cất vào ổ cứng, iCloud Drive hoặc Google Drive. Muốn chuyển sang máy khác: mở bản sao lưu ở máy kia.</p>
@@ -691,6 +785,10 @@ body.tlfam #tlv .rail { display: none; }
   <div class="foot"><span style="margin-right:auto;align-self:center;font-size:12px;color:var(--muted);font-weight:600" id="verTxt"></span><button data-close class="primary">Xong</button></div>
 </div></div>
 
+<div class="modal" id="mPrompt"><div class="card glass" style="width:min(440px,100%)"><h2></h2><label class="f"><input></label><div class="foot"><button data-close>Huỷ</button><button class="primary">Lưu</button></div></div></div>
+<div class="modal" id="mTrash"><div class="card glass"><h2>Thùng rác</h2><p class="lead">Ảnh, video, nhật ký, bé đã xoá nằm ở đây 30 ngày rồi mới xoá hẳn. Chạm ảnh để chọn.</p><p class="hint" id="trInfo"></p><div id="trList"></div>
+  <div class="foot"><button data-close>Đóng</button><button id="trPurge" class="danger">Dọn sạch thùng rác</button><button id="trRestore" class="primary">Khôi phục tất cả</button></div></div></div>
+<div class="modal" id="mKids"><div class="card glass" style="width:min(440px,100%)"><h2>Ảnh này của bé nào?</h2><p class="lead mk-l"></p><div class="kidsel mk-k" style="margin:6px 0 4px"></div><div class="foot"><button data-close>Huỷ</button><button class="primary mk-ok">Lưu</button></div></div></div>
 <div class="modal" id="mAsk"><div class="card glass" style="width:min(420px,100%)">
   <h2 id="askT"></h2><p class="lead" id="askL"></p>
   <div class="foot"><button data-close id="askNo">Thôi</button><button class="primary" id="askYes">Đồng ý</button></div>

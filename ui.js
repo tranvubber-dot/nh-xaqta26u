@@ -81,7 +81,13 @@ const P = {
   music: '<path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.2"/><circle cx="17" cy="16" r="2.2"/>',
   palette: '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.6 0-1.1-1-1.4-1-2.4 0-.9.8-1.5 1.8-1.5h2.2a3.7 3.7 0 0 0 3.7-3.7C20.5 7 16.7 3.5 12 3.5z"/><circle cx="7.6" cy="11" r="1.1"/><circle cx="10.5" cy="7.4" r="1.1"/><circle cx="15" cy="7.6" r="1.1"/>',
   save: '<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>',
-  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.3"/>'
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.3"/>',
+  more: '<circle cx="5.5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.7" fill="currentColor" stroke="none"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="M7.5 12.5l3 3 6-6.5"/>',
+  smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14c1 1.6 2.4 2.4 4 2.4s3-.8 4-2.4"/><circle cx="9" cy="9.8" r=".9" fill="currentColor"/><circle cx="15" cy="9.8" r=".9" fill="currentColor"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/>',
+  move: '<path d="M4 12h12M12 6l6 6-6 6"/><path d="M4 5v14"/>',
+  baby: '<circle cx="12" cy="8" r="4"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/><path d="M11 6.2c.6-.6 1.4-.6 2 0"/>'
 };
 export function icon(name, size = 24, sw = 1.7) {
   return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
@@ -118,3 +124,65 @@ export function initSheets(closeFn) {
 }
 export const fmtLong = ts => { const d = new Date(ts); return `${['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][d.getDay()]}, ${d.getDate()} tháng ${d.getMonth() + 1}, ${d.getFullYear()}`; };
 export { clamp };
+
+// ---------- Menu hành động kiểu iOS (nhấn giữ hoặc nút ⋯) ----------
+// items: [{ icon, label, act, danger, hidden }] — act() được gọi khi chọn. el: phần tử được "nâng lên" (tuỳ chọn); at: nút ⋯ để neo menu.
+let CM = null;
+const PDOWN = { n: 0 };
+addEventListener('pointerdown', () => { PDOWN.n = 1; }, true); addEventListener('pointerup', () => { PDOWN.n = 0; }, true); addEventListener('pointercancel', () => { PDOWN.n = 0; }, true);
+export function contextMenu({ el, at, title, items }) {
+  closeMenu(true);
+  const list = items.filter(i => i && !i.hidden);
+  const ov = document.createElement('div'); ov.className = 'cm'; ov.innerHTML = '<div class="cm-bg"></div>';
+  let pv = null, r = (el || at)?.getBoundingClientRect();
+  if (el && r) { pv = el.cloneNode(true); pv.classList.add('cm-pv'); pv.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`; pv.querySelectorAll('[id]').forEach(x => x.removeAttribute('id')); ov.appendChild(pv); }
+  const m = document.createElement('div'); m.className = 'cm-list';
+  m.innerHTML = (title ? `<div class="cm-t">${title}</div>` : '') + list.map((it, i) => `<button data-i="${i}" class="${it.danger ? 'danger' : ''}">${it.icon ? icon(it.icon, 20, 1.9) : ''}<span>${it.label}</span></button>`).join('');
+  ov.appendChild(m); document.body.appendChild(ov);
+  const W = innerWidth, H = innerHeight, mw = Math.min(290, W - 24), mh = m.offsetHeight;
+  let x = r ? clamp(r.left + (el ? 0 : r.width - mw), 12, W - mw - 12) : (W - mw) / 2, y;
+  if (!r) y = (H - mh) / 2;
+  else if (el) { const lift = Math.min(0, H - 20 - (r.bottom + 12 + mh)); if (pv && lift < 0) { pv.style.setProperty('--ly', Math.max(lift, -r.top + 20) + 'px'); } y = r.bottom + 12 + Math.max(lift, -r.top + 20); if (y + mh > H - 12) y = Math.max(12, r.top - mh - 12); }
+  else { y = r.bottom + 8; if (y + mh > H - 12) y = Math.max(12, r.top - mh - 8); }
+  m.style.cssText = `left:${x}px;top:${y}px;width:${mw}px;transform-origin:${el ? '20% 0' : '90% 0'}`;
+  requestAnimationFrame(() => ov.classList.add('on')); haptic(12);
+  if (el) el.style.visibility = 'hidden';
+  // mở bằng nhấn giữ: chỉ "nhận" chạm sau khi đã nhấc tay (cú click tổng hợp lúc nhấc tay không được đóng menu)
+  // mở lúc ngón tay còn giữ → chờ thả tay; mở ngay lúc thả tay → bỏ qua cú "click" đi kèm rồi mới nhận chạm nền để đóng
+  let armed = !el; if (el) { if (PDOWN.n > 0) { const arm = () => setTimeout(() => { armed = true; }, 80); addEventListener('pointerup', arm, { once: true, capture: true }); addEventListener('pointercancel', arm, { once: true, capture: true }); } else setTimeout(() => { armed = true; }, 320); }
+  const close = () => { if (armed) closeMenu(); };
+  ov.querySelector('.cm-bg').addEventListener('click', close);
+  m.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (!b || !armed) return; const it = list[+b.dataset.i]; closeMenu(); setTimeout(() => it.act?.(), 60); });
+  CM = { ov, el };
+}
+export function closeMenu(now) {
+  if (!CM) return; const { ov, el } = CM; CM = null; ov.classList.remove('on'); ov.classList.add('off');
+  setTimeout(() => { ov.remove(); if (el) el.style.visibility = ''; }, now ? 0 : 260);
+}
+addEventListener('keydown', e => { if (e.key === 'Escape' && CM) { e.stopImmediatePropagation(); closeMenu(); } }, true);
+// nhấn giữ ~0,45 s trên phần tử khớp selector → cb(el, e); chặn cú chạm theo sau
+export function longPress(root, sel, cb, ms = 450) {
+  let t = 0, st = null, fired = false;
+  root.addEventListener('pointerdown', e => {
+    const el = e.target.closest(sel); if (!el || !root.contains(el) || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    fired = false; st = { x: e.clientX, y: e.clientY, el, e };
+    clearTimeout(t); t = setTimeout(() => { if (!st) return; fired = true; cb(st.el, st.e); st = null; }, ms);
+  });
+  root.addEventListener('pointermove', e => { if (st && Math.hypot(e.clientX - st.x, e.clientY - st.y) > 9) { clearTimeout(t); st = null; } });
+  const end = () => { clearTimeout(t); st = null; };
+  root.addEventListener('pointerup', end); root.addEventListener('pointercancel', end);
+  root.addEventListener('click', e => { if (fired) { e.stopPropagation(); e.preventDefault(); fired = false; } }, true);
+  root.addEventListener('contextmenu', e => { if (e.target.closest(sel)) e.preventDefault(); });
+}
+// toast kính có nút ↩︎ Hoàn tác (5 giây)
+let UT = null;
+export function undoToast(msg, onUndo, ms = 5000) {
+  UT?.close(true);
+  const d = document.createElement('div'); d.className = 'utoast';
+  d.innerHTML = `<span>${msg}</span>${onUndo ? `<button>${icon('back', 16, 2.2)}<b>Hoàn tác</b></button>` : ''}<i style="animation-duration:${ms}ms"></i>`;
+  document.body.appendChild(d); requestAnimationFrame(() => d.classList.add('on'));
+  let done = false; const close = now => { if (done) return; done = true; d.classList.remove('on'); setTimeout(() => d.remove(), now ? 0 : 400); if (UT === h) UT = null; };
+  const tm = setTimeout(close, ms);
+  d.querySelector('button')?.addEventListener('click', () => { clearTimeout(tm); close(); haptic(10); onUndo(); });
+  const h = { close }; UT = h; return h;
+}

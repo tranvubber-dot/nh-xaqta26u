@@ -31,7 +31,7 @@ export function avatarSVG(kid, style) {
 export function initProfile(A) {
   const $ = s => document.querySelector(s);
   document.body.insertAdjacentHTML('beforeend', `
-<div id="hs" aria-hidden="true"><div class="hs-bg"></div><div class="hs-sc"><div class="hs-in"></div></div><button class="hs-back glassbtn" aria-label="Đóng">${icon('back', 22, 2)}</button></div>
+<div id="hs" aria-hidden="true"><div class="hs-bg"></div><div class="hs-sc"><div class="hs-in"></div></div><button class="hs-back glassbtn" aria-label="Đóng">${icon('back', 22, 2)}</button><button class="hs-more glassbtn" aria-label="Tuỳ chọn">${icon('more', 22, 2)}</button></div>
 <div class="modal" id="mAv"><div class="card glass">
   <h2>Avatar của <span class="avn"></span></h2>
   <div class="avc"><div class="avc-v"><img alt="" draggable="false"></div><i class="avc-r"></i></div>
@@ -79,10 +79,10 @@ export function initProfile(A) {
     const k = C.kid; if (!k) return; const box = M.querySelector('.avst');
     box.innerHTML = [0, 1, 2].map(i => `<button data-st="${i}" class="${C.style === i ? 'on' : ''}"><img src="${avatarSVG(k, i)}" alt=""></button>`).join('');
   }
-  async function openAvatar(kid, done) {
-    C.kid = kid; C.done = done; C.style = kid.avatar ? null : (kid.avStyle ?? 0);
+  async function openAvatar(kid, done, src) {
+    C.kid = kid; C.done = done; C.style = kid.avatar || src ? null : (kid.avStyle ?? 0);
     M.querySelector('.avn').textContent = kid.name || 'bé'; M.querySelector('.avpick').hidden = true;
-    const b = kid.avatar ? await A.dbGet('blobs', 'av_' + kid.id) : null;
+    const b = src || (kid.avatar ? await A.dbGet('blobs', 'av_' + kid.id) : null);
     if (b) await setSrc(b); else { img.src = avatarSVG(kid, C.style); C.w = C.h = 100; C.s = 1; C.x = C.y = 0; applyT(); renderStyles(); }
     A.openModal(M);
   }
@@ -143,14 +143,16 @@ export function initProfile(A) {
   const ageLine = p => !p.born ? 'Sắp chào đời' : [p.y ? `${p.y} tuổi` : '', p.m ? `${p.m} tháng` : '', p.d || (!p.y && !p.m) ? `${p.d} ngày` : ''].filter(Boolean).join(' ');
   const g3 = (kid, a, b, c) => kid.gender === 'm' ? a : kid.gender === 'f' ? b : c;
   async function openProfile(kid) {
-    if (!kid?.birth) return;
+    if (!kid?.birth) return; document.querySelector('.confetti')?.remove();
+    const nh = await A.metaGet?.('nhac:' + kid.id);
     const P = profileOf(kid.birth), age = ageParts(kid.birth), z = P.zodiac, col = kid.color || '#ff8fbf', av = await avatarURL(kid);
     HS.style.setProperty('--kc', col); HS.style.setProperty('--kc2', mix(col, '#ffffff', .45));
     const lun = `Ngày ${P.lunar.d} tháng ${LUNAR_MONTH(P.lunar.m)}${P.lunar.leap ? ' (nhuận)' : ''} năm ${P.canChi}`;
     HI.innerHTML = `
       <div class="hs-hero"><div class="hs-av"><img src="${av}" alt=""><i></i></div>
         <h1>${esc(kid.name)}</h1><p>${g3(kid, 'Chàng trai nhỏ', 'Công chúa nhỏ', 'Em bé')} · sinh ${esc(fmtLong(new Date(kid.birth + 'T12:00:00').getTime()))}</p>
-        <button class="hs-edit" data-a="edit">${icon('edit', 16)}<span>Sửa thông tin</span></button></div>
+        ${age.today ? `<div class="hs-bday">${icon('cake', 18, 2)}<b>Chúc mừng sinh nhật ${esc(kid.name)}!</b></div>` : ''}
+        <div class="hs-tools"><button data-a="edit">${icon('edit', 18)}<span>Sửa thông tin</span></button><button data-a="av">${icon('smile', 18)}<span>Đổi avatar</span></button><button data-a="bg">${icon('image', 18)}<span>Hình nền</span></button><button data-a="nhac">${icon('cake', 18)}<span>${nh ? 'Đã đặt nhắc · cập nhật' : 'Nhắc sinh nhật'}</span></button><button data-a="rm" class="danger">${icon('trash', 18)}<span>Xoá bé</span></button></div></div>
       <div class="hs-grid">
         <section class="t big"><h3>${icon('heart', 18)}Tuổi hôm nay</h3><div class="v">${ageLine(age)}</div>
           <p>Đã sống <b>${age.days.toLocaleString('vi-VN')}</b> ngày${age.born ? '' : ''}</p>
@@ -163,25 +165,34 @@ export function initProfile(A) {
         <section class="t big"><h3>${icon('sparkle', 18)}Tính cách đáng yêu</h3><div class="chips">${z.chip.map(c => `<span class="chip">${c}</span>`).join('')}</div>
           <p class="pa">${esc(z.ta)}</p><p class="pa">${esc(P.giap)} Mệnh ${P.nap.hanh} thường ${MENH_TA[P.nap.hanh]}.</p><p class="note">Mang tính tham khảo cho vui</p></section>
       </div>
-      <div class="hs-acts"><button class="primary" data-a="img">${icon('download', 18, 2)}<span>Lưu thẻ hồ sơ thành ảnh</span></button><button data-a="av">${icon('image', 18)}<span>Đổi avatar</span></button></div>`;
+      <div class="hs-acts"><button class="primary" data-a="img">${icon('download', 18, 2)}<span>Lưu thẻ hồ sơ thành ảnh</span></button></div>`;
     HS.classList.add('open'); HS.setAttribute('aria-hidden', 'false'); document.body.classList.add('hsopen'); HS.querySelector('.hs-sc').scrollTop = 0;
     HS._kid = kid; HS._p = P; HS._age = age;
     if (age.today) setTimeout(() => confetti(col), 500);
   }
-  function closeProfile() { HS.classList.remove('open'); HS.setAttribute('aria-hidden', 'true'); document.body.classList.remove('hsopen'); }
+  HS.querySelector('.hs-more').onclick = e => { const k = HS._kid; if (!k) return; A.contextMenu({ at: e.currentTarget, title: esc(k.name), items: [
+    { icon: 'edit', label: 'Sửa tên, ngày sinh, giới tính, màu', act: () => { closeProfile(); A.editKid(k); } },
+    { icon: 'smile', label: 'Đổi avatar', act: () => HS.querySelector('[data-a=av]').click() },
+    { icon: 'image', label: 'Đổi hình nền', act: () => { closeProfile(); A.openBgSettings(); } },
+    { icon: 'download', label: 'Lưu thẻ hồ sơ thành ảnh', act: () => saveCard(k) },
+    { icon: 'cake', label: 'Nhắc sinh nhật hằng năm', act: () => A.nhac(k) },
+    { icon: 'trash', label: `Xoá ${esc(k.name)}…`, danger: true, act: () => A.removeKid(k) }] }); };
+  function closeProfile() { document.querySelector('.confetti')?.remove(); HS.classList.remove('open'); HS.setAttribute('aria-hidden', 'true'); document.body.classList.remove('hsopen'); }
   HS.querySelector('.hs-back').onclick = closeProfile;
   HS.addEventListener('click', async e => {
     const b = e.target.closest('[data-a]'); if (!b) return; const k = HS._kid;
     if (b.dataset.a === 'edit') { closeProfile(); A.editKid(k); }
     else if (b.dataset.a === 'av') openAvatar(A.rawKid(k.id), async kk => { await A.saveKid(kk); openProfile(A.dispKid(kk.id)); });
     else if (b.dataset.a === 'img') saveCard(k);
+    else if (b.dataset.a === 'bg') { closeProfile(); A.openBgSettings(); }
+    else if (b.dataset.a === 'rm') A.removeKid(k);
+    else if (b.dataset.a === 'nhac') A.nhac(k);
   });
   addEventListener('keydown', e => { if (e.key === 'Escape' && HS.classList.contains('open') && !document.querySelector('.modal.open')) { e.stopImmediatePropagation(); closeProfile(); } }, true);
   function confetti(col) {
     if (REDUCED) return; const box = document.createElement('div'); box.className = 'confetti'; const cols = [col, '#ffd27f', '#ff8fbf', '#9fe1cb', '#c3a6ff', '#ffffff'];
     for (let i = 0; i < 90; i++) { const p = document.createElement('i'); const x = (Math.random() - .5) * 120, r = Math.random() * 720 - 360; p.style.cssText = `left:${50 + (Math.random() - .5) * 30}%;background:${cols[i % cols.length]};--x:${x}vw;--r:${r}deg;--d:${1.6 + Math.random() * 1.6}s;--w:${6 + Math.random() * 7}px;animation-delay:${Math.random() * .25}s`; box.appendChild(p); }
     document.body.appendChild(box); haptic(30); setTimeout(() => box.remove(), 3800);
-    A.toast(`Chúc mừng sinh nhật ${HS._kid?.name || 'bé'}!`, 3200);
   }
   // ---------- lưu thẻ hồ sơ thành ảnh (khổ dọc 1080×1920) ----------
   async function saveCard(kid) {
@@ -206,5 +217,5 @@ export function initProfile(A) {
     await A.shareOrDownload(new File([blob], name, { type: 'image/jpeg' }), name); if (!A.TEST) A.toast('Đã lưu thẻ hồ sơ', 1800);
     return blob;
   }
-  return { avatarURL, avatarNow, warm, openAvatar, openProfile, closeProfile, askGender, saveCard, ageParts, isOpen: () => HS.classList.contains('open') };
+  return { confetti, avatarURL, avatarNow, warm, openAvatar, openProfile, closeProfile, askGender, saveCard, ageParts, isOpen: () => HS.classList.contains('open') };
 }
