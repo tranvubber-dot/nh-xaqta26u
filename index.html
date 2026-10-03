@@ -791,6 +791,9 @@ body.v12:not(.tlfam) #tlv .rail { display: none; }
 #tbar .glassbtn { width: 40px; height: 40px; } #tbar #tbTheme { display: none; } #tbar .rt { gap: 8px; }
 #tbar .tt { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; padding: 0 6px; }
 #tabbar > button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+/* v1.4.3 */
+.row-add.dup { opacity: .62; } .row-add.dup .th { filter: grayscale(.6); }
+.dupb { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--accent-2, #9fe1cb); } .dupb button { height: 30px; padding: 0 10px; font-size: 12.5px; }
 /* v1.4.2 */
 /* v1.4.2 — WebKit/iPhone: không làm mờ kính trên phần tử đang chuyển động (sheet trượt, thanh bay, nút trong trang sự kiện) */
 html.wk .cm-list, html.wk .modal .card, html.wk .utoast, html.wk #gban, html.wk .evp-bar .glassbtn, html.wk .evp-bbg, html.wk .pv-top .glassbtn, html.wk .pv-vc button, html.wk .bi-l, html.wk .bi-st span { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
@@ -1006,7 +1009,7 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
   <div class="sec"><h3>Nhạc khi trình chiếu</h3><div class="seg" id="segMusic"><button data-v="builtin">🎐 Hộp nhạc</button><button data-v="file">🎵 Bài của bạn</button><button data-v="off">🔇 Tắt</button></div>
     <p class="hint" id="musicHint"></p><input type="file" id="musicIn" accept="audio/*" hidden></div>
   <div class="sec"><h3>Thùng rác</h3><p class="hint" style="margin-top:0">Xoá nhầm? Mọi thứ đã xoá được giữ 30 ngày.</p><button id="bTrash" style="margin-top:8px">Mở thùng rác</button></div>
-  <div class="sec"><h3>Sao lưu</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="bExport">💾 Tạo bản sao lưu</button><button id="bImport">📂 Mở bản sao lưu</button></div><p class="hint" id="bkLast"></p><p class="hint" id="whereData"></p>
+  <div class="sec"><h3>Sao lưu</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="bExport">💾 Tạo bản sao lưu</button><button id="bImport">📂 Mở bản sao lưu</button></div><p class="hint" id="bkLast"></p><button id="bDup" style="margin-top:6px">🔎 Tìm ảnh, video trùng</button><p class="hint" id="whereData"></p>
     <input type="file" id="importIn" accept=".nganha,application/octet-stream" hidden>
     <p class="hint">Ảnh, video chỉ nằm trong máy này. Thỉnh thoảng hãy tạo bản sao lưu và cất vào ổ cứng, iCloud Drive hoặc Google Drive. Muốn chuyển sang máy khác: mở bản sao lưu ở máy kia.</p>
     <p class="hint" id="storeInfo"></p></div>

@@ -8,7 +8,7 @@ import { initProfile, KID_COLORS, defaultColor } from './hoso.js';
 import { initNhac } from './nhac.js';
 import { birthIntro, showOutro } from './modau.js';
 
-const VERSION = '1.4.2';
+const VERSION = '1.4.3';
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
 const MUTE = Q.has('im');
@@ -1886,7 +1886,7 @@ function openAdd() {
 function resetAdd() { if ($('#addGrp')) $('#addGrp').value = ''; ADD.day = null; if ($('#addDay')) { $('#addDay').value = ''; $('#addDayH').textContent = ''; } for (const r of ADD.rows) if (r.url) URL.revokeObjectURL(r.url); ADD.rows = []; $('#addList').innerHTML = ''; $('#addProg').style.display = 'none'; $('#addProg i').style.width = 0; refreshAddBtn(); }
 function refreshAddBtn() {
   { const days = new Set(ADD.rows.filter(r => r.ready && !r.bad).map(r => ymd(r.ts))), box = $('#addGrpBox'); box.hidden = days.size < 2 && !$('#addGrp').value; const ts = ADD.rows.filter(r => r.ready && !r.bad).map(r => r.ts).sort((a, b) => a - b); box.querySelector('.addgrp-s').textContent = ts.length && days.size > 1 ? `${ts.length} ảnh · ${days.size} ngày · ${dmy(ts[0]).slice(0, 5)} – ${dmy(ts[ts.length - 1])}` : ''; }
-  const b = $('#addSave'), n = ADD.rows.length;
+  const b = $('#addSave'), n = ADD.rows.filter(r => !r.dup).length || (ADD.rows.some(r => r.dup) ? 1 : 0);
   b.disabled = !n || ADD.pending > 0 || ADD.busy;
   b.textContent = ADD.busy ? 'Đang lưu…' : ADD.pending ? `Đang đọc ${ADD.pending} tệp…` : n ? `Lưu ${n} khoảnh khắc vào dòng thời gian` : 'Lưu vào dòng thời gian';
 }
@@ -1915,6 +1915,43 @@ function regroupAdd() {
   }
 }
 function rowAge(r) { r.el.querySelector('.age').textContent = ageText(S.kid, r.ts); }
+// ---------- chống nhập trùng: dấu vân tay = cỡ tệp + băm 64 KB đầu và 64 KB cuối ----------
+async function fingerprint(blob) {
+  const n = 65536, a = new Uint8Array(await blob.slice(0, n).arrayBuffer()), b = blob.size > n ? new Uint8Array(await blob.slice(Math.max(n, blob.size - n)).arrayBuffer()) : new Uint8Array(0);
+  let h = 0x811c9dc5; for (const arr of [a, b]) for (let i = 0; i < arr.length; i++) { h ^= arr[i]; h = Math.imul(h, 16777619) >>> 0; }
+  return blob.size + ':' + h.toString(36);
+}
+async function fpOf(m) { if (m.fp) return m.fp; const o = await dbGet('blobs', 'o_' + m.id); if (!o) return null; m.fp = await fingerprint(o); try { await dbPut('moments', m); } catch (e) { } return m.fp; }
+// trùng hẳn (cùng dấu vân tay) hoặc gần như chắc trùng (cùng loại, cùng cỡ khung hình, cùng giây chụp đọc từ EXIF, cùng thời lượng video)
+async function findDup(r) {
+  const live = (S.all || []).filter(m => !m.deleted);
+  for (const m of live) if ((m.size || 0) === r.file.size && await fpOf(m) === r.fp) return { m, sure: true };
+  if (r.src === 'meta' && r.th?.w) for (const m of live) if (m.type === (r.isV ? 'video' : 'image') && m.w === r.th.w && m.h === r.th.h && Math.abs(m.ts - r.ts) < 1000 && (!r.isV || Math.abs((m.dur || 0) - (r.th.dur || 0)) < .2)) return { m, sure: false };
+  for (const o of ADD.rows) if (o !== r && o.ready && !o.dup && o.fp === r.fp) return { m: null, sure: true, batch: true };
+  return null;
+}
+function markDup(r, d) {
+  r.dup = !!d; const el = r.el; el.classList.toggle('dup', r.dup); let b = el.querySelector('.dupb');
+  if (!r.dup) { b?.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.className = 'dupb'; el.querySelector('.ln').after(b); }
+  b.innerHTML = `${icon('check', 14, 2)}<span>${d.batch ? 'Trùng với một tệp khác trong đợt này' : d.sure ? 'Đã có trong app' : 'Có vẻ đã có trong app'}${d.m ? ` (ngày ${dmy(d.m.ts)})` : ''} · sẽ bỏ qua</span><button type="button">Vẫn thêm</button>`;
+  b.querySelector('button').onclick = () => { r.dup = false; r.forced = true; el.classList.remove('dup'); b.remove(); refreshAddBtn(); };
+}
+// dọn các bản trùng đã lỡ thêm: giữ bản nằm trong nhóm/nhật ký hoặc bản thêm sớm nhất, bản thừa vào thùng rác (có hoàn tác)
+async function findDuplicates(silent) {
+  const live = (S.all || []).filter(m => !m.deleted), bySize = new Map();
+  for (const m of live) { const k = m.size || 0; if (!k) continue; if (!bySize.has(k)) bySize.set(k, []); bySize.get(k).push(m); }
+  const groups = new Map(); let n = 0;
+  for (const [, list] of bySize) { if (list.length < 2) continue; for (const m of list) { const f = await fpOf(m); if (!f) continue; if (!groups.has(f)) groups.set(f, []); groups.get(f).push(m); } }
+  const inUse = new Set([...(S.groups || []).flatMap(g => g.momentIds), ...(S.allDiaries || []).flatMap(d => d.pages.flatMap(p => p.panels.map(q => q.mid)))]);
+  const extra = [];
+  for (const [, list] of groups) { if (list.length < 2) continue; list.sort((a, b) => (inUse.has(b.id) - inUse.has(a.id)) || (a.created || 0) - (b.created || 0)); extra.push(...list.slice(1)); n++; }
+  if (TEST) T.lastDup = extra.map(m => m.id);
+  if (!extra.length) { if (!silent) toast('Không có ảnh, video nào bị trùng 👍', 2400); return 0; }
+  if (silent) return extra.length;
+  if (!(await ask(`Tìm thấy ${extra.length} bản trùng`, `${n} ảnh/video bị lưu hơn một lần. App giữ 1 bản (ưu tiên bản đang ở nhóm/nhật ký), các bản thừa vào thùng rác 30 ngày — khôi phục được.`, `Dọn ${extra.length} bản thừa`))) return 0;
+  await trashMoments(extra, `Đã dọn ${extra.length} bản trùng`); return extra.length;
+}
 async function addFiles(list) {
   const files = [...list].filter(okFile);
   if (!files.length) { toast('Chỉ nhận ảnh hoặc video thôi nhé'); return; }
@@ -1940,6 +1977,7 @@ async function addFiles(list) {
       else { bd.className = 'badge file'; bd.innerHTML = icon('warn', 13, 2.2) + '<span>ngày lưu tệp – kiểm tra lại</span>'; }
       if (ADD.day && ymd(r.ts) !== ADD.day) { r.ts = parseYmd(ADD.day, r.ts); r.src = 'user'; bd.className = 'badge'; bd.textContent = 'đặt theo ngày của sự kiện'; }
       el.querySelector('.r-dt').value = ymd(r.ts); rowAge(r);
+      try { r.fp = await fingerprint(f); markDup(r, await findDup(r)); } catch (e) { }
       el.querySelector('.r-dt').addEventListener('change', e => { const t = parseYmd(e.target.value, r.ts); if (t) { r.ts = t; r.src = 'user'; rowAge(r); setTimeout(regroupAdd, 50); const b2 = el.querySelector('.badge'); b2.className = 'badge'; b2.textContent = 'bạn đã chỉnh ngày'; } });
       r.ready = true;
     } catch (e) { console.warn(e); el.querySelector('.pl').textContent = '⚠️'; r.bad = true; }
@@ -1961,7 +1999,7 @@ $('#drop').addEventListener('dragleave', () => $('#drop').classList.remove('over
 }
 $('#addSave').onclick = saveAdd;
 async function saveAdd() {
-  const rows = ADD.rows.filter(r => r.ready && !r.bad); if (!rows.length || ADD.busy) return;
+  const rows = ADD.rows.filter(r => r.ready && !r.bad && !r.dup); if (!rows.length || ADD.busy) { if (!ADD.busy && ADD.rows.some(r => r.dup)) { toast('Các tệp này đã có trong app rồi — không cần thêm lại', 2600); $('#mAdd').classList.remove('open'); resetAdd(); } return; }
   if (!ADD.kids.length) { const ks = $('#addKids'); ks.classList.remove('need'); void ks.offsetWidth; ks.classList.add('need'); toast('Ảnh này của bé nào? Chạm avatar để chọn nhé', 2600); return; }
   ADD.gname = ($('#addGrp')?.value || '').trim(); ADD.busy = true; refreshAddBtn(); $('#addProg').style.display = 'block';
   await askPersist();
@@ -1971,7 +2009,7 @@ async function saveAdd() {
       const r = rows[i], id = uid(), f = r.file;
       await dbPut('blobs', f, 'o_' + id);
       await dbPut('blobs', r.th.blob, 't_' + id);
-      const m = { id, kidId: ADD.kids[0], kidIds: ADD.kids.slice(), ts: r.ts, title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
+      const m = { id, fp: r.fp, tv: 2, kidId: ADD.kids[0], kidIds: ADD.kids.slice(), ts: r.ts, title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
       await dbPut('moments', m); S.all.push(m); ids.push(id);
       $('#addProg i').style.width = ((i + 1) / rows.length * 100) + '%';
     }
@@ -2006,11 +2044,13 @@ async function importFilesQuiet(files, onProg, day, kids) {
   alignDates(rows);
   // bước 2: ảnh nhỏ + lưu
   for (let i = 0; i < rows.length; i++) {
-    const r = rows[i], f = r.file, isV = r.isV, th = isV ? await videoThumb(f) : await imageThumb(f), dt = { ts: r.ts, src: r.src };
+    const r = rows[i], f = r.file, isV = r.isV, fp = await fingerprint(f);
+    { const live = (S.all || []).filter(m => !m.deleted); let hit = null; for (const m of live) if ((m.size || 0) === f.size && await fpOf(m) === fp) { hit = m; break; } if (hit) { ids.push(hit.id); onProg?.(i + 1, rows.length); continue; } } // đã có thì dùng lại, không lưu bản thứ hai
+    const th = isV ? await videoThumb(f) : await imageThumb(f), dt = { ts: r.ts, src: r.src };
     if (day && ymd(dt.ts) !== day) { dt.ts = parseYmd(day, dt.ts); dt.src = 'user'; }
     const id = uid();
     await dbPut('blobs', f, 'o_' + id); await dbPut('blobs', th.blob, 't_' + id);
-    const m = { id, kidId: kids[0], kidIds: kids.slice(), ts: dt.ts, title: '', note: '', type: isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: th.dur || 0, w: th.w, h: th.h, color: th.color, heic: !isV && !th.ok && isHeic(f), dateSrc: dt.src, created: Date.now() + i };
+    const m = { id, fp, tv: 2, kidId: kids[0], kidIds: kids.slice(), ts: dt.ts, title: '', note: '', type: isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: th.dur || 0, w: th.w, h: th.h, color: th.color, heic: !isV && !th.ok && isHeic(f), dateSrc: dt.src, created: Date.now() + i };
     await dbPut('moments', m); S.all.push(m); ids.push(id); onProg?.(i + 1, rows.length);
   }
   refreshKid();
@@ -2049,6 +2089,7 @@ async function renderSettings() {
   } catch (er) { }
 }
 $('#bSet').onclick = () => { renderSettings(); openModal($('#mSet')); };
+$('#bDup').onclick = () => { $('#mSet').classList.remove('open'); findDuplicates(); };
 $('#bTrash').onclick = () => { $('#mSet').classList.remove('open'); openTrash(); };
 $('#trList').addEventListener('click', async e => {
   const t = e.target.closest('[data-tm]'); if (t) { const id = t.dataset.tm; if (TRSEL.has(id)) TRSEL.delete(id); else TRSEL.add(id); t.classList.toggle('on', TRSEL.has(id)); haptic(4); trBtns(); return; }
@@ -2096,6 +2137,28 @@ async function doBackup() {
     await metaSet('lastBackup', Date.now()); await metaSet('bkSince', 0); renderBkLast();
     toast(`Đã tạo bản sao lưu (${fmtSize(blob.size)}) — cất vào Tệp / iCloud Drive cho chắc nhé`, 4200);
   } catch (er) { console.error(er); toast('Chưa tạo được bản sao lưu: ' + er.message, 5000); }
+}
+// ---------- ảnh đại diện video cũ bị đen (nhập từ bản trước trên iPhone): tạo lại trong nền, mỗi lần 1 video ----------
+const RT = { q: [], busy: false, seen: new Set() };
+async function thumbLum(blob) { try { const bm = await createImageBitmap(blob), c = document.createElement('canvas'); c.width = c.height = 16; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bm, 0, 0, 16, 16); bm.close?.(); const d = x.getImageData(0, 0, 16, 16).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; return s / 256; } catch (e) { return -1; } }
+function queueThumbFix(ms) { for (const m of ms) if (m.type === 'video' && !m.deleted && m.tv !== 2 && !RT.seen.has(m.id)) { RT.seen.add(m.id); RT.q.push(m); } runThumbFix(); }
+async function runThumbFix() {
+  if (RT.busy) return; RT.busy = true;
+  while (RT.q.length) {
+    if (S.mode === 'show' || document.hidden) { await sleep(1500); continue; }
+    const m = RT.q.shift(); await sleep(250);
+    try {
+      const t = await dbGet('blobs', 't_' + m.id), lum = t ? await thumbLum(t) : -1;
+      if (lum < 0 || lum < 12) {
+        const o = await dbGet('blobs', 'o_' + m.id); if (!o) continue;
+        const th = await videoThumb(o.type ? o : new Blob([o], { type: /quicktime|\.mov$/i.test((m.mime || '') + m.name) ? 'video/quicktime' : 'video/mp4' }));
+        if (th.ok) { await dbPut('blobs', th.blob, 't_' + m.id); m.color = th.color; if (!m.w) { m.w = th.w; m.h = th.h; } if (!m.dur) m.dur = th.dur; TL.refreshThumb?.(m.id); const c = G.cards.find(x => x.m.id === m.id); if (c) Stream.refresh(c); if (TEST) (T.fixedThumbs ||= []).push(m.id); }
+        else continue; // chưa lấy được khung thật: để lần mở app sau thử lại
+      }
+      m.tv = 2; await dbPut('moments', m);
+    } catch (e) { console.warn('tạo lại ảnh đại diện video', e); }
+  }
+  RT.busy = false;
 }
 // ---------- v1.4.1: nhắc sao lưu 1 chạm, nơi đang lưu dữ liệu, link hồ sơ bé ----------
 const isStandalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
@@ -2341,7 +2404,7 @@ function fpsTick(now) {
   if (now - FPSM.last < 250) return; FPSM.last = now; const a = FPSM.ts; if (a.length < 3) return;
   const d = a.slice(1).map((t, i) => t - a[i]), cur = d.slice(-20), fps = 1000 / (cur.reduce((x, y) => x + y, 0) / cur.length);
   let lo = 999; for (let i = 0; i + 15 <= d.length; i += 5) { const w = d.slice(i, i + 15), f = 1000 / (w.reduce((x, y) => x + y, 0) / w.length); if (f < lo) lo = f; }
-  FPSM.el.textContent = `${fps.toFixed(0)} fps\nthấp nhất 5s: ${(lo === 999 ? fps : lo).toFixed(0)}\nkhung >32ms: ${d.filter(x => x > 32).length}`;
+  FPSM.el.textContent = `${fps.toFixed(0)} fps\nthấp nhất 5s: ${(lo === 999 ? fps : lo).toFixed(0)}\nkhung >32ms: ${d.filter(x => x > 32).length}` + (TL.strip?.open ? `\ndải: ${(TL.strip.spd || 0).toFixed(1)} px/s` : '');
 }
 $('#verTxt').addEventListener('click', () => { const t = performance.now(); FPSM.tap = FPSM.tap.filter(x => t - x < 2500); FPSM.tap.push(t); if (FPSM.tap.length >= 5) { FPSM.tap = []; fpsMeter(!FPSM.on); toast(FPSM.on ? 'Đã bật đồng hồ FPS' : 'Đã tắt đồng hồ FPS', 1400); } });
 function loop(now) {
@@ -2475,6 +2538,7 @@ function initBars() {
     { icon: 'galaxy', label: gx ? 'Về dòng thời gian' : 'Xem Toàn cảnh ngân hà', act: () => $('#bOverview').click() },
     S.kid && { icon: 'star', label: `Hồ sơ của ${esc(KN())}`, act: () => P.openProfile(dispKid(S.kid)) },
     S.kid && { icon: 'cake', label: S.family ? 'Nhắc sinh nhật cả nhà' : `Nhắc sinh nhật ${esc(KN())}`, act: () => nhacFor(S.family ? S.kids : [S.kid]) },
+    { icon: 'check', label: 'Tìm ảnh, video trùng', act: () => findDuplicates() },
     { icon: 'trash', label: 'Thùng rác', act: () => openTrash() }
   ] }); };
   $('#tbTheme').innerHTML = icon(S.theme === 'dawn' ? 'moon' : 'sun', 22, 1.9); $('#tbTheme').onclick = () => $('#bTheme').click();
@@ -2547,6 +2611,7 @@ async function boot() {
     const id = await metaGet('curKid'); await selectKid(S.kids.some(k => k.id === id) ? id : S.kids[0].id, true);
     if (S.kids.length > 1 && await metaGet('family')) await enterFamily();
     setTimeout(async () => { for (const k of S.kids) { if (k.gender || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
+    setTimeout(() => queueThumbFix((S.all || []).slice().sort((a, b) => b.ts - a.ts)), 4000);
     if (/#hoso=/.test(location.hash)) setTimeout(() => importProfiles(location.hash), 600);
   }
   N.fromHash(); addEventListener("hashchange", () => { N.fromHash(); if (/#hoso=/.test(location.hash)) importProfiles(location.hash); });
@@ -2616,7 +2681,7 @@ if (TEST) {
     location.replace(location.pathname + '?test');
   }, 2500);
   window.T = {
-    get INTRO() { return INTRO; }, profileLink, importProfiles, readProfileLink, maybeRemindBackup, genderBanner, doBackup, renderBkLast, fpsMeter, openKid, S, G, FL, OV, cam, SH, ADD, Stream, Music, perf, camera, renderer, scene, frame, setMode, openLB, closeLB, lbNav, startShow, stopShow, setTheme, openAdd, addFiles, saveAdd, doImport, buildBackup, readBackup, ageText, exifDate, videoDate, readDate, selectKid, dbAll, dbGet,
+    get INTRO() { return INTRO; }, fingerprint, findDuplicates, queueThumbFix, runThumbFix, RT, profileLink, importProfiles, readProfileLink, maybeRemindBackup, genderBanner, doBackup, renderBkLast, fpsMeter, openKid, S, G, FL, OV, cam, SH, ADD, Stream, Music, perf, camera, renderer, scene, frame, setMode, openLB, closeLB, lbNav, startShow, stopShow, setTheme, openAdd, addFiles, saveAdd, doImport, buildBackup, readBackup, ageText, exifDate, videoDate, readDate, selectKid, dbAll, dbGet,
     async setKid(id, patch) { const k = S.kids.find(x => x.id === id); Object.assign(k, patch); await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); return k; }, loadAll,
     dbPut, splitName, splitNames, fakePhoto, fakeVideo, D, TL, P, N, nhacFor, BG, trashMoments, restoreMoments, openTrash, removeKid, restoreKid, alignDates, nameDate, prompt2, enterFamily, kidsOf, setMomentKids, refreshKid, applyBg, loadBg, setBgImage, enterGalaxy, exitGalaxy, renderBgUi, openBook, diaryChanged, importFilesQuiet, exifSeg,
     // giả lập Gemini (không cần khoá thật): trả JSON mẫu, ghi lại yêu cầu để kiểm

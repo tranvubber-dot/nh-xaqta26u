@@ -90,6 +90,10 @@ export function initTimeline(A) {
     if (URLS.size > 260) { const [k, v] = URLS.entries().next().value; URLS.delete(k); setTimeout(() => URL.revokeObjectURL(v), 4000); }
     return u;
   }
+  function refreshThumb(mid) {
+    if (URLS.has(mid)) { const u = URLS.get(mid); URLS.delete(mid); setTimeout(() => URL.revokeObjectURL(u), 3000); }
+    thumbURL(mid).then(u => { if (!u) return; document.querySelectorAll(`img[data-mid="${CSS.escape(mid)}"], .sc[data-mid="${CSS.escape(mid)}"] img, .pf img[data-mid="${CSS.escape(mid)}"]`).forEach(im => { if (im.getAttribute('src')) im.src = u; }); });
+  }
   const imgIO = new IntersectionObserver(es => {
     for (const en of es) {
       const im = en.target;
@@ -448,10 +452,12 @@ export function initTimeline(A) {
   function loadCard(it) { if (it.loaded) return; it.loaded = true; thumbURL(it.m.id).then(u => { if (!u || !it.el.isConnected) return; it.img.src = u; (it.img.decode ? it.img.decode() : Promise.resolve()).catch(() => { }).then(() => it.img.classList.add('ok')); }); }
   const mod = (a, n) => ((a % n) + n) % n;
   function cardX(it) { const R = it.row; if (!R.loop) return it.x0 + R.off; return mod(it.x0 + R.off + it.w, R.L) - it.w; }
-  function stripFrame(now) {
+  function stripFrame() {
     SP.raf = 0; if (!SP.open || document.hidden) return;
-    const dt = clamp((now - (SP.last || now)) / 1000, 0, .05); SP.last = now;
+    const now = performance.now(), dt = clamp((now - (SP.last || now)) / 1000, 0, .05); SP.last = now; // đồng hồ thật, dt ≤ 50ms
+    const o0 = SP.rows[0]?.off ?? 0;
     renderStrip(now, dt);
+    if (dt > 0 && SP.rows[0]) { const v = Math.abs(SP.rows[0].off - o0) / dt; SP.spd = (SP.spd || 0) * .92 + v * .08; } // tốc độ thật để hiện ở đồng hồ FPS
     SP.raf = requestAnimationFrame(stripFrame);
   }
   // vẽ một khung (không tự lập lịch): dt = 0 thì chỉ đặt lại vị trí
@@ -464,7 +470,7 @@ export function initTimeline(A) {
       if (SP.drag) { /* off do ngón tay quyết định */ }
       else if (Math.abs(R.v) > 6) { R.off += R.v * dt; R.v *= Math.exp(-dt * 3.2); if (Math.abs(R.v) <= 6) { R.v = 0; R.snap = snapTarget(R); } if (!R.loop) R.off = softBound(R); }
       else if (R.snap != null) { const d = R.snap - R.off; R.sv = (R.sv || 0) * Math.exp(-dt * 12) + d * dt * 90; R.off += R.sv * dt; if (Math.abs(d) < .4 && Math.abs(R.sv) < 4) { R.off = R.snap; R.snap = null; R.sv = 0; } }
-      else if (R.loop) R.off += R.drift * SP.speedK * dt;
+      else if (R.loop) { R.v = 0; R.sv = 0; R.off += R.drift * SP.speedK * dt; }
     }
     const W = SP.W, cx = W / 2, en = clamp((now - SP.enter) / 900, 0, 1);
     let best = null, bestD = 1e9;
@@ -1182,7 +1188,7 @@ export function initTimeline(A) {
   return {
     async reload() { await loadMeta(); render(false); },
     render, refreshAll, scrollToKey, keyOfMid, openEvent, closeEvent, openViewer, closeViewer, openJump,
-    setTitle, get events() { return st.events; }, get meta() { return st.meta; }, setMeta: async m => { st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, m); await saveMeta(); },
+    setTitle, refreshThumb, get events() { return st.events; }, get meta() { return st.meta; }, setMeta: async m => { st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, m); await saveMeta(); },
     guard: (ms = 550) => { st.guard = performance.now() + ms; },
     startSel, endSel, eventMenu, get hidePreg() { return st.hidePreg; },
     async setHidePreg(v) { st.hidePreg = v; await A.metaSet('hidePreg:' + (A.family() ? 'fam' : A.kid().id), v); render(); },
