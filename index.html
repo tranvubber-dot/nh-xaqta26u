@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Ngân Hà Của Con</title>
+<meta name="description" content="Dòng thời gian 3D lưu giữ ảnh và video của con — dữ liệu chỉ nằm trên máy của bạn.">
+<meta name="robots" content="noindex, nofollow, noimageindex, noarchive">
+<meta name="theme-color" content="#0b0a24">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ngân Hà Con">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+@font-face { font-family: "Quicksand"; src: url("fonts/Quicksand.ttf") format("truetype"); font-weight: 300 700; font-display: swap; }
+:root {
+  --font: "Quicksand", system-ui, -apple-system, sans-serif;
+  --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
+}
+body[data-theme="night"] {
+  --bg: #0b0a24; --glass: rgba(26, 20, 66, .62); --glass-2: rgba(40, 31, 94, .78); --line: rgba(206, 200, 255, .22);
+  --text: #fff; --sub: #cfc8ff; --muted: #9a92d6; --accent: #ff8fbf; --accent-2: #ffd27f; --btn: rgba(255,255,255,.08); --btn-h: rgba(255,255,255,.16);
+  --field: rgba(255,255,255,.07); --danger: #ff8a8a; --ok: #9fe1cb; --shadow: 0 18px 60px rgba(5, 3, 25, .55);
+}
+body[data-theme="dawn"] {
+  --bg: #fde4d6; --glass: rgba(255, 250, 246, .7); --glass-2: rgba(255, 255, 255, .9); --line: rgba(160, 82, 122, .18);
+  --text: #5b2a4a; --sub: #8f4a72; --muted: #b07f99; --accent: #e0648f; --accent-2: #f08a3c; --btn: rgba(160,82,122,.08); --btn-h: rgba(160,82,122,.16);
+  --field: rgba(160,82,122,.07); --danger: #d64545; --ok: #2f9a78; --shadow: 0 18px 60px rgba(160, 82, 122, .22);
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); }
+body { transition: background .6s; -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
+input, textarea, select { -webkit-user-select: text; user-select: text; }
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+button { font-family: var(--font); font-weight: 600; font-size: 14px; color: var(--text); background: var(--btn); border: 1px solid var(--line); border-radius: 999px; padding: 9px 15px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: background .2s, transform .15s, opacity .3s; white-space: nowrap; }
+button:hover { background: var(--btn-h); }
+button:active { transform: scale(.96); }
+button.primary { background: linear-gradient(135deg, #ff7eb3, #ffb36b); color: #fff; border: none; box-shadow: 0 8px 26px rgba(255, 126, 179, .45); }
+button.primary:hover { filter: brightness(1.06); }
+button.danger { color: var(--danger); }
+button.icon { padding: 9px 12px; }
+.glass { background: var(--glass); border: 1px solid var(--line); -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3); box-shadow: var(--shadow); }
+
+/* Thanh trên */
+#top { position: fixed; top: calc(12px + var(--safe-t)); left: calc(14px + var(--safe-l)); right: calc(14px + var(--safe-r)); display: flex; align-items: center; gap: 10px; z-index: 10; pointer-events: none; transition: opacity .5s, transform .5s; }
+#top > * { pointer-events: auto; }
+#kidBtn { border-radius: 18px; padding: 8px 14px 8px 10px; gap: 10px; }
+#kidBtn .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 17px; background: linear-gradient(135deg, #ff9cc6, #ffd27f); color: #fff; flex-shrink: 0; }
+#kidBtn .t1 { font-size: 11px; color: var(--sub); font-weight: 500; display: block; text-align: left; }
+#kidBtn .t2 { font-size: 16px; font-weight: 700; display: block; text-align: left; }
+#top .sp { flex: 1; }
+#top .tools { display: flex; gap: 8px; border-radius: 999px; padding: 5px; }
+#top .tools button { border: none; background: transparent; }
+#top .tools button:hover { background: var(--btn-h); }
+#top .tools button.on { background: var(--btn-h); }
+#kidMenu { position: fixed; top: calc(70px + var(--safe-t)); left: calc(14px + var(--safe-l)); border-radius: 18px; padding: 8px; min-width: 230px; z-index: 30; display: flex; flex-direction: column; gap: 4px; }
+#kidMenu button { border: none; background: transparent; justify-content: flex-start; border-radius: 12px; width: 100%; }
+#kidMenu button:hover, #kidMenu button.on { background: var(--btn-h); }
+
+/* Thanh dưới */
+#bottom { position: fixed; left: calc(14px + var(--safe-l)); right: calc(14px + var(--safe-r)); bottom: calc(12px + var(--safe-b)); z-index: 10; border-radius: 22px; padding: 10px 16px 12px; transition: opacity .5s, transform .5s; }
+#now { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-height: 22px; }
+#now .d { font-weight: 700; font-size: 16px; }
+#now .a { color: var(--accent); font-weight: 600; font-size: 14px; }
+#now .c { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 600; }
+#scrub { position: relative; height: 30px; margin-top: 6px; cursor: pointer; touch-action: none; }
+#scrub .tr { position: absolute; left: 0; right: 0; top: 9px; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+#scrub .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #ff8fbf, #ffd27f); border-radius: 4px; }
+#scrub .dots { position: absolute; left: 0; right: 0; top: 0; height: 20px; }
+#scrub .dots i { position: absolute; top: 9px; width: 2px; height: 4px; margin-left: -1px; background: var(--muted); opacity: .55; }
+#scrub .tick { position: absolute; top: 17px; transform: translateX(-50%); font-size: 11px; font-weight: 700; color: var(--sub); white-space: nowrap; }
+#scrub .tick::before { content: ""; position: absolute; left: 50%; top: -11px; width: 2px; height: 10px; margin-left: -1px; background: var(--accent-2); border-radius: 2px; }
+#scrub .knob { position: absolute; top: 3px; left: 0; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); box-shadow: 0 0 14px var(--accent); transition: transform .2s; }
+#scrub:active .knob { transform: scale(1.25); }
+
+/* Màn mở đầu */
+#intro { position: fixed; inset: 0; display: grid; place-items: center; z-index: 20; pointer-events: none; text-align: center; padding: 20px; }
+#intro .box { pointer-events: auto; transition: opacity .8s, transform .8s; }
+#intro h1 { margin: 0; font-size: clamp(34px, 7vw, 76px); font-weight: 700; letter-spacing: -.5px; line-height: 1.08; text-shadow: 0 0 40px rgba(255, 143, 191, .55); }
+#intro h1 .nm { background: linear-gradient(90deg, #ff8fbf, #ffd27f, #9fe1cb, #ff8fbf); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 6s linear infinite; text-shadow: none; filter: drop-shadow(0 0 22px rgba(255, 180, 120, .5)); }
+body[data-theme="dawn"] #intro h1 { text-shadow: 0 2px 30px rgba(255,255,255,.9); }
+#intro p { margin: 14px 0 26px; font-size: clamp(15px, 2.2vw, 19px); color: var(--sub); font-weight: 600; }
+#intro button { font-size: 17px; padding: 14px 26px; }
+#intro .row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+@keyframes shine { to { background-position: 300% 0; } }
+.hide-intro #intro .box { opacity: 0; transform: translateY(-30px) scale(.96); pointer-events: none; }
+.letter { display: inline-block; opacity: 0; transform: translateY(24px) scale(.8); filter: blur(8px); animation: rise .9s cubic-bezier(.2,.9,.25,1.2) forwards; }
+@keyframes rise { to { opacity: 1; transform: none; filter: none; } }
+.fade-up { opacity: 0; transform: translateY(16px); animation: fadeUp .9s ease forwards; }
+@keyframes fadeUp { to { opacity: 1; transform: none; } }
+
+/* Hộp thoại */
+.modal { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: calc(16px + var(--safe-t)) 16px calc(16px + var(--safe-b)); background: rgba(8, 5, 30, .35); opacity: 0; pointer-events: none; transition: opacity .35s; }
+body[data-theme="dawn"] .modal { background: rgba(120, 60, 90, .18); }
+.modal.open { opacity: 1; pointer-events: auto; }
+.modal .card { width: min(560px, 100%); max-height: 100%; overflow: auto; border-radius: 26px; padding: 22px; transform: translateY(26px) scale(.96); transition: transform .45s cubic-bezier(.2,.9,.25,1.15); }
+.modal.open .card { transform: none; }
+.modal h2 { margin: 0 0 6px; font-size: 22px; }
+.modal .lead { margin: 0 0 16px; color: var(--sub); font-weight: 500; font-size: 14px; line-height: 1.55; }
+.modal .foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+label.f { display: block; margin: 12px 0 0; font-size: 13px; font-weight: 700; color: var(--sub); }
+label.f input, label.f textarea, label.f select { display: block; width: 100%; margin-top: 6px; font: 600 16px var(--font); color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px; outline: none; }
+label.f input:focus, label.f textarea:focus { border-color: var(--accent); }
+label.f textarea { min-height: 76px; resize: vertical; }
+input[type="date"] { color-scheme: dark; }
+body[data-theme="dawn"] input[type="date"] { color-scheme: light; }
+.x { position: absolute; }
+
+/* Thêm khoảnh khắc */
+#drop { border: 2px dashed var(--line); border-radius: 20px; padding: 26px 16px; text-align: center; color: var(--sub); font-weight: 600; cursor: pointer; transition: border-color .2s, background .2s, transform .2s; }
+#drop:hover, #drop.over { border-color: var(--accent); background: var(--btn); transform: scale(1.01); }
+#drop .big { font-size: 34px; display: block; margin-bottom: 6px; }
+#addList { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.row-add { display: grid; grid-template-columns: 74px 1fr; gap: 12px; align-items: center; padding: 8px; border-radius: 16px; background: var(--field); animation: fadeUp .4s ease forwards; opacity: 0; }
+.row-add .th { width: 74px; height: 58px; border-radius: 11px; background: var(--btn) center/cover no-repeat; position: relative; }
+.row-add .th .pl { position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+.row-add input { font: 600 14px var(--font); color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; width: 100%; outline: none; }
+.row-add .ln { display: flex; gap: 8px; margin-top: 6px; align-items: center; flex-wrap: wrap; }
+.row-add .ln input[type="date"] { width: auto; flex: 0 0 auto; }
+.badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: rgba(159, 225, 203, .18); color: var(--ok); }
+.badge.warn { background: rgba(255, 210, 127, .2); color: var(--accent-2); }
+.row-add .age { font-size: 12px; color: var(--accent); font-weight: 700; }
+.prog { height: 8px; border-radius: 8px; background: var(--line); overflow: hidden; margin-top: 14px; display: none; }
+.prog i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff8fbf, #ffd27f); transition: width .25s; }
+
+/* Xem khoảnh khắc */
+#lb { position: fixed; inset: 0; z-index: 35; display: flex; align-items: center; justify-content: center; gap: 22px; padding: calc(70px + var(--safe-t)) 70px calc(24px + var(--safe-b)); opacity: 0; pointer-events: none; transition: opacity .45s; background: radial-gradient(ellipse at center, rgba(8,5,30,.25), rgba(8,5,30,.7)); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+body[data-theme="dawn"] #lb { background: radial-gradient(ellipse at center, rgba(255,240,235,.2), rgba(150,80,110,.35)); }
+#lb.open { opacity: 1; pointer-events: auto; }
+#lb .media { position: relative; flex: 1 1 auto; max-width: min(1100px, 66vw); height: 100%; display: grid; place-items: center; transform: scale(.92) translateY(20px); transition: transform .55s cubic-bezier(.2,.9,.25,1.1); }
+#lb.open .media { transform: none; }
+#lb .media img, #lb .media video { max-width: 100%; max-height: 100%; border-radius: 18px; box-shadow: 0 30px 90px rgba(0,0,0,.5), 0 0 0 6px rgba(255,250,243,.95); background: #000; display: block; }
+#lb .media .msg { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 13px; padding: 8px 12px; border-radius: 12px; background: rgba(0,0,0,.6); color: #fff; }
+#lb .info { width: 320px; flex: 0 0 320px; border-radius: 24px; padding: 20px; transform: translateX(30px); opacity: 0; transition: transform .55s .08s cubic-bezier(.2,.9,.25,1.1), opacity .45s .08s; }
+#lb.open .info { transform: none; opacity: 1; }
+#lb .info h2 { margin: 0; font-size: 24px; line-height: 1.2; }
+#lb .info .dt { margin-top: 8px; font-weight: 700; color: var(--sub); }
+#lb .info .ag { margin-top: 4px; font-weight: 700; color: var(--accent); font-size: 17px; }
+#lb .info .nt { margin-top: 14px; line-height: 1.6; font-weight: 500; white-space: pre-wrap; }
+#lb .info .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+#lb .nav { position: fixed; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; border-radius: 50%; justify-content: center; font-size: 22px; padding: 0; }
+#lb .nav.l { left: calc(12px + var(--safe-l)); } #lb .nav.r { right: calc(12px + var(--safe-r)); }
+#lb .close { position: fixed; top: calc(14px + var(--safe-t)); right: calc(14px + var(--safe-r)); }
+#lb .count { position: fixed; top: calc(22px + var(--safe-t)); left: 50%; transform: translateX(-50%); font-weight: 700; color: var(--sub); font-size: 13px; }
+
+/* Trình chiếu */
+#cap { position: fixed; left: 0; right: 0; bottom: calc(46px + var(--safe-b)); z-index: 15; text-align: center; pointer-events: none; padding: 0 20px; }
+#cap .t { font-size: clamp(26px, 4.6vw, 52px); font-weight: 700; opacity: 0; transform: translateY(20px); transition: opacity .8s, transform .8s; text-shadow: 0 2px 30px rgba(0,0,0,.45); }
+#cap .s { margin-top: 6px; font-size: clamp(15px, 2.2vw, 22px); font-weight: 700; color: var(--accent-2); opacity: 0; transform: translateY(14px); transition: opacity .8s .15s, transform .8s .15s; text-shadow: 0 2px 20px rgba(0,0,0,.4); }
+body[data-theme="dawn"] #cap .t, body[data-theme="dawn"] #cap .s { text-shadow: 0 0 18px #fff, 0 0 4px #fff; }
+#cap.on .t, #cap.on .s { opacity: 1; transform: none; }
+#year { position: fixed; inset: 0; display: grid; place-items: center; z-index: 16; pointer-events: none; text-align: center; }
+#year .y { font-size: clamp(80px, 18vw, 220px); font-weight: 700; line-height: 1; background: linear-gradient(180deg, #fff3c4, #ffb36b 55%, #ff7eb3); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 40px rgba(255, 179, 107, .55)); opacity: 0; transform: scale(1.4); letter-spacing: 4px; }
+#year .s { font-size: clamp(18px, 3vw, 30px); font-weight: 700; color: var(--text); opacity: 0; margin-top: 8px; }
+#year.on .y { animation: yIn 3.2s ease forwards; } #year.on .s { animation: ySub 3.2s ease forwards; }
+@keyframes yIn { 0% { opacity: 0; transform: scale(1.5); letter-spacing: 40px; filter: blur(12px) drop-shadow(0 0 40px rgba(255,179,107,.55)); } 25% { opacity: 1; transform: scale(1); letter-spacing: 4px; filter: blur(0) drop-shadow(0 0 40px rgba(255,179,107,.55)); } 75% { opacity: 1; transform: scale(.96); } 100% { opacity: 0; transform: scale(.8); } }
+@keyframes ySub { 0%, 15% { opacity: 0; transform: translateY(10px); } 35%, 75% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+#stopShow { position: fixed; top: calc(14px + var(--safe-t)); right: calc(14px + var(--safe-r)); z-index: 17; opacity: 0; pointer-events: none; }
+body.showing #stopShow { opacity: 1; pointer-events: auto; }
+body.showing #top, body.showing #bottom { opacity: 0; transform: translateY(-14px); pointer-events: none; }
+body.showing #bottom { transform: translateY(14px); }
+body.showing #top > * { pointer-events: none; }
+body.lbopen #top, body.lbopen #bottom { opacity: 0; pointer-events: none; }
+body.lbopen #top > * { pointer-events: none; }
+
+#toast { position: fixed; left: 50%; top: calc(80px + var(--safe-t)); transform: translate(-50%, -20px); z-index: 60; padding: 11px 18px; border-radius: 16px; font-weight: 700; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; max-width: calc(100% - 32px); text-align: center; }
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+#dropAll { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; font-size: 26px; font-weight: 700; background: rgba(255, 126, 179, .18); border: 4px dashed var(--accent); opacity: 0; pointer-events: none; transition: opacity .2s; }
+#dropAll.on { opacity: 1; }
+#ver { position: fixed; right: calc(10px + var(--safe-r)); bottom: 2px; font-size: 10px; color: var(--muted); z-index: 5; opacity: .6; }
+.seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--field); border: 1px solid var(--line); flex-wrap: wrap; }
+.seg button { border: none; background: transparent; padding: 8px 13px; font-size: 13px; }
+.seg button.on { background: var(--glass-2); box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+.sec { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.sec h3 { margin: 0 0 10px; font-size: 15px; }
+.sec .hint { font-size: 13px; color: var(--muted); font-weight: 500; line-height: 1.55; margin: 8px 0 0; }
+.kid-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: var(--field); margin-bottom: 8px; }
+.kid-row .n { font-weight: 700; } .kid-row .b { font-size: 12px; color: var(--muted); font-weight: 600; }
+.kid-row .sp { flex: 1; }
+
+@media (max-width: 760px) {
+  #top .tools button .lb { display: none; }
+  #top .tools { gap: 2px; }
+  #top .tools button { padding: 9px 10px; font-size: 16px; }
+  #kidBtn .t1 { display: none; }
+  #kidBtn { padding: 6px 12px 6px 6px; }
+  #kidBtn .t2 { font-size: 15px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+  #lb { flex-direction: column; padding: calc(64px + var(--safe-t)) 12px calc(12px + var(--safe-b)); gap: 12px; }
+  #lb .media { max-width: 100%; flex: 1 1 auto; min-height: 0; }
+  #lb .info { width: 100%; flex: 0 0 auto; max-height: 40%; overflow: auto; padding: 16px; transform: translateY(30px); }
+  #lb .info h2 { font-size: 20px; }
+  #lb .nav { display: none; }
+  #now .c { display: none; }
+}
+body.intro #top, body.intro #bottom { opacity: 0; pointer-events: none; transform: translateY(-14px); }
+body.intro #bottom { transform: translateY(14px); }
+body.intro #top > * { pointer-events: none; }
+button.primary.danger-bg { background: linear-gradient(135deg, #ff5f7e, #ff9a6b); box-shadow: 0 8px 26px rgba(255, 95, 126, .4); }
+#intro .box { max-width: 900px; position: relative; }
+#intro .box::before { content: ""; position: absolute; inset: -18% -22%; z-index: -1; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(11,10,36,.78), rgba(11,10,36,.45) 55%, rgba(11,10,36,0)); }
+body[data-theme="dawn"] #intro .box::before { background: radial-gradient(closest-side, rgba(255,240,234,.85), rgba(255,236,228,.5) 55%, rgba(255,236,228,0)); }
+#intro h1 .nm2 .letter { text-shadow: 0 0 26px currentColor; }
+body[data-theme="dawn"] #intro h1 .nm2 .letter { text-shadow: 0 2px 0 #fff, 0 0 22px rgba(255,255,255,.9); }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body data-theme="night">
+<canvas id="scene" tabindex="0" aria-label="Dải ngân hà 3D các khoảnh khắc của con"></canvas>
+
+<div id="top">
+  <button id="kidBtn" class="glass" aria-haspopup="true"><span class="av">✨</span><span><span class="t1">Dải ngân hà của</span><span class="t2" id="kidName">…</span></span><span style="opacity:.6">▾</span></button>
+  <div class="sp"></div>
+  <div class="tools glass">
+    <button id="bOverview" title="Toàn cảnh"><span>🌌</span><span class="lb">Toàn cảnh</span></button>
+    <button id="bShow" title="Trình chiếu có nhạc"><span>▶️</span><span class="lb">Chiếu</span></button>
+    <button id="bDiary" title="Nhật ký truyện tranh"><span>📖</span><span class="lb">Nhật ký</span></button>
+    <button id="bAdd" title="Thêm ảnh, video"><span>➕</span><span class="lb">Thêm</span></button>
+    <button id="bTheme" title="Đổi phong cách"><span id="themeIco">🌅</span></button>
+    <button id="bSet" title="Cài đặt"><span>⚙️</span></button>
+  </div>
+</div>
+<div id="kidMenu" class="glass" hidden></div>
+
+<div id="bottom" class="glass">
+  <div id="now"><span class="d" id="nowD"></span><span class="a" id="nowA"></span><span class="c" id="nowC"></span></div>
+  <div id="scrub"><div class="tr"><div class="fill"></div></div><div class="dots"></div><div class="ticks"></div><div class="knob"></div></div>
+</div>
+
+<div id="intro"><div class="box">
+  <h1 id="introTitle"></h1>
+  <p id="introSub" class="fade-up" style="animation-delay:1.1s"></p>
+  <div class="row fade-up" style="animation-delay:1.5s" id="introBtns"></div>
+</div></div>
+
+<div id="cap"><div class="t"></div><div class="s"></div></div>
+<div id="year"><div><div class="y"></div><div class="s"></div></div></div>
+<button id="stopShow" class="glass">⏹ Dừng chiếu</button>
+
+<div id="lb" role="dialog" aria-label="Xem khoảnh khắc">
+  <div class="count"></div>
+  <button class="nav l glass" data-nav="-1" aria-label="Khoảnh khắc trước">‹</button>
+  <div class="media"></div>
+  <div class="info glass">
+    <div class="view">
+      <h2 class="ti"></h2>
+      <div class="dt"></div>
+      <div class="ag"></div>
+      <div class="nt"></div>
+      <div class="acts">
+        <button data-act="edit">✏️ Sửa</button>
+        <button data-act="save">⬇️ Lưu về máy</button>
+        <button data-act="del" class="danger">🗑 Xoá</button>
+      </div>
+    </div>
+    <div class="edit" hidden>
+      <label class="f">Tên khoảnh khắc<input class="e-ti" maxlength="80" placeholder="Ví dụ: Bước đi đầu tiên"></label>
+      <label class="f">Ngày<input class="e-dt" type="date"></label>
+      <label class="f">Ghi chú<textarea class="e-nt" maxlength="2000" placeholder="Kể lại chút về khoảnh khắc này…"></textarea></label>
+      <div class="foot"><button data-act="cancel">Huỷ</button><button data-act="ok" class="primary">Lưu</button></div>
+    </div>
+  </div>
+  <button class="nav r glass" data-nav="1" aria-label="Khoảnh khắc sau">›</button>
+  <button class="close glass" aria-label="Đóng">✕ Đóng</button>
+</div>
+
+<div class="modal" id="mAdd"><div class="card glass">
+  <h2>Thêm khoảnh khắc</h2>
+  <p class="lead">Chọn nhiều ảnh, video một lúc. App tự đọc ngày chụp và tính tuổi của con — bạn sửa lại được nếu chưa đúng.</p>
+  <div id="drop"><span class="big">📸</span>Kéo thả ảnh, video vào đây<br>hoặc bấm để chọn</div>
+  <input type="file" id="fileIn" accept="image/*,video/*" multiple hidden>
+  <div id="addList"></div>
+  <div class="prog" id="addProg"><i></i></div>
+  <div class="foot"><button data-close>Huỷ</button><button class="primary" id="addSave" disabled>✨ Lưu vào dòng thời gian</button></div>
+</div></div>
+
+<div class="modal" id="mKid"><div class="card glass">
+  <h2 id="kidTitle">Chào bạn! 👋</h2>
+  <p class="lead" id="kidLead">Cùng tạo dải ngân hà kỷ niệm cho con nhé. Ngày sinh giúp app tính con bao nhiêu tuổi ở mỗi tấm ảnh.</p>
+  <label class="f">Tên ở nhà của bé<input id="kidIn" maxlength="30" placeholder="Ví dụ: Bin"></label>
+  <label class="f">Ngày sinh<input id="kidBd" type="date"></label>
+  <div class="foot"><button id="kidDel" class="danger" hidden>Xoá bé này</button><button data-close id="kidCancel">Huỷ</button><button class="primary" id="kidOk">Bắt đầu ✨</button></div>
+</div></div>
+
+<div class="modal" id="mSet"><div class="card glass">
+  <h2>Cài đặt</h2>
+  <div class="sec" style="border:none;padding-top:0;margin-top:12px"><h3>Các bé</h3><div id="kidsList"></div><button id="kidAdd">➕ Thêm bé</button></div>
+  <div class="sec"><h3>Phong cách</h3><div class="seg" id="segTheme"><button data-v="night">🌌 Đêm ngân hà</button><button data-v="dawn">🌅 Bình minh</button></div></div>
+  <div class="sec"><h3>Nhạc khi trình chiếu</h3><div class="seg" id="segMusic"><button data-v="builtin">🎐 Hộp nhạc</button><button data-v="file">🎵 Bài của bạn</button><button data-v="off">🔇 Tắt</button></div>
+    <p class="hint" id="musicHint"></p><input type="file" id="musicIn" accept="audio/*" hidden></div>
+  <div class="sec"><h3>Sao lưu</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="bExport">💾 Tạo bản sao lưu</button><button id="bImport">📂 Mở bản sao lưu</button></div>
+    <input type="file" id="importIn" accept=".nganha,application/octet-stream" hidden>
+    <p class="hint">Ảnh, video chỉ nằm trong máy này. Thỉnh thoảng hãy tạo bản sao lưu và cất vào ổ cứng, iCloud Drive hoặc Google Drive. Muốn chuyển sang máy khác: mở bản sao lưu ở máy kia.</p>
+    <p class="hint" id="storeInfo"></p></div>
+  <div class="sec"><h3>AI viết lời cho nhật ký (không bắt buộc)</h3>
+    <p class="hint" style="margin-top:0">Không cần cũng được: app tự ghép lời miễn phí, ảnh không đi đâu cả. Nếu muốn AI xem ảnh rồi viết lời, bạn tạo khoá miễn phí tại <b>aistudio.google.com</b> (mục <b>Get API key</b>) rồi dán vào đây. Khoá chỉ lưu trong máy này.</p>
+    <form onsubmit="return false" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="gemKey" type="password" autocomplete="off" spellcheck="false" placeholder="Dán khoá Gemini API…" style="flex:1;min-width:180px;font:600 15px var(--font);color:var(--text);background:var(--field);border:1px solid var(--line);border-radius:14px;padding:10px 12px;outline:none"><button id="gemSave">Lưu khoá</button><button id="gemDel" class="danger" hidden>Xoá khoá</button></form>
+    <p class="hint" id="gemInfo"></p>
+    <p class="hint">Lưu ý: khi bạn bấm “✨ AI viết lời”, ảnh nhỏ của các khung sẽ được gửi tới Google để AI viết lời.</p></div>
+  <div class="sec"><h3>Cài lên điện thoại</h3><p class="hint" style="margin:0">iPhone/iPad: mở link bằng <b>Safari</b> › bấm nút Chia sẻ <b>⬆︎</b> › <b>Thêm vào MH chính</b>.<br>Android: mở bằng Chrome › menu <b>⋮</b> › <b>Cài đặt ứng dụng</b>.</p></div>
+  <div class="foot"><span style="margin-right:auto;align-self:center;font-size:12px;color:var(--muted);font-weight:600" id="verTxt"></span><button data-close class="primary">Xong</button></div>
+</div></div>
+
+<div class="modal" id="mAsk"><div class="card glass" style="width:min(420px,100%)">
+  <h2 id="askT"></h2><p class="lead" id="askL"></p>
+  <div class="foot"><button data-close id="askNo">Thôi</button><button class="primary" id="askYes">Đồng ý</button></div>
+</div></div>
+
+<div id="toast" class="glass"></div>
+<div id="dropAll">Thả vào đây để thêm ✨</div>
+<div id="ver"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
