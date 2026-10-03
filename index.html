@@ -791,6 +791,15 @@ body.v12:not(.tlfam) #tlv .rail { display: none; }
 #tbar .glassbtn { width: 40px; height: 40px; } #tbar #tbTheme { display: none; } #tbar .rt { gap: 8px; }
 #tbar .tt { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; padding: 0 6px; }
 #tabbar > button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+/* v1.4.1 — không bao giờ phải khai lại */
+.kfirst { margin: 4px 0 6px; padding: 14px; border-radius: 20px; background: rgba(255,255,255,.06); border: 1px dashed var(--glb); }
+.kf-b { width: 100%; min-height: 52px; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 700; border-radius: 26px; white-space: normal; text-align: center; }
+.kf-l { display: flex; gap: 8px; margin-top: 10px; } .kf-l input { flex: 1; min-width: 0; font: 600 15px var(--font); color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; outline: none; } .kf-l button { flex: none; }
+.kfirst .hint { margin: 10px 2px 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+#kidShareAll { margin-top: 10px; }
+#gban { position: fixed; z-index: 25; left: 12px; right: 12px; top: calc(var(--safe-t) + 62px); max-width: 520px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 20px; background: linear-gradient(180deg, var(--gl1), var(--gl2)), var(--pane); border: 1px solid var(--glb); box-shadow: 0 12px 30px rgba(0,0,0,.25); transform: translateY(-20px); opacity: 0; transition: transform var(--sp-bouncy-ms) var(--sp-bouncy), opacity .3s; }
+#gban.on { transform: none; opacity: 1; } #gban img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; } #gban b { flex: 1; min-width: 150px; font-size: 14px; } #gban button { height: 36px; padding: 0 12px; font-size: 13.5px; } #gban .later { background: transparent; border-color: transparent; color: var(--muted); }
+body.evopen #gban, body.pvopen #gban, body.showing #gban { display: none; }
 /* v1.4 — action sheet kiểu iOS dính sát đáy (điện thoại) */
 .cm.sheet .cm-list { left: 0; right: 0; bottom: var(--kb, 0px); top: auto; width: auto; max-width: 620px; margin: 0 auto; max-height: calc(100% - var(--safe-t) - 40px); display: flex; flex-direction: column; overflow: visible; padding: 0 10px calc(10px + var(--safe-b)); border-radius: 28px 28px 0 0; border-bottom: none; transform: translate3d(0, 105%, 0); opacity: 1; transition: transform var(--sp-bouncy-ms) var(--sp-bouncy); box-shadow: 0 -10px 50px rgba(0,0,0,.35), inset 0 1px 0 var(--glh); }
 .cm.sheet.on .cm-list { transform: none; } .cm.sheet.off .cm-list { transform: translate3d(0, 105%, 0) !important; transition: transform .26s cubic-bezier(.4,0,1,1); }
@@ -907,6 +916,11 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
   <div class="kidx"><div class="lbl">Giới tính</div><div class="seg" id="kidG"><button data-v="m">Bé trai</button><button data-v="f">Bé gái</button></div></div>
   <div class="kidx"><div class="lbl">Màu của bé</div><div class="swr" id="kidC"></div></div>
   <div class="kav"><img id="kidAvI" alt=""><button id="kidAvB">Đổi avatar</button></div>
+  <div class="kfirst" id="kidFirst" hidden>
+    <button class="kf-b" id="kfBackup" type="button">📂 <span>Mình đã dùng app rồi — mở bản sao lưu</span></button>
+    <div class="kf-l"><input id="kfLink" placeholder="…hoặc dán link hồ sơ bé vào đây" autocomplete="off" inputmode="url"><button id="kfLinkOk" type="button">Mở</button></div>
+    <p class="hint">Lần đầu dùng thì điền thông tin bé bên dưới. App ở màn hình chính và Safari giữ dữ liệu riêng. Nếu bạn đã nhập ở chỗ khác, hãy mở bản sao lưu (hoặc link hồ sơ bé) từ chỗ đó.</p>
+  </div>
   <div class="foot"><button id="kidDel" class="danger" hidden>Xoá bé này</button><button data-close id="kidCancel">Huỷ</button><button class="primary" id="kidOk">Bắt đầu ✨</button></div>
 </div></div>
 
@@ -928,7 +942,7 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
   <div class="sec"><h3>Nhạc khi trình chiếu</h3><div class="seg" id="segMusic"><button data-v="builtin">🎐 Hộp nhạc</button><button data-v="file">🎵 Bài của bạn</button><button data-v="off">🔇 Tắt</button></div>
     <p class="hint" id="musicHint"></p><input type="file" id="musicIn" accept="audio/*" hidden></div>
   <div class="sec"><h3>Thùng rác</h3><p class="hint" style="margin-top:0">Xoá nhầm? Mọi thứ đã xoá được giữ 30 ngày.</p><button id="bTrash" style="margin-top:8px">Mở thùng rác</button></div>
-  <div class="sec"><h3>Sao lưu</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="bExport">💾 Tạo bản sao lưu</button><button id="bImport">📂 Mở bản sao lưu</button></div>
+  <div class="sec"><h3>Sao lưu</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="bExport">💾 Tạo bản sao lưu</button><button id="bImport">📂 Mở bản sao lưu</button></div><p class="hint" id="bkLast"></p><p class="hint" id="whereData"></p>
     <input type="file" id="importIn" accept=".nganha,application/octet-stream" hidden>
     <p class="hint">Ảnh, video chỉ nằm trong máy này. Thỉnh thoảng hãy tạo bản sao lưu và cất vào ổ cứng, iCloud Drive hoặc Google Drive. Muốn chuyển sang máy khác: mở bản sao lưu ở máy kia.</p>
     <p class="hint" id="storeInfo"></p></div>

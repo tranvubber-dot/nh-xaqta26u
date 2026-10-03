@@ -1658,7 +1658,7 @@ async function splitNames() {
   for (const k of S.kids) {
     if (k.fullName || await metaGet('nameSplit:' + k.id)) continue; const sp = splitName(k.name); if (!sp) continue;
     const old = k.name; Object.assign(k, sp); await dbPut('kids', k); await metaSet('nameSplit:' + k.id, { old, ts: Date.now() });
-    setTimeout(() => undoToast(`Đã tách tên ở nhà: <b>${esc(sp.name)}</b> · tên thật: <b>${esc(sp.fullName)}</b>`, async () => { k.name = old; delete k.fullName; await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); toast('Đã giữ lại tên cũ — bạn sửa trong hồ sơ bé khi cần nhé', 2400); }, 8000), 1800);
+    S.splitNow = true; setTimeout(() => undoToast(`Đã tách tên ở nhà: <b>${esc(sp.name)}</b> · tên thật: <b>${esc(sp.fullName)}</b>`, async () => { k.name = old; delete k.fullName; await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); toast('Đã giữ lại tên cũ — bạn sửa trong hồ sơ bé khi cần nhé', 2400); }, 8000), 1800);
   }
 }
 function openKid(kid) {
@@ -1670,7 +1670,7 @@ function openKid(kid) {
   $('#kidLead').textContent = first ? 'Cùng tạo dải ngân hà kỷ niệm cho con nhé. Ngày sinh giúp app tính con bao nhiêu tuổi ở mỗi tấm ảnh.' : kid ? 'Đổi tên hoặc ngày sinh — tuổi trên mọi tấm ảnh sẽ tự tính lại.' : 'Mỗi bé có một dải ngân hà riêng.';
   $('#kidIn').value = kid?.name || ''; $('#kidBd').value = kid?.birth || ''; kidBdHint();
   $('#kidFn').value = kid?.fullName || ''; $('#kidTm').value = kid?.birthTime || ''; $('#kidPl').value = kid?.place || ''; $('#kidKg').value = kid?.weight ? String(kid.weight).replace('.', ',') : ''; $('#kidCm').value = kid?.length ? String(kid.length).replace('.', ',') : ''; $('#kidBx').open = !!(kid?.birthTime || kid?.place || kid?.weight || kid?.length);
-  $('#kidCancel').hidden = first; $('#kidDel').hidden = !kid || S.kids.length < 1;
+  $('#kidCancel').hidden = first; $('#kidDel').hidden = !kid || S.kids.length < 1; $('#kidFirst').hidden = !first; $('#kfLink').value = ''; if (first) $('#kidLead').after($('#kidFirst'));
   $('#kidOk').textContent = kid ? 'Lưu' : 'Bắt đầu';
   kidSheetUi();
   openModal($('#mKid')); setTimeout(() => $('#kidIn').focus(), 350);
@@ -1694,6 +1694,9 @@ $('#kidOk').onclick = async () => {
   }
   renderSettings();
 };
+$('#kfBackup').onclick = () => $('#importIn').click();
+$('#kfLinkOk').onclick = async () => { const v = $('#kfLink').value.trim(); if (!/#hoso=/.test(v)) { toast('Bạn dán cả đường link hồ sơ (có đoạn #hoso=…) nhé', 3000); return; } await importProfiles(v); };
+$('#kfLink').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kfLinkOk').click(); });
 $('#kidIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kidBd').focus(); });
 $('#kidIn').addEventListener('input', () => kidDraft && kidSheetUi());
 $('#kidG').onclick = e => { const b = e.target.closest('[data-v]'); if (!b || !kidDraft) return; const was = kidDraft.gender; kidDraft.gender = b.dataset.v; if (!was || KID_COLORS.indexOf(kidDraft.color) >= 0) kidDraft.color = defaultColor(kidDraft.gender, S.kids.filter(k => k.id !== kidDraft.id).map(k => k.color)); haptic(6); kidSheetUi(); };
@@ -1983,7 +1986,7 @@ async function saveAdd() {
   const own = news.length ? kidsOf(news[0]).map(id => cap(S.kids.find(x => x.id === id)?.name)).filter(Boolean).join(', ') : '';
   const evs = [...new Set(news.map(m => TL.keyOfMid(m.id)).filter(Boolean))].map(k2 => TL.events.find(e => e.key === k2)).filter(Boolean);
   toast(evs.length === 1 ? `Đã thêm ${ids.length} ảnh vào “${evs[0].title}”` : evs.length > 1 ? `Đã thêm ${ids.length} ảnh vào ${evs.length} ngày` : `Đã thêm ${ids.length} khoảnh khắc vào dải của ${own}`, 2800);
-  updateNow();
+  updateNow(); maybeRemindBackup(ids.length);
 }
 
 // nhập ảnh không qua hộp Thêm (dùng cho nhật ký): vẫn đọc ngày giờ chụp, làm ảnh nhỏ, lưu thành khoảnh khắc
@@ -2024,6 +2027,7 @@ function flyToBook(id) {
 
 // ---------- Cài đặt ----------
 async function renderSettings() {
+  renderBkLast();
   if ($('#kidNhacAll')) $('#kidNhacAll').hidden = S.kids.length < 2;
   const ms = await dbAll('moments');
   $('#kidsList').innerHTML = S.kids.map(k => `<div class="kid-row"><img src="${P.avatarNow(k)}" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px ${k.color || '#ff8fbf'}"><div><div class="n">${esc(cap(k.name))}</div><div class="b">Sinh ${dmy(parseYmd(k.birth))} · ${ms.filter(m => !m.deleted && kidsOf(m).includes(k.id)).length} khoảnh khắc</div></div><div class="kr-acts"><button data-nhac="${k.id}">${icon('cake', 16)}<span>Nhắc sinh nhật</span></button><button data-prof="${k.id}">${icon('star', 16)}<span>Hồ sơ</span></button><button data-kid="${k.id}">${icon('edit', 16)}<span>Sửa</span></button></div></div>`).join('');
@@ -2058,6 +2062,8 @@ $('#kidsList').onclick = e => { const nh = e.target.closest('[data-nhac]'); if (
 $('#kidAdd').innerHTML = icon('plus', 16, 2.2) + '<span>Thêm bé</span>';
 $('#kidAdd').insertAdjacentHTML('afterend', `<button id="kidNhacAll" style="margin-left:8px">${icon('cake', 16)}<span>Nhắc sinh nhật cả nhà</span></button>`);
 $('#kidNhacAll').onclick = () => { $('#mSet').classList.remove('open'); nhacFor(S.kids); };
+$('#kidNhacAll').insertAdjacentHTML('afterend', `<button id="kidShareAll">${icon('people', 16)}<span>🔗 Gửi hồ sơ bé sang máy khác</span></button><p class="hint" style="margin:6px 2px 0;font-size:12.5px;color:var(--muted)">Link chỉ chứa thông tin các bé (tên, ngày giờ sinh, avatar nhỏ), nằm sau dấu # nên không gửi lên máy chủ nào.</p>`);
+$('#kidShareAll').onclick = () => shareProfiles();
 $('#kidAdd').onclick = () => { $('#mSet').classList.remove('open'); openKid(null); };
 $('#segTheme').onclick = e => { const b = e.target.closest('button'); if (b) { setTheme(b.dataset.v); renderSettings(); } };
 $('#segMusic').onclick = async e => {
@@ -2071,7 +2077,8 @@ $('#musicIn').onchange = async e => {
   await dbPut('blobs', f, 'music'); S.music = 'file'; S.musicName = f.name; await metaSet('music', 'file'); await metaSet('musicName', f.name);
   renderSettings(); toast('🎵 Đã chọn: ' + f.name);
 };
-$('#bExport').onclick = async () => {
+$('#bExport').onclick = () => doBackup();
+async function doBackup() {
   if (!S.kids.length) return;
   toast('Đang tạo bản sao lưu…', 60000);
   try {
@@ -2079,9 +2086,76 @@ $('#bExport').onclick = async () => {
     const name = `NganHa-${noAccent(S.kids.map(k => k.name).join('-')) || 'sao-luu'}-${ymd(Date.now())}.nganha`;
     if (TEST) T.lastBackup = blob;
     await shareOrDownload(new File([blob], name, { type: 'application/octet-stream' }), name);
-    toast(`Đã tạo bản sao lưu (${fmtSize(blob.size)}) — cất vào nơi an toàn nhé`, 4200);
+    await metaSet('lastBackup', Date.now()); await metaSet('bkSince', 0); renderBkLast();
+    toast(`Đã tạo bản sao lưu (${fmtSize(blob.size)}) — cất vào Tệp / iCloud Drive cho chắc nhé`, 4200);
   } catch (er) { console.error(er); toast('Chưa tạo được bản sao lưu: ' + er.message, 5000); }
-};
+}
+// ---------- v1.4.1: nhắc sao lưu 1 chạm, nơi đang lưu dữ liệu, link hồ sơ bé ----------
+const isStandalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+async function renderBkLast() {
+  const t = await metaGet('lastBackup'), el = $('#bkLast'); if (!el) return;
+  const nd = t ? Math.max(0, Math.round((Date.now() - t) / 864e5)) : 0; el.textContent = t ? `Lần sao lưu gần nhất: ${fmtLong(t)} (${nd ? nd + ' ngày trước' : 'hôm nay'})` : 'Chưa sao lưu lần nào — ảnh của bạn chỉ nằm trong máy này.';
+  $('#whereData').textContent = `Dữ liệu đang lưu ở: ${isStandalone() ? 'App ở Màn hình chính' : /iP(hone|ad|od)/.test(navigator.userAgent) ? 'Safari' : 'Trình duyệt'} · ${location.host || 'tệp trong máy'}. Mỗi nơi giữ dữ liệu riêng.`;
+}
+async function maybeRemindBackup(added = 0) {
+  if (!S.kids.length || !(S.all || []).length) return;
+  const since = ((await metaGet('bkSince')) || 0) + added; if (added) await metaSet('bkSince', since);
+  const last = await metaGet('lastBackup'), lastAsk = (await metaGet('bkRemind')) || 0, now = Date.now();
+  const due = since >= 10 || (last ? now - last > 7 * 864e5 : (S.all.length >= 10 || now - Math.min(...S.all.map(m => m.created || now)) > 7 * 864e5));
+  if (!due || now - lastAsk < 20 * 3600e3) return;
+  await metaSet('bkRemind', now);
+  setTimeout(() => undoToast('💾 Sao lưu ngay — ảnh của bạn chỉ nằm trong máy này', () => doBackup(), 9000, { label: 'Sao lưu', icon: 'download' }), added ? 3200 : 0);
+}
+const b64u = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode(...u8.subarray(i, i + 8192)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64u = t => { const s = atob(t.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length + 3) % 4)); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+async function zip(u8, on) { if (!window.CompressionStream) return null; const cs = new (on ? CompressionStream : DecompressionStream)('deflate-raw'); return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(cs)).arrayBuffer()); }
+async function smallAvatar(k) {
+  const im = new Image(); im.src = await P.avatarURL(k); try { await im.decode(); } catch (e) { return ''; }
+  const c = document.createElement('canvas'); c.width = c.height = 96; const x = c.getContext('2d'), s = Math.min(im.naturalWidth, im.naturalHeight); x.drawImage(im, (im.naturalWidth - s) / 2, (im.naturalHeight - s) / 2, s, s, 0, 0, 96, 96);
+  let u = c.toDataURL('image/webp', .72); if (!u.startsWith('data:image/webp')) u = c.toDataURL('image/jpeg', .72); return u;
+}
+async function profileLink() {
+  const kids = []; for (const k of S.kids) kids.push({ id: k.id, name: k.name, fullName: k.fullName || null, birth: k.birth, birthTime: k.birthTime || null, place: k.place || null, weight: k.weight || null, length: k.length || null, gender: k.gender || null, color: k.color, avStyle: k.avStyle || 0, av: k.avatar ? await smallAvatar(k) : '' });
+  const raw = new TextEncoder().encode(JSON.stringify({ v: 1, kids })), z = await zip(raw, true);
+  return location.origin + location.pathname + (TEST ? location.search : '') + '#hoso=' + (z ? 'z' + b64u(z) : 'j' + b64u(raw));
+}
+async function shareProfiles() {
+  const url = await profileLink(); if (TEST) T.lastProfileLink = url;
+  const text = `Hồ sơ ${S.kids.map(k => cap(k.name)).join(', ')} trên Ngân Hà Của Con — mở link này ở máy/ứng dụng khác để khỏi nhập lại.`;
+  if (!TEST && navigator.share && MOBILE) { try { await navigator.share({ title: 'Hồ sơ bé · Ngân Hà Của Con', text, url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); toast('Đã chép link hồ sơ bé — dán vào ô “Dán link hồ sơ” ở máy kia nhé (link chỉ chứa thông tin bé, không có ảnh)', 4200); }
+  catch (e) { prompt2('Chép link hồ sơ bé', url, 4000); }
+}
+async function readProfileLink(text) {
+  const m = /#hoso=([zj])([\w-]+)/.exec(text || ''); if (!m) return null;
+  let u8 = unb64u(m[2]); if (m[1] === 'z') u8 = await zip(u8, false); return JSON.parse(new TextDecoder().decode(u8));
+}
+async function importProfiles(text) {
+  let data; try { data = await readProfileLink(text); } catch (e) { toast('Link hồ sơ bị hỏng hoặc thiếu — bạn chép lại cả đường link nhé', 4000); return false; }
+  if (!data?.kids?.length) return false;
+  if (location.hash.includes('hoso=')) history.replaceState(null, '', location.pathname + location.search);
+  const have = await dbAll('kids'), fresh = data.kids.filter(k => !have.some(h => !h.deleted && (h.id === k.id || (cap(h.name) === cap(k.name) && h.birth === k.birth))));
+  if (!fresh.length) { toast('Các bé trong link này đã có sẵn trong app rồi', 3000); return false; }
+  const line = fresh.map(k => `${cap(k.name)}${k.fullName ? ` (${k.fullName})` : ''}, sinh ${dmy(parseYmd(k.birth))}`).join('; ');
+  if (!(await ask(fresh.length > 1 ? `Thêm ${fresh.length} bé?` : `Thêm 1 bé: ${line}?`, fresh.length > 1 ? line : 'Thông tin bé lấy từ link hồ sơ — ảnh, video không đi kèm (mở bản sao lưu để có ảnh).', 'Đồng ý'))) return false;
+  for (const k of fresh) {
+    const { av, ...kk } = k; kk.created = Date.now(); kk.avatar = 0;
+    if (av) { try { const b = await (await fetch(av)).blob(); await dbPut('blobs', b, 'av_' + kk.id); kk.avatar = Date.now(); } catch (e) { } }
+    await dbPut('kids', kk); await metaSet('gAsk:' + kk.id, 1); await metaSet('nameSplit:' + kk.id, { old: kk.name, ts: Date.now() });
+  }
+  S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0)); await P.warm(S.kids);
+  $('#mKid').classList.remove('open'); document.body.classList.remove('intro'); leaveIntro(true);
+  await selectKid(S.kid?.id || fresh[0].id, true); renderSettings();
+  toast(`Đã thêm ${fresh.map(k => cap(k.name)).join(', ')} — không cần nhập lại`, 3200); return true;
+}
+// hỏi giới tính bằng banner nhỏ (không chặn màn hình), có "Để sau"
+function genderBanner(k) {
+  $('#gban')?.remove(); const b = document.createElement('div'); b.id = 'gban';
+  b.innerHTML = `<img src="${P.avatarNow(dispKid(k))}" alt=""><b>${esc(cap(k.name))} là bé trai hay bé gái? <small style="font-weight:600;color:var(--muted)">để chọn màu & avatar</small></b><button data-g="m">Bé trai</button><button data-g="f">Bé gái</button><button class="later" data-g="">Để sau</button>`;
+  document.body.appendChild(b); requestAnimationFrame(() => b.classList.add('on'));
+  b.onclick = async e => { const t = e.target.closest('[data-g]'); if (!t) return; await metaSet('gAsk:' + k.id, 1); b.classList.remove('on'); setTimeout(() => b.remove(), 400);
+    const g = t.dataset.g; if (!g) return; k.gender = g; if (!k.avatar) k.color = defaultColor(g, S.kids.filter(x => x !== k).map(x => x.color)); await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); buildGalaxy(); };
+}
 $('#bImport').onclick = () => $('#importIn').click();
 $('#importIn').onchange = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) await doImport(f); };
 async function doImport(f) {
@@ -2450,16 +2524,18 @@ async function boot() {
   setTheme(theme, false);
   S.mode = 'empty'; OV.dist = 160;
   requestAnimationFrame(t => { last = t; requestAnimationFrame(loop); });
-  if (!S.kids.length) { document.body.classList.add('intro'); $('#intro').style.display = 'none'; openKid(null); }
+  if (!S.kids.length && /#hoso=/.test(location.hash) && await importProfiles(location.hash)) { /* đã nhập hồ sơ từ link */ }
+  else if (!S.kids.length) { document.body.classList.add('intro'); $('#intro').style.display = 'none'; openKid(null); }
   else {
     for (const k of S.kids) if (!k.color) { k.color = defaultColor(k.gender, S.kids.filter(x => x !== k && x.color).map(x => x.color)); await dbPut('kids', k); }
     await splitNames();
     await P.warm(S.kids);
     const id = await metaGet('curKid'); await selectKid(S.kids.some(k => k.id === id) ? id : S.kids[0].id, true);
     if (S.kids.length > 1 && await metaGet('family')) await enterFamily();
-    setTimeout(async () => { for (const k of S.kids) { if (k.gender || await metaGet('gAsk:' + k.id)) continue; await metaSet('gAsk:' + k.id, 1); const g = await P.askGender(dispKid(k)); if (g) { k.gender = g; if (!k.avatar) k.color = defaultColor(g, S.kids.filter(x => x !== k).map(x => x.color)); await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); buildGalaxy(); } } }, 1500);
+    setTimeout(async () => { for (const k of S.kids) { if (k.gender || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
+    if (/#hoso=/.test(location.hash)) setTimeout(() => importProfiles(location.hash), 600);
   }
-  N.fromHash(); addEventListener("hashchange", () => N.fromHash());
+  N.fromHash(); addEventListener("hashchange", () => { N.fromHash(); if (/#hoso=/.test(location.hash)) importProfiles(location.hash); });
   if ('serviceWorker' in navigator && location.protocol === 'https:' && !TEST) navigator.serviceWorker.register('sw.js').catch(() => { });
 }
 
@@ -2526,7 +2602,7 @@ if (TEST) {
     location.replace(location.pathname + '?test');
   }, 2500);
   window.T = {
-    get INTRO() { return INTRO; }, fpsMeter, openKid, S, G, FL, OV, cam, SH, ADD, Stream, Music, perf, camera, renderer, scene, frame, setMode, openLB, closeLB, lbNav, startShow, stopShow, setTheme, openAdd, addFiles, saveAdd, doImport, buildBackup, readBackup, ageText, exifDate, videoDate, readDate, selectKid, dbAll, dbGet,
+    get INTRO() { return INTRO; }, profileLink, importProfiles, readProfileLink, maybeRemindBackup, genderBanner, doBackup, renderBkLast, fpsMeter, openKid, S, G, FL, OV, cam, SH, ADD, Stream, Music, perf, camera, renderer, scene, frame, setMode, openLB, closeLB, lbNav, startShow, stopShow, setTheme, openAdd, addFiles, saveAdd, doImport, buildBackup, readBackup, ageText, exifDate, videoDate, readDate, selectKid, dbAll, dbGet,
     async setKid(id, patch) { const k = S.kids.find(x => x.id === id); Object.assign(k, patch); await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); return k; }, loadAll,
     dbPut, splitName, splitNames, fakePhoto, fakeVideo, D, TL, P, N, nhacFor, BG, trashMoments, restoreMoments, openTrash, removeKid, restoreKid, alignDates, nameDate, prompt2, enterFamily, kidsOf, setMomentKids, refreshKid, applyBg, loadBg, setBgImage, enterGalaxy, exitGalaxy, renderBgUi, openBook, diaryChanged, importFilesQuiet, exifSeg,
     // giả lập Gemini (không cần khoá thật): trả JSON mẫu, ghi lại yêu cầu để kiểm

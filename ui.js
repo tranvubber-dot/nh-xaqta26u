@@ -206,10 +206,10 @@ export function longPress(root, sel, cb, ms = 450) {
 }
 // toast kính có nút ↩︎ Hoàn tác (5 giây)
 let UT = null;
-export function undoToast(msg, onUndo, ms = 5000) {
+export function undoToast(msg, onUndo, ms = 5000, opt = {}) {
   UT?.close(true);
   const d = document.createElement('div'); d.className = 'utoast';
-  d.innerHTML = `<span>${msg}</span>${onUndo ? `<button>${icon('back', 16, 2.2)}<b>Hoàn tác</b></button>` : ''}<i style="animation-duration:${ms}ms"></i>`;
+  d.innerHTML = `<span>${msg}</span>${onUndo ? `<button>${icon(opt.icon || 'back', 16, 2.2)}<b>${opt.label || 'Hoàn tác'}</b></button>` : ''}<i style="animation-duration:${ms}ms"></i>`;
   document.body.appendChild(d); requestAnimationFrame(() => d.classList.add('on'));
   let done = false; const close = now => { if (done) return; done = true; d.classList.remove('on'); setTimeout(() => d.remove(), now ? 0 : 400); if (UT === h) UT = null; };
   const tm = setTimeout(close, ms);
