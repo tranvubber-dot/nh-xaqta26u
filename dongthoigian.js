@@ -13,7 +13,7 @@ const HTML = `
   <div id="tl" tabindex="-1"><div class="tl-in"></div></div>
 </div>
 <div id="evp" aria-hidden="true">
-  <div class="evp-bg"><canvas class="evp-bgc" width="36" height="48"></canvas><i></i></div>
+  <div class="evp-bg"><img class="evp-bgc" alt=""><i></i></div>
   <div class="evp-sc">
     <header class="evp-head"><div class="evp-hx"><div class="evp-dt"></div><h2 class="evp-ti"><span class="tt" spellcheck="false"></span><i class="pen" aria-hidden="true">${icon('edit', 17, 2)}</i></h2><div class="evp-chips"></div>
       <div class="evp-cta"><button data-a="play" class="cta1">${icon('play', 18, 2.2)}<span>Chiếu</span></button></div></div></header>
@@ -196,7 +196,7 @@ export function initTimeline(A) {
   // ---------- dựng dòng sự kiện ----------
   function card(e, i) {
     const side = st.wide ? (i % 2 ? 'R' : 'L') : 'R', ag = A.ageText(A.kid(), e.ts0, false);
-    const chips = [e.nImg ? `<span class="chip">${icon('image', 15, 1.9)}${e.nImg} ảnh</span>` : '', e.nVid ? `<span class="chip">${icon('video', 15, 1.9)}${e.nVid} video</span>` : '',
+    const chips = [`<span class="chip">${icon(e.nImg ? 'image' : 'video', 15, 1.9)}${esc(countTxt(e))}</span>`,
       e.diaries.length ? `<button class="chip bk" data-diary="${e.diaries[0].id}">${icon('book', 15, 1.9)}nhật ký</button>` : '',
       ...(A.family() ? e.ages.filter(a => a.txt !== e.title).map(a => `<span class="chip age" style="--c:${a.color}"><img class="mav" src="${A.avatar(kidById(a.id))}" alt="">${esc(a.txt)}</span>`) : [ag ? `<span class="chip age">${esc(ag)}</span>` : '']),
       ...e.sibs.map(x => `<span class="chip sib" style="--c:${kidById(x.id)?.color}">${icon('heart', 13, 2)}${esc(x.txt)}</span>`)].join('');
@@ -410,11 +410,10 @@ export function initTimeline(A) {
   }
   // nền đầu trang: ảnh bìa vẽ vào canvas rất nhỏ rồi phóng to = nhoè tự nhiên (không cần filter blur)
   async function paintBg(m) {
-    const cv = EVP.querySelector('.evp-bgc'), x = cv.getContext('2d'), u = await thumbURL(m.id); if (!u) return;
-    const im = new Image(); im.src = u; try { await im.decode(); } catch (e) { return; }
-    const k = Math.max(cv.width / im.naturalWidth, cv.height / im.naturalHeight); x.filter = 'blur(1.2px)'; x.drawImage(im, (cv.width - im.naturalWidth * k) / 2, (cv.height - im.naturalHeight * k) / 2, im.naturalWidth * k, im.naturalHeight * k);
-    cv.classList.add('ok');
+    const im = EVP.querySelector('.evp-bgc'), u = await thumbURL(m.id); if (!u) return; im.classList.remove('ok');
+    im.src = u; try { await im.decode(); } catch (e) { } im.classList.add('ok');
   }
+
   // ---- động cơ dải trôi: một vòng rAF duy nhất, chỉ đổi transform/opacity ----
   const SP = { rows: [], cards: [], raf: 0, t: 0, last: 0, drag: null, idle: 0, speedK: 1, open: false, enter: 0, video: null, vEl: null, W: 0, H: 0 };
   const asp = m => clamp(m.w && m.h ? m.w / m.h : 1, .56, 1.9);
@@ -451,7 +450,13 @@ export function initTimeline(A) {
   function cardX(it) { const R = it.row; if (!R.loop) return it.x0 + R.off; return mod(it.x0 + R.off + it.w, R.L) - it.w; }
   function stripFrame(now) {
     SP.raf = 0; if (!SP.open || document.hidden) return;
-    const dt = Math.min(.05, (now - (SP.last || now)) / 1000); SP.last = now; SP.t += dt;
+    const dt = clamp((now - (SP.last || now)) / 1000, 0, .05); SP.last = now;
+    renderStrip(now, dt);
+    SP.raf = requestAnimationFrame(stripFrame);
+  }
+  // vẽ một khung (không tự lập lịch): dt = 0 thì chỉ đặt lại vị trí
+  function renderStrip(now, dt) {
+    const frozen = now < (SP.freeze || 0); if (frozen) dt = 0; SP.t += dt;
     // tự trôi (trái → phải); đang chạm thì ngừng, thả 2 giây sau trôi lại và tăng tốc dần
     const auto = !SP.drag && now > SP.idle && !REDUCED && !PV.classList.contains('open') && !document.body.classList.contains('cmopen');
     SP.speedK = auto ? Math.min(1, SP.speedK + dt / 1.6) : 0;
@@ -466,17 +471,20 @@ export function initTimeline(A) {
     for (const it of SP.cards) {
       const x = cardX(it), vis = x < W + 40 && x + it.w > -40;
       if (!vis) { if (it.on) { it.el.style.visibility = 'hidden'; it.on = false; } continue; }
-      if (!it.on) { it.el.style.visibility = 'visible'; it.on = true; loadCard(it); }
+      if (!it.on) { it.el.style.visibility = 'visible'; it.on = true; }
+      if (!it.loaded && (!frozen || it.noEnter)) loadCard(it);
       const c = x + it.w / 2, d = clamp((c - cx) / (W * .62), -1, 1), ad = Math.abs(d);
       const s = 1 - .18 * ad * ad, y = it.row.y - it.h / 2 + Math.sin(SP.t * .9 + it.ph) * it.bob + ad * 10;
-      const ek = REDUCED ? 1 : 1 - Math.pow(1 - clamp(en * 1.6 - it.k * .06, 0, 1), 3);
+      const ek = REDUCED || it.noEnter ? 1 : 1 - Math.pow(1 - clamp(en * 1.6 - it.k * .06, 0, 1), 3);
       const rot = it.tilt + Math.sin(SP.t * .6 + it.ph) * .8;
       it.el.style.transform = `translate3d(${x.toFixed(1)}px,${(y + (1 - ek) * 60).toFixed(1)}px,0) rotate(${rot.toFixed(2)}deg) scale(${(s * (.85 + .15 * ek)).toFixed(3)})`;
-      it.el.style.opacity = (ek * (1 - .32 * ad)).toFixed(3); it.el.style.zIndex = 10 - Math.round(ad * 9);
+      const op = (ek * (1 - .32 * ad)).toFixed(2), z = 10 - Math.round(ad * 9); if (op !== it.op) { it.op = op; it.el.style.opacity = op; } if (z !== it.z) { it.z = z; it.el.style.zIndex = z; }
       if (it.m.type === 'video' && ad < bestD) { bestD = ad; best = it; }
     }
-    pickStripVideo(best && bestD < .32 ? best : null);
-    SP.raf = requestAnimationFrame(stripFrame);
+    // video: giữ cái đang phát tới khi trôi khá xa (tránh bật tắt liên tục), đổi khi có tấm mới thật gần giữa
+    const curV = SP.vIt && SP.vIt.on ? Math.abs(clamp((cardX(SP.vIt) + SP.vIt.w / 2 - cx) / (W * .62), -1, 1)) : 9;
+    if (PV.classList.contains('open') || EVS.classList.contains('open')) { if (SP.vIt) pickStripVideo(null); }
+    else if (!frozen) { if (best && bestD < .22 && best !== SP.vIt) { if (SP.vCand !== best) { SP.vCand = best; SP.vAt = now; } else if (now - SP.vAt > 300) pickStripVideo(best); } else { SP.vCand = null; if (curV > .55 && SP.vIt) pickStripVideo(null); } }
   }
   const softBound = R => { const len = R.L - 22, lo = Math.min((SP.W - len) / 2, SP.W - len - 16), hi = Math.max((SP.W - len) / 2, 16); if (R.off > hi || R.off < lo) { R.v = 0; R.snap = clamp(R.off, lo, hi); } return R.off; };
   function snapTarget(R) { // hút về tấm gần giữa nhất
@@ -494,12 +502,20 @@ export function initTimeline(A) {
   function stopStrip() { SP.open = false; if (SP.raf) cancelAnimationFrame(SP.raf); SP.raf = 0; stopStripVideo(); }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && SP.open && !SP.raf) { SP.last = 0; SP.raf = requestAnimationFrame(stripFrame); } });
   // video gần giữa nhất tự phát xem trước (tắt tiếng, lặp) — chỉ 1 cái
+  // iOS chỉ tự phát khi muted + playsinline được đặt TRƯỚC src và phần tử đang hiện trong trang; dùng chung 1 phần tử video
+  const SV = (() => { const v = document.createElement('video'); v.muted = true; v.defaultMuted = true; v.setAttribute('muted', ''); v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', ''); v.loop = true; v.preload = 'auto'; v.className = 'sv'; return v; })();
+  let svUrl = '', svTok = 0; const TESTMODE = /[?&]test/.test(location.search); SV.preload = 'metadata';
+  const svShow = () => { SV.classList.add('ok'); };
+  SV.addEventListener('playing', () => { if (SV.requestVideoFrameCallback) SV.requestVideoFrameCallback(svShow); else setTimeout(svShow, 120); });
   function pickStripVideo(it) {
-    if (SP.vEl === (it?.el || null)) return; stopStripVideo(); if (!it) return;
-    const el = it.el, v = document.createElement('video'); SP.vEl = el; SP.video = { v, u: '' };
-    A.dbGet('blobs', 'o_' + it.m.id).then(b => { if (!b || SP.vEl !== el) return; const u = URL.createObjectURL(b); SP.video.u = u; Object.assign(v, { src: u, muted: true, loop: true, playsInline: true, preload: 'auto' }); v.setAttribute('playsinline', ''); v.setAttribute('muted', ''); v.addEventListener('playing', () => v.classList.add('ok'), { once: true }); el.querySelector('.sc-f').appendChild(v); v.play().catch(() => { }); });
+    if ((SP.vIt || null) === (it || null)) return; stopStripVideo(); if (!it) return;
+    SP.vIt = it; const tok = ++svTok;
+    A.dbGet('blobs', 'o_' + it.m.id).then(b => { if (!b || tok !== svTok) return; if (!b.type) b = new Blob([b], { type: /quicktime|\.mov$/i.test((it.m.mime || '') + it.m.name) ? 'video/quicktime' : 'video/mp4' });
+      const old = svUrl; svUrl = URL.createObjectURL(b); SV.classList.remove('ok'); it.el.classList.remove('vblock'); it.el.querySelector('.sc-f').appendChild(SV); SV.src = svUrl;
+      SV.play().catch(er => { if (tok !== svTok) return; console.warn('video dải không tự phát:', er.name); it.el.classList.add('vblock'); if (TESTMODE) (window.T && (T.svErr = er.name)); });
+      if (old) setTimeout(() => URL.revokeObjectURL(old), 1500); });
   }
-  function stopStripVideo() { const g = SP.video; if (g) { g.v.pause(); g.v.remove(); if (g.u) URL.revokeObjectURL(g.u); } SP.video = null; SP.vEl = null; }
+  function stopStripVideo() { svTok++; SV.pause(); SV.classList.remove('ok'); SV.remove(); SV.removeAttribute('src'); try { SV.load(); } catch (e) { } if (svUrl) { const u = svUrl; svUrl = ''; setTimeout(() => URL.revokeObjectURL(u), 800); } SP.vIt = null; }
   // quẹt ngang có đà; chạm = mở trình xem; nhấn giữ = menu dính đáy
   {
     let d = null, lpT = 0;
@@ -530,20 +546,37 @@ export function initTimeline(A) {
   function stripRect(mid) {
     let cs = SP.cards.filter(c => c.m.id === mid); if (!cs.length) return null;
     const cx = SP.W / 2; let it = cs.sort((a, b) => Math.abs(cardX(a) + a.w / 2 - cx) - Math.abs(cardX(b) + b.w / 2 - cx))[0];
-    const c = cardX(it) + it.w / 2; if (c < 0 || c > SP.W) { it.row.off += cx - c; it.row.v = 0; it.row.snap = null; stripFrame(performance.now()); }
+    const c = cardX(it) + it.w / 2; if (c < 0 || c > SP.W) { it.row.off += cx - c; it.row.v = 0; it.row.snap = null; renderStrip(performance.now(), 0); }
     const sr = STRIP.getBoundingClientRect(); if (sr.bottom < 80 || sr.top > innerHeight - 80) SC.scrollTop = 0;
     return it.el.querySelector('.sc-f');
   }
   async function openEvent(key, cdEl) {
     const e = st.byKey.get(key); if (!e) return;
-    haptic(8); st.cur = e; st.evb = -1; EVP.classList.remove('closing', 'gridon'); GRID.hidden = true; GRID.innerHTML = ''; SC.scrollTop = 0; SC.style.transform = ''; await loadCols();
+    haptic(8); document.body.classList.add('evopen'); st.cur = e; st.evb = -1; EVP.classList.remove('closing', 'gridon'); GRID.hidden = true; GRID.innerHTML = ''; SC.scrollTop = 0; SC.style.transform = ''; loadCols();
     fillEvent(e);
-    const cover = e.stack[0]; EVP.style.setProperty('--hc', cover.color || COL.get(cover.id) || kidCol()); EVP.querySelector('.evp-bgc').classList.remove('ok'); paintBg(cover);
+    const cover = e.stack[0]; EVP.style.setProperty('--hc', cover.color || COL.get(cover.id) || kidCol()); setTimeout(() => { if (st.cur === e) paintBg(cover); }, REDUCED ? 0 : 480);
     EVP.classList.add('open'); EVP.setAttribute('aria-hidden', 'false'); document.body.classList.add('evopen'); onEvScroll(true);
-    requestAnimationFrame(() => { buildStrip(e); startStrip(); });
-    // tấm polaroid của thẻ bay lên chỗ dải ảnh
-    const srcIm = cdEl?.querySelector('.pol.p0 img');
-    if (srcIm && !REDUCED) { const g = new Image(); g.src = srcIm.src; const r = STRIP.getBoundingClientRect(), w = Math.min(innerWidth * .5, 240), h = w * 1.05; srcIm.closest('.pol').style.visibility = 'hidden'; fly(g, { ...rectOf(srcIm), r: 6 }, { left: (innerWidth - w) / 2, top: r.top + (r.height - h) / 2, width: w, height: h, r: 16 }, 'soft', () => { g.style.transition = 'opacity .3s'; g.style.opacity = '0'; setTimeout(() => g.remove(), 320); srcIm.closest('.pol').style.visibility = ''; }); }
+    buildStrip(e); // dựng ngay để biết đúng chỗ hạ cánh
+    const srcIm = cdEl?.querySelector('.pol.p0 img'), now = performance.now();
+    const cx = SP.W / 2, cand = SP.cards.filter(c => c.m.id === cover.id), it = (cand.length ? cand : SP.cards).slice().sort((a, b) => Math.abs(cardX(a) + a.w / 2 - cx) - Math.abs(cardX(b) + b.w / 2 - cx))[0];
+    if (it && it.row.loop) it.row.off += cx - (cardX(it) + it.w / 2);
+    if (it && srcIm && !REDUCED) { it.noEnter = true; SP.freeze = now + 560; SP.idle = now + 2200; }
+    renderStrip(now, 0); startStrip();
+    if (!REDUCED) EVP.querySelector('.evp-hx').animate([{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 90, easing: 'cubic-bezier(.2,1,.3,1)', fill: 'backwards' });
+    if (it && srcIm && !REDUCED) flyCard(it, srcIm, true);
+  }
+  // tấm bay có CÙNG khung polaroid với tấm đích trong dải; tấm đích ẩn cho tới khi hạ cánh (không thấy 2 ảnh)
+  function flyCard(it, polImg, opening, done) {
+    const R = ROWS.getBoundingClientRect(), w = it.w, h = it.h, src = polImg.getBoundingClientRect();
+    const g = it.el.cloneNode(true); g.classList.add('flyc'); g.classList.remove('flying'); const gi = g.querySelector('img'); gi.src = it.img.src || polImg.src; gi.classList.add('ok'); g.querySelector('video')?.remove(); g.querySelector('.sc-t')?.remove();
+    const tr = it.el.style.transform || 'none', ox = w * .5, oy = h * .6, kx = src.width / w, ky = src.height / h;
+    const A0 = `translate3d(${(src.left - ox * (1 - kx)).toFixed(1)}px,${(src.top - oy * (1 - ky)).toFixed(1)}px,0) rotate(-4deg) scale(${kx.toFixed(4)},${ky.toFixed(4)})`, A1 = `translate3d(${R.left.toFixed(1)}px,${R.top.toFixed(1)}px,0) ${tr}`;
+    g.style.cssText = `position:fixed;left:0;top:0;width:${w}px;height:${h}px;margin:0;z-index:70;visibility:visible;opacity:1;pointer-events:none;transform-origin:${ox}px ${oy}px;transform:${opening ? A1 : A0}`;
+    document.body.appendChild(g); it.el.classList.add('flying'); const pol = polImg.closest('.pol'); if (pol) pol.style.visibility = 'hidden';
+    const an = g.animate([{ transform: opening ? A0 : A1 }, { transform: opening ? A1 : A0 }], { duration: opening ? 460 : 400, easing: opening ? 'cubic-bezier(.2,1.08,.35,1)' : 'cubic-bezier(.3,.9,.3,1)', fill: 'forwards' });
+    if (!opening && polImg.src && polImg.src !== gi.src) { const o = document.createElement('img'); o.src = polImg.src; o.className = 'ok'; o.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0'; gi.parentNode.appendChild(o); o.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 60, fill: 'forwards' }); } // về tới thẻ thì ảnh khớp với ảnh bìa của thẻ
+    const fin = () => { it.el.classList.remove('flying'); g.remove(); if (pol) pol.style.visibility = ''; done?.(); };
+    an.onfinish = fin; setTimeout(() => { if (g.isConnected) fin(); }, 900);
   }
   function fillEvent(e) {
     EVP.querySelector('.evp-dt').textContent = e.days.length > 1 ? dateTxt(e) : fmtLong(e.ts0);
@@ -593,13 +626,9 @@ export function initTimeline(A) {
     if (SEL.on && SEL.scope === 'ev') endSel(); st.coverPick = false; EVP.classList.remove('pick'); hint(''); stopEvShow();
     const e = st.cur; if (!e || !EVP.classList.contains('open')) return;
     const el = evEl(e.key), tgt = el?.querySelector('.pol.p0 img');
-    const cx = SP.W / 2, near = SP.cards.filter(c => c.on).sort((a, b) => Math.abs(cardX(a) + a.w / 2 - cx) - Math.abs(cardX(b) + b.w / 2 - cx))[0];
-    if (near && tgt && !REDUCED) {
-      const f = near.el.querySelector('.sc-f'), g = new Image(); g.src = near.img.src || tgt.src; const from = { ...rectOf(f), r: 14 }; near.el.style.visibility = 'hidden';
-      const pol = tgt.closest('.pol'); pol.style.visibility = 'hidden';
-      fly(g, from, { ...rectOf(tgt), r: 6 }, 'snappy', () => { g.remove(); pol.style.visibility = ''; el.classList.remove('hl'); void el.offsetWidth; el.classList.add('hl'); });
-    }
+    const cx = SP.W / 2, vis = SP.cards.filter(c => c.on && cardX(c) > -c.w * .3 && cardX(c) + c.w * .7 < SP.W), coverId = e.stack[0]?.id, near = vis.find(c => c.m.id === coverId) || vis.sort((a, b) => Math.abs(cardX(a) + a.w / 2 - cx) - Math.abs(cardX(b) + b.w / 2 - cx))[0];
     stopStrip();
+    if (near && tgt && !REDUCED && SC.scrollTop < 200) flyCard(near, tgt, false, () => { el.classList.remove('hl'); void el.offsetWidth; el.classList.add('hl'); });
     EVP.classList.add('closing'); EVP.classList.remove('open'); EVP.setAttribute('aria-hidden', 'true'); document.body.classList.remove('evopen');
     setTimeout(() => { if (!EVP.classList.contains('open')) { EVP.classList.remove('closing'); ROWS.innerHTML = ''; SP.cards = []; SC.style.transform = ''; GRID.innerHTML = ''; } }, 450);
     st.cur = null;
@@ -914,7 +943,7 @@ export function initTimeline(A) {
   async function startVideo(sl, m, tu) {
     const b = await A.dbGet('blobs', 'o_' + m.id); if (!b || sl.dataset.mid !== m.id || V.list[V.i] !== m) return;
     const u = URL.createObjectURL(b); V.urls.push(u); const v = document.createElement('video');
-    Object.assign(v, { src: u, playsInline: true, poster: tu, preload: 'auto' }); v.setAttribute('playsinline', '');
+    v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', ''); v.preload = 'auto'; v.poster = tu; v.src = u; // iOS: playsinline phải có trước src
     const box = sl.querySelector('.pv-m'); box.appendChild(v); V.vid = v;
     v.addEventListener('playing', () => { v.classList.add('ok'); A.duck?.(true); updVC(); });
     v.addEventListener('pause', () => { A.duck?.(false); updVC(); if (!V.ui) showUI(true); });
@@ -992,14 +1021,15 @@ export function initTimeline(A) {
   const setX = x => { V.x = x; track.style.transform = `translate3d(${x}px,0,0)`; };
   const applyZoom = () => { const el = curMedia(); if (el) el.style.transform = V.z.s > 1.001 ? `translate3d(${V.z.x}px,${V.z.y}px,0) scale(${V.z.s})` : ''; };
   function openViewer(list, i, getRect) {
+    if (SP.vIt) pickStripVideo(null);
     V.list = list; V.i = clamp(i, 0, list.length - 1); V.getRect = getRect; V.urls.forEach(u => URL.revokeObjectURL(u)); V.urls = [];
     PV.classList.add('open'); PV.setAttribute('aria-hidden', 'false'); document.body.classList.add('pvopen'); PV.classList.toggle('one', list.length < 2);
     buildFilm(); layoutSlides(); haptic(6); showUI(true);
     const src = getRect?.(list[V.i].id), el = curMedia();
     if (src && el && !REDUCED) {
       const to = fitRect(list[V.i]), f = rectOf(src);
-      el.style.transition = 'none'; el.style.transform = `translate(${f.left - to.left}px,${f.top - to.top}px) scale(${f.width / to.width},${f.height / to.height})`; el.style.transformOrigin = '0 0'; el.style.borderRadius = '6px';
-      void el.offsetWidth; el.style.transition = 'transform var(--sp-soft-ms) var(--sp-soft), border-radius .4s'; el.style.transform = ''; el.style.borderRadius = '0px';
+      el.style.transition = 'none'; el.style.transform = `translate(${f.left - to.left}px,${f.top - to.top}px) scale(${f.width / to.width},${f.height / to.height})`; el.style.transformOrigin = '0 0';
+      void el.offsetWidth; el.style.transition = 'transform var(--sp-soft-ms) var(--sp-soft)'; el.style.transform = '';
       setTimeout(() => { el.style.transition = ''; el.style.transformOrigin = ''; }, 700);
     }
   }
@@ -1012,7 +1042,7 @@ export function initTimeline(A) {
       const to = rectOf(tgt), f = el.getBoundingClientRect(), base = fitRect(m);
       el.style.transformOrigin = '0 0'; el.style.transition = 'none';
       el.style.transform = `translate(${f.left - base.left}px,${f.top - base.top}px) scale(${f.width / base.width},${f.height / base.height})`; void el.offsetWidth;
-      el.style.transition = 'transform var(--sp-snappy-ms) var(--sp-snappy), border-radius .3s'; el.style.borderRadius = '6px'; el.querySelector('img') && (el.querySelector('img').style.objectFit = 'cover');
+      el.style.transition = 'transform var(--sp-snappy-ms) var(--sp-snappy)'; el.querySelector('img') && (el.querySelector('img').style.objectFit = 'cover');
       el.style.transform = `translate(${to.left - base.left}px,${to.top - base.top}px) scale(${to.width / base.width},${to.height / base.height})`;
       const cell = tgt.closest('.gi, .sc'); if (cell) { const ov = 0; cell.classList.add('flying'); setTimeout(() => { cell.classList.remove('flying'); if (cell.classList.contains('gi')) { cell.classList.remove('land'); void cell.offsetWidth; cell.classList.add('land'); } }, 430); void ov; }
     }

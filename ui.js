@@ -26,10 +26,15 @@ export function springCSS(k, c, m = 1) {
 }
 // các kiểu lò xo dùng chung → biến CSS: --sp-<tên> (đường cong) và --sp-<tên>-ms (thời lượng)
 export const SPRINGS = { bouncy: [260, 15], soft: [170, 20], snappy: [420, 32], gentle: [110, 16], wobbly: [180, 10], sheet: [300, 26] };
+// Safari/WebKit (mọi trình duyệt trên iPhone): animation dùng linear() bị đẩy về luồng chính (WebKit bug 312407)
+// → thay bằng cubic-bezier có độ vọt tương đương, chạy được trên Core Animation
+export const WEBKIT = /[?&]wk\b/.test(location.search) || IOS || (/AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Android/.test(navigator.userAgent));
+const CUBIC = { bouncy: ['cubic-bezier(.34,1.42,.5,1)', 520], soft: ['cubic-bezier(.32,.72,0,1)', 480], snappy: ['cubic-bezier(.23,1,.32,1)', 340], wobbly: ['cubic-bezier(.3,1.7,.45,1)', 620], sheet: ['cubic-bezier(.32,.72,0,1)', 420], gentle: ['cubic-bezier(.25,.9,.3,1.04)', 520] };
 export function installSprings() {
-  const r = document.documentElement.style;
+  const r = document.documentElement.style; document.documentElement.classList.toggle('wk', WEBKIT);
   for (const [n, [k, c]] of Object.entries(SPRINGS)) {
-    const s = springCSS(k, c); r.setProperty('--sp-' + n, REDUCED ? 'ease' : s.ease); r.setProperty('--sp-' + n + '-ms', (REDUCED ? 120 : s.ms) + 'ms');
+    const s = springCSS(k, c), cb = CUBIC[n] || CUBIC.soft;
+    r.setProperty('--sp-' + n, REDUCED ? 'ease' : WEBKIT ? cb[0] : s.ease); r.setProperty('--sp-' + n + '-ms', (REDUCED ? 120 : WEBKIT ? cb[1] : s.ms) + 'ms');
   }
 }
 // lò xo bằng JS cho cử chỉ (có vận tốc thả tay): gọi onUpdate(x) mỗi khung hình

@@ -2523,6 +2523,7 @@ installSprings(); initBars();
 
 // ---------- Khởi động ----------
 async function boot() {
+  if (matchMedia('(pointer: coarse)').matches) $('#drop').innerHTML = '<span class="big">📸</span>Chạm để chọn ảnh, video<br>từ thư viện của bạn';
   $('#ver').textContent = 'v' + VERSION; $('#verTxt').textContent = 'Ngân Hà Của Con · v' + VERSION;
   resize();
   try { await Promise.race([Promise.all([document.fonts.load('700 40px Quicksand'), document.fonts.load('600 20px Quicksand')]), sleep(2500)]); } catch (e) { }

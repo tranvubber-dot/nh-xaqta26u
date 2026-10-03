@@ -792,6 +792,29 @@ body.v12:not(.tlfam) #tlv .rail { display: none; }
 #tbar .tt { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; padding: 0 6px; }
 #tabbar > button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
 /* v1.4.2 */
+/* v1.4.2 — WebKit/iPhone: không làm mờ kính trên phần tử đang chuyển động (sheet trượt, thanh bay, nút trong trang sự kiện) */
+html.wk .cm-list, html.wk .modal .card, html.wk .utoast, html.wk #gban, html.wk .evp-bar .glassbtn, html.wk .evp-bbg, html.wk .pv-top .glassbtn, html.wk .pv-vc button, html.wk .bi-l, html.wk .bi-st span { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.wk .cm-list { background: linear-gradient(180deg, var(--gl1), var(--gl2)), var(--cardsolid) !important; }
+html.wk body.v12 .modal .card { background: linear-gradient(180deg, var(--gl1), var(--cardsolid) 140px), var(--cardsolid) !important; }
+html.wk .utoast, html.wk #gban, html.wk .evp-bbg { background: linear-gradient(180deg, var(--gl1), var(--gl2)), var(--cardsolid) !important; }
+html.wk .evp-bar .glassbtn, html.wk .pv-top .glassbtn, html.wk .pv-vc button { background: rgba(20,14,40,.55) !important; }
+html.wk body.evopen #tabbar { transition: none !important; visibility: hidden; }
+.ev { content-visibility: auto; contain-intrinsic-size: auto 190px; }
+.sc.vblock .sc-v::after { content: " · chạm để xem"; }
+button, .sc, .gi, .pf { touch-action: manipulation; -webkit-tap-highlight-color: transparent; } .evp-strip .sc { touch-action: pan-y; }
+
+/* v1.4.2 — mở trang sự kiện: nền đặc ngay, dòng thời gian lùi + ẩn, tab bar trượt xuống */
+#evp.open .evp-bg { transition: none !important; } #evp.closing .evp-bg { transition: opacity .3s ease-in !important; }
+body.evopen #tlv { opacity: 0; transform: scale(.94); filter: none; transition: transform .45s cubic-bezier(.2,.9,.3,1), opacity .22s ease-out .08s; }
+body.evopen #tabbar { transform: translateY(160%); opacity: 0; pointer-events: none; transition: transform .35s cubic-bezier(.3,.8,.3,1), opacity .2s; }
+body.evopen #tbar { opacity: 0; pointer-events: none; }
+.evp-bgc { position: absolute; left: -10%; top: -10%; width: 120%; height: 70%; object-fit: cover; filter: blur(28px) saturate(1.35); transform: scale(1.12); opacity: 0; transition: opacity .5s; }
+.evp-bgc.ok { opacity: .85; }
+.flyc { transition: none !important; will-change: transform; }
+.sc .sv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .011; transition: opacity .35s; pointer-events: none; }
+.sc .sv.ok { opacity: 1; }
+.ev .chips { row-gap: 5px; } .ev .chip { height: 26px; padding: 0 9px; font-size: 12.5px; }
+
 .dbg { margin-top: 12px; font-size: 12px; } .dbg summary { cursor: pointer; font-weight: 700; } .dbg pre { white-space: pre-wrap; word-break: break-all; font: 11.5px/1.45 ui-monospace, Menlo, monospace; background: rgba(0,0,0,.25); padding: 10px; border-radius: 10px; max-height: 50vh; overflow: auto; -webkit-user-select: text; user-select: text; }
 .foot .primary:disabled, button.primary:disabled { opacity: .42; filter: grayscale(.5); box-shadow: none; }
 /* v1.4.1 — nhóm kỷ niệm */
