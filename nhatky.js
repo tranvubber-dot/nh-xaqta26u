@@ -118,7 +118,7 @@ const BANK = {
     di: ['Con tự đi được rồi!', 'Chờ con với!', 'Cái này là gì vậy?', 'Con muốn nữa!', 'Không chịu đâu!', 'Mẹ ơi, bế con!'],
     nho: ['Mẹ ơi xem con này!', 'Con làm được rồi!', 'Con là siêu nhân!', 'Thêm lần nữa nha!', 'Vui quá đi mất!', 'Con không sợ đâu!'],
     lon: ['Hôm nay vui ghê!', 'Con kể mẹ nghe nè…', 'Để con tự làm!', 'Con thương mẹ nhất!', 'Đi chơi nữa đi bố ơi!', 'Chụp con đẹp nha!'],
-    chung: ['Cả nhà ơi, ra đây mà xem!', 'Cười cái nào!', 'Ôi đáng yêu quá trời!', 'Ai mà cute thế này?', 'Lưu lại khoảnh khắc này nè!', 'Hôm nay trời đẹp quá trời!']
+    chung: ['Cả nhà ơi, ra đây mà xem!', 'Cười cái nào!', 'Ôi đáng yêu quá trời!', 'Ai mà cute thế này?', 'Lưu lại khoảnh khắc này nè!', 'Hôm nay trời đẹp quá trời!', '{Con} của mẹ đáng yêu ghê!', 'Ai là {be} của nhà mình nè?']
   },
   meal: ['Ngon quá đi!', 'Thêm một miếng nữa!', 'Măm măm!', 'Con ăn hết rồi nè!'],
   sleep: ['Ngủ ngon nha con…', 'Mơ đẹp nhé!', 'Suỵt… bé đang ngủ'],
@@ -133,6 +133,8 @@ const BANK = {
   colors: ['#ff7eb3', '#5fc3ff', '#ffc93c', '#4fd1a5', '#ff9a3c', '#b38bff']
 };
 export const titleFor = name => `Nhật ký của ${name}`;
+// xưng hô theo giới tính: {con} con trai/con gái/con, {be} chàng trai nhỏ/công chúa nhỏ/bé yêu
+export const gtok = (t, g) => t.replace(/\{Con\}/g, g === 'm' ? 'Con trai' : g === 'f' ? 'Con gái' : 'Con').replace(/\{con\}/g, g === 'm' ? 'con trai' : g === 'f' ? 'con gái' : 'con').replace(/\{be\}/g, g === 'm' ? 'chàng trai nhỏ' : g === 'f' ? 'công chúa nhỏ' : 'bé yêu');
 function deck(R, arr) { // rút không lặp
   const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   let k = 0; return () => a[k++ % a.length];
@@ -158,7 +160,7 @@ export function autoText(d, ctx) {
       else if (r < .3) p.bubbles.push(mkBubble(night ? pick('sleep', BANK.sleep) : pick('think', BANK.think), 'think', side, R));
       else if (r < .88) {
         const pool = R() < .38 ? BANK.say.chung : meal && R() < .4 ? BANK.meal : BANK.say[g] || BANK.say.chung;
-        p.bubbles.push(mkBubble(pick('say' + pool[0], pool), 'say', side, R));
+        p.bubbles.push(mkBubble(gtok(pick('say' + pool[0], pool), ctx.gender), 'say', side, R));
       }
       if (sfxN < 1 && (R() < .4 || !p.bubbles.length)) {
         const pool = night ? BANK.sfx.dem : meal && R() < .5 ? BANK.sfx.an : R() < .5 && BANK.sfx[g] ? BANK.sfx[g] : BANK.sfx.chung;
@@ -595,10 +597,11 @@ export function initDiary(A) {
     if (!ms.length) return { title: d.title, short: d.title, sub: '' };
     const a = ms[0].ts, b = ms[ms.length - 1].ts, da = new Date(a), sameDay = A.ymd(a) === A.ymd(b);
     const when = sameDay ? `${A.WD[da.getDay()]} · ${A.dmy(a)} · ${hm(a)} – ${hm(b)}` : `${A.dmy(a).slice(0, 5)} – ${A.dmy(b)}`;
-    const age = A.ageText(kid, a);
+    const ks = (d.kids?.length > 1 && A.kids) ? A.kids().filter(k => d.kids.includes(k.id)) : [kid];
+    const age = ks.map(k => A.ageText(k, a)).filter(Boolean).join(' · ');
     return { title: d.title, short: `${d.title} · ${A.dmy(a)}`, sub: `${when} · ${ms.length} khoảnh khắc${age ? ' · ' + age : ''}` };
   }
-  const ctxFor = d => ({ months: kidMonths(A.kid(), d.ts), ts: mid => momById(mid)?.ts, close: mid => CLOSE.get(mid), src: mid => SRC.get(mid + ':s') || SRC.get(mid) || null });
+  const ctxFor = d => ({ gender: A.kid()?.gender, months: kidMonths(A.kid(), d.ts), ts: mid => momById(mid)?.ts, close: mid => CLOSE.get(mid), src: mid => SRC.get(mid + ':s') || SRC.get(mid) || null });
   // ảnh cận mặt: tỉ lệ màu da ở giữa ảnh nhỏ
   const CLOSE = new Map();
   async function closeness(mid) {
@@ -616,7 +619,7 @@ export function initDiary(A) {
   // ---------- tạo nhật ký ----------
   async function build(ms, roll = 0) {
     ms = ms.slice().sort((a, b) => a.ts - b.ts);
-    const kid = A.kid(), d = { id: uid(), kidId: kid.id, ts: ms[0].ts, day: A.ymd(ms[0].ts), title: titleFor(kid.name), mode: 'color', roll, pages: [], created: Date.now(), updated: Date.now() };
+    const kid = A.kid(), kidsIn = [...new Set(ms.flatMap(m => A.kidsOf(m)))], d = { id: uid(), kidId: kidsIn.includes(kid.id) ? kid.id : kidsIn[0] || kid.id, kids: kidsIn, ts: ms[0].ts, day: A.ymd(ms[0].ts), title: kidsIn.length > 1 ? 'Nhật ký cả nhà' : titleFor((A.kids?.().find(k => k.id === kidsIn[0]) || kid).name), mode: 'color', roll, pages: [], created: Date.now(), updated: Date.now() };
     const R = rng(d.id);
     const infos = []; for (const m of ms) infos.push({ a: m.w && m.h ? m.w / m.h : 1.33, close: await closeness(m.id) });
     let k = 0, prev = null;
@@ -669,7 +672,7 @@ export function initDiary(A) {
   };
   function openPicker(mode, cb, max = 40, single = false) {
     pickMode = mode; pickCb = cb; pickSel = new Set(); freeUrls(); step('pick');
-    const ms = A.allMoments().filter(m => m.kidId === A.kid().id).sort((a, b) => b.ts - a.ts), days = new Map();
+    const ms = A.allMoments().filter(m => A.family?.() || A.kidsOf(m).includes(A.kid().id)).sort((a, b) => b.ts - a.ts), days = new Map();
     for (const m of ms) { const k = A.ymd(m.ts); if (!days.has(k)) days.set(k, []); days.get(k).push(m); }
     const box = MD.querySelector('.dpick'); box.innerHTML = '';
     const io = new IntersectionObserver(es => es.forEach(async en => { if (!en.isIntersecting) return; io.unobserve(en.target); const b = await A.dbGet('blobs', 't_' + en.target.dataset.id); if (b) { const u = URL.createObjectURL(b); urls.push(u); en.target.style.backgroundImage = `url("${u}")`; } }), { root: box });

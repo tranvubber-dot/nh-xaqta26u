@@ -36,7 +36,7 @@ const HTML = `
   <div class="pv-tray">
     <div class="grab"><i></i></div>
     <div class="pv-ti"></div><div class="pv-dt"></div><div class="pv-ag"></div>
-    <div class="pv-more"><p class="pv-nt"></p><div class="pv-acts">
+    <div class="pv-more"><p class="pv-nt"></p><div class="pv-kids"></div><div class="pv-acts">
       <button data-a="edit">${icon('edit', 19)}<span>Sửa</span></button>
       <button data-a="save">${icon('download', 19)}<span>Lưu về máy</span></button>
       <button data-a="split">${icon('split', 19)}<span>Tách từ ảnh này</span></button>
@@ -68,7 +68,7 @@ export function initTimeline(A) {
   const TLV = $('#tlv'), TL = $('#tl'), IN = TL.querySelector('.tl-in'), EVP = $('#evp'), PV = $('#pv'), FSC = $('#fsc');
   TLV.insertAdjacentHTML('afterbegin', '<div class="rail"><i></i></div>');
   const st = { guard: 0, events: [], meta: null, url: new Map(), shown: new WeakSet(), cur: null, wide: false };
-  const wide = () => innerWidth >= 900;
+  const wide = () => innerWidth >= 900 && !A.family();
 
   // ---------- ảnh nhỏ (nạp lười) ----------
   const URLS = new Map();
@@ -96,22 +96,26 @@ export function initTimeline(A) {
 
   // ---------- gộp ảnh thành sự kiện (theo ngày + cột mốc) ----------
   async function loadMeta() {
-    const k = A.kid(); st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, (k && await A.metaGet('ev:' + k.id)) || {});
+    const k = A.kid(); st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, (k && await A.metaGet(metaKey())) || {});
   }
-  const saveMeta = () => A.metaSet('ev:' + A.kid().id, st.meta);
-  function milestone(kid, days) {
+  const metaKey = () => A.family() ? 'ev:fam' : 'ev:' + A.kid().id;
+  const saveMeta = () => A.metaSet(metaKey(), st.meta);
+  const kidsAll = () => A.kids(), kidById = id => kidsAll().find(k => k.id === id);
+  const g3 = (k, a, b, c) => k?.gender === 'm' ? a : k?.gender === 'f' ? b : c;
+  function milestone(kid, days, fam) {
     if (!kid?.birth) return null;
+    const N = kid.name;
     const b = new Date(kid.birth + 'T12:00:00'), out = [];
     for (const ds of days) {
       const d = new Date(ds + 'T12:00:00'), diff = Math.round((d - b) / 864e5), yrs = d.getFullYear() - b.getFullYear();
-      if (diff === 0) out.push({ k: 'birth', p: 5, label: `Ngày ${kid.name} chào đời`, ic: 'star' });
-      else if (yrs >= 1 && d.getMonth() === b.getMonth() && d.getDate() === b.getDate()) out.push(yrs === 1 ? { k: 'thoinoi', p: 4, label: 'Thôi nôi · Sinh nhật 1 tuổi', ic: 'cake' } : { k: 'bday', p: 4, label: `Sinh nhật ${yrs} tuổi`, ic: 'cake' });
-      else if (diff === 100) out.push({ k: '100', p: 3, label: '100 ngày', ic: 'sparkle' });
-      else { const m1 = new Date(b); m1.setMonth(b.getMonth() + 1); if (m1.getDate() === b.getDate() && A.ymd(m1.getTime()) === ds) out.push({ k: 'thang', p: 2, label: 'Đầy tháng', ic: 'heart' }); }
+      if (diff === 0) out.push({ k: 'birth', p: 5, label: `Ngày ${N} chào đời`, ic: 'star', kid: kid.id });
+      else if (yrs >= 1 && d.getMonth() === b.getMonth() && d.getDate() === b.getDate()) out.push(yrs === 1 ? { k: 'thoinoi', p: 4, label: fam ? `Thôi nôi ${N} · Sinh nhật 1 tuổi` : 'Thôi nôi · Sinh nhật 1 tuổi', ic: 'cake', kid: kid.id } : { k: 'bday', p: 4, label: fam ? `Sinh nhật ${N} ${yrs} tuổi` : `Sinh nhật ${yrs} tuổi`, ic: 'cake', kid: kid.id });
+      else if (diff === 100) out.push({ k: '100', p: 3, label: fam ? `100 ngày của ${N}` : '100 ngày', ic: 'sparkle', kid: kid.id });
+      else { const m1 = new Date(b); m1.setMonth(b.getMonth() + 1); if (m1.getDate() === b.getDate() && A.ymd(m1.getTime()) === ds) out.push({ k: 'thang', p: 2, label: fam ? `Đầy tháng ${N}` : 'Đầy tháng', ic: 'heart', kid: kid.id }); }
     }
     return out.sort((x, y) => y.p - x.p)[0] || null;
   }
-  const SES = { sang: ['Buổi sáng vui vẻ', 'Chào ngày mới', 'Sáng nay của {n}', 'Nắng sớm dịu dàng'], trua: ['Buổi trưa ấm áp', 'Trưa nay có gì vui', 'Giờ ăn trưa'], chieu: ['Buổi chiều dịu dàng', 'Chiều đi chơi', 'Chiều nắng đẹp', 'Một chiều vui'], toi: ['Buổi tối quây quần', 'Tối nay của {n}', 'Tối ấm áp'], dem: ['Đêm yên bình', 'Giấc ngủ ngon'] };
+  const SES = { sang: ['Buổi sáng vui vẻ', 'Chào ngày mới', 'Sáng nay của {n}', 'Nắng sớm dịu dàng', 'Buổi sáng của {be}'], trua: ['Buổi trưa ấm áp', 'Trưa nay có gì vui', 'Giờ ăn trưa'], chieu: ['Buổi chiều dịu dàng', 'Chiều đi chơi', 'Chiều nắng đẹp', 'Một chiều vui'], toi: ['Buổi tối quây quần', 'Tối nay của {n}', 'Tối ấm áp'], dem: ['Đêm yên bình', 'Giấc ngủ ngon'] };
   function autoTitle(e, kid) {
     if (e.preg) return `${kid.name} trong bụng mẹ`;
     const R = rng(e.key), n = e.ms.length, hs = e.ms.map(m => new Date(m.ts).getHours()).sort((a, b) => a - b), h = hs[hs.length >> 1];
@@ -119,7 +123,9 @@ export function initTimeline(A) {
     if (e.days.length > 1) return 'Những ngày vui';
     if (e.ms.every(m => m.type === 'video')) return n > 1 ? 'Những thước phim nhỏ' : 'Thước phim nhỏ';
     const pool = n >= 10 ? ['Một ngày thật vui', 'Ngày đầy ắp kỷ niệm', 'Ngày rộn ràng'] : SES[ses];
-    return pool[Math.floor(R() * pool.length)].replace('{n}', kid.name);
+    const fam = A.family() && (e.kids?.length || 0) > 1;
+    const t = pool[Math.floor(R() * pool.length)];
+    return fam ? t.replace(' của {n}', ' cả nhà').replace(' của {be}', ' cả nhà') : t.replace('{n}', kid.name).replace('{be}', g3(kid, 'chàng trai nhỏ', 'công chúa nhỏ', 'bé yêu'));
   }
   function compute() {
     const kid = A.kid(), M = st.meta, ms = A.moments().slice().sort((a, b) => a.ts - b.ts);
@@ -136,23 +142,31 @@ export function initTimeline(A) {
       const f = parts[0]; f.ms = parts.flatMap(p => p.ms).sort((a, b) => a.ts - b.ts); f.days = [...new Set(parts.flatMap(p => p.days))]; f.merged = grp;
       evs = evs.filter(e => e === f || !parts.includes(e));
     }
+    const fam = A.family(), KS = fam ? kidsAll() : [kid];
     const b0 = kid?.birth ? A.dayStart(A.parseYmd(kid.birth)) : 0, dias = A.diaries();
     for (const e of evs) {
+      e.kids = fam ? [...new Set(e.ms.flatMap(m => A.kidsOf(m)))].filter(id => kidById(id)) : [kid.id];
       e.ts0 = e.ms[0].ts; e.ts1 = e.ms[e.ms.length - 1].ts;
       e.nImg = e.ms.filter(m => m.type !== 'video').length; e.nVid = e.ms.length - e.nImg;
-      e.preg = A.dayStart(e.ts0) < b0;
-      e.mile = e.preg ? null : milestone(kid, e.days);
-      e.auto = autoTitle(e, kid);
+      const present = fam ? e.kids.map(kidById) : [kid];
+      e.preg = fam ? present.every(k => k?.birth && A.dayStart(e.ts0) < A.dayStart(A.parseYmd(k.birth))) : A.dayStart(e.ts0) < b0;
+      if (fam) { const ms2 = KS.map(k => (e.kids.includes(k.id) || A.ymd(A.parseYmd(k.birth)) === e.day) ? milestone(k, e.days, true) : null).filter(Boolean).sort((a, b) => b.p - a.p); e.mile = ms2[0] || null; }
+      else e.mile = e.preg ? null : milestone(kid, e.days);
+      e.sibs = [];
+      if (fam) for (const nb of KS) if (A.ymd(A.parseYmd(nb.birth)) === e.day) for (const o of KS) if (o !== nb && A.parseYmd(o.birth) < A.parseYmd(nb.birth)) e.sibs.push({ id: o.id, txt: `${o.name} ${g3(o, 'làm anh', 'làm chị', 'lên chức anh chị')}` });
+      e.auto = e.preg && fam ? `${present[0]?.name || ''} trong bụng mẹ` : autoTitle(e, fam ? present[0] || kid : kid);
       e.title = M.titles[e.key] || e.mile?.label || e.auto;
       e.note = M.notes[e.key] || '';
       const ids = new Set(e.ms.map(m => m.id));
       e.diaries = dias.filter(d => d.pages.some(p => p.panels.some(q => ids.has(q.mid))));
+      e.ages = present.filter(Boolean).map(k => ({ id: k.id, color: k.color, txt: A.ageText(k, e.ts0) }));
       const cov = M.covers[e.key] && e.ms.find(m => m.id === M.covers[e.key]);
       const imgs = e.ms.filter(m => m.type !== 'video'), pool = imgs.length >= 3 ? imgs : e.ms;
       const pick = pool.length <= 3 ? pool : [pool[0], pool[Math.floor(pool.length / 2)], pool[pool.length - 1]];
       e.stack = cov ? [cov, ...pick.filter(m => m !== cov)].slice(0, 3) : pick;
     }
     evs.sort((a, b) => b.ts0 - a.ts0);
+    if (fam && st.filter) evs = evs.filter(e => e.kids.some(id => st.filter.has(id)));
     st.events = evs; st.byKey = new Map(evs.map(e => [e.key, e]));
     return evs;
   }
@@ -163,9 +177,11 @@ export function initTimeline(A) {
   function card(e, i) {
     const side = st.wide ? (i % 2 ? 'R' : 'L') : 'R', ag = A.ageText(A.kid(), e.ts0);
     const chips = [e.nImg ? `<span class="chip">${icon('image', 15, 1.9)}${e.nImg} ảnh</span>` : '', e.nVid ? `<span class="chip">${icon('video', 15, 1.9)}${e.nVid} video</span>` : '',
-      e.diaries.length ? `<button class="chip bk" data-diary="${e.diaries[0].id}">${icon('book', 15, 1.9)}nhật ký</button>` : '', ag && ag !== e.title ? `<span class="chip age">${esc(ag)}</span>` : ''].join('');
+      e.diaries.length ? `<button class="chip bk" data-diary="${e.diaries[0].id}">${icon('book', 15, 1.9)}nhật ký</button>` : '',
+      ...(A.family() ? e.ages.filter(a => a.txt !== e.title).map(a => `<span class="chip age" style="--c:${a.color}"><img class="mav" src="${A.avatar(kidById(a.id))}" alt="">${esc(a.txt)}</span>`) : [ag && ag !== e.title ? `<span class="chip age">${esc(ag)}</span>` : '']),
+      ...e.sibs.map(x => `<span class="chip sib" style="--c:${kidById(x.id)?.color}">${icon('heart', 13, 2)}${esc(x.txt)}</span>`)].join('');
     return `<article class="ev ${side}${e.mile ? ' mile' : ''}${e.preg ? ' preg' : ''}" data-key="${esc(e.key)}">
-      <div class="dot">${e.mile ? icon(e.mile.ic, 13, 2.2) : ''}</div>
+      ${A.family() ? `<div class="kdots">${e.kids.map(id => { const k = kidById(id), i = kidsAll().indexOf(k); return `<img class="kd${e.mile?.kid === id ? ' m' : ''}" style="left:${(16 + i * 7 - 10).toFixed(0)}px;--c:${k.color};top:${44 + (i % 2) * 14}px" src="${A.avatar(k)}" alt="">`; }).join('')}</div>` : `<div class="dot">${e.mile ? icon(e.mile.ic, 13, 2.2) : ''}</div>`}
       <div class="cd" role="button" tabindex="0" aria-label="${esc(e.title)}">
         <div class="tx">
           <div class="dt">${e.mile ? `<span class="mb">${icon(e.mile.ic, 12, 2.1)}Cột mốc</span>` : ''}<span>${esc(dateTxt(e))}</span></div>
@@ -180,7 +196,13 @@ export function initTimeline(A) {
     const anchor = keep ? topAnchor() : null;
     st.wide = wide(); TL.classList.toggle('wide', st.wide); document.body.classList.toggle('tlwide', st.wide);
     const evs = compute(), n = A.moments().length;
-    const out = [`<header class="lt"><button class="lt-name" data-a="kid"><h1>${esc(kid.name)}</h1>${icon('chevronDown', 22, 2.2)}</button><p>${esc(A.ageText(kid, Date.now()) || '')}${n ? ` · ${n} khoảnh khắc · ${evs.length} ngày đáng nhớ` : ''}</p></header>`];
+    const fam = A.family(), KS = kidsAll();
+    TL.classList.toggle('fam', fam); document.body.classList.toggle('tlfam', fam); TL.style.setProperty('--nl', fam ? KS.length : 1);
+    const out = fam ? [`<header class="lt"><div class="lt-row"><div class="lt-avs">${KS.map(k => `<img src="${A.avatar(k)}" style="--c:${k.color}" alt="">`).join('')}</div><button class="lt-name" data-a="kid"><h1>Cả nhà</h1>${icon('chevronDown', 22, 2.2)}</button></div><p>${KS.length} bé · ${n} khoảnh khắc · ${evs.length} ngày đáng nhớ</p>
+        <div class="kflt">${KS.map(k => `<button data-kf="${k.id}" class="${!st.filter || st.filter.has(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${A.avatar(k)}" alt=""><span>${esc(k.name)}</span></button>`).join('')}</div></header>`, '<div class="lanes"></div>']
+      : [`<header class="lt"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><button class="lt-name" data-a="kid"><h1>${esc(kid.name)}</h1>${icon('chevronDown', 22, 2.2)}</button></div><p>${esc(A.ageText(kid, Date.now()) || '')}${n ? ` · ${n} khoảnh khắc · ${evs.length} ngày đáng nhớ` : ''}</p></header>`,
+        `<div class="rhd"><button class="rhead" data-a="prof" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><span>Dải ngân hà của ${esc(kid.name)}</span></div>`];
+    document.body.style.setProperty('--kc', fam ? '#ff8fbf' : (kid.color || '#ff8fbf'));
     if (!evs.length) out.push(`<div class="empty"><div class="em-ic">${icon('sparkle', 46, 1.4)}</div><h3>Dòng thời gian của ${esc(kid.name)} đang chờ những khoảnh khắc đầu tiên</h3><p>Bấm nút <b>+</b> ở giữa thanh dưới để thêm ảnh, video. App tự đọc ngày chụp và xếp vào đúng ngày.</p><button class="primary" data-a="add">${icon('plus', 18, 2.2)}<span>Thêm khoảnh khắc đầu tiên</span></button></div>`);
     let y = null, mo = null, i = 0;
     for (const e of evs) {
@@ -200,18 +222,40 @@ export function initTimeline(A) {
     IN.querySelectorAll('.ev').forEach(el => cardIO.observe(el));
     IN.querySelectorAll('.ysen').forEach(el => yrIO.observe(el));
     if (anchor) restoreAnchor(anchor);
+    if (fam) drawLanes();
     onScroll(true);
+  }
+  // các dải song song của Cả nhà: mỗi bé một màu, bắt đầu từ ngày sinh (đoạn mang bầu nét đứt), avatar so le ở đầu dải
+  function drawLanes() {
+    const box = IN.querySelector('.lanes'); if (!box) return; const KS = kidsAll(), evEls = [...IN.querySelectorAll('.ev')];
+    if (!evEls.length) { box.innerHTML = ''; return; }
+    const y0 = IN.querySelector('.yr'), top = (y0 ? aT(y0) : aT(evEls[0]) - 70) + 6, html = [];
+    KS.forEach((k, i) => {
+      if (st.filter && !st.filter.has(k.id)) return;
+      const x = 16 + i * 7, mine = evEls.filter(el => st.byKey.get(el.dataset.key)?.kids.includes(k.id)); if (!mine.length) return;
+      const bd = A.ymd(A.parseYmd(k.birth)), birthEl = evEls.find(el => { const e = st.byKey.get(el.dataset.key); return e && e.ts0 >= A.dayStart(A.parseYmd(k.birth)) && e.ts0 < A.dayStart(A.parseYmd(k.birth)) + 864e5; });
+      const born = mine.filter(el => !st.byKey.get(el.dataset.key).preg || st.byKey.get(el.dataset.key).ts0 >= A.dayStart(A.parseYmd(k.birth)));
+      const unborn = !birthEl && !born.length;
+      const endEl = birthEl || born[born.length - 1] || mine[mine.length - 1], bot = unborn ? top : aT(endEl) + 60;
+      if (!unborn) html.push(`<div class="lane" style="left:${x}px;top:${top}px;height:${Math.max(40, bot - top)}px;--c:${k.color}"><i></i></div>`);
+      const pre = mine.filter(el => st.byKey.get(el.dataset.key).ts0 < A.dayStart(A.parseYmd(k.birth)));
+      if (pre.length) { const pb = aT(pre[pre.length - 1]) + 60; if (pb > bot) html.push(`<div class="lane preg" style="left:${x}px;top:${bot}px;height:${pb - bot}px;--c:${k.color}"></div>`); }
+      html.push(`<img class="lh" src="${A.avatar(k)}" style="left:${x - 17 + (i % 2 ? 9 : -2)}px;top:${top - 46 + (i % 2) * 14}px;--c:${k.color};z-index:${10 - i}" alt="">`);
+      void bd;
+    });
+    box.innerHTML = html.join('');
   }
   function topAnchor() { // giữ chỗ đang xem khi dựng lại
     const evs = [...IN.querySelectorAll('.ev')]; const top = TL.scrollTop;
-    const el = evs.find(x => x.offsetTop + x.offsetHeight > top + 80); return el ? { key: el.dataset.key, off: el.offsetTop - top } : null;
+    const el = evs.find(x => aT(x) + x.offsetHeight > top + 80); return el ? { key: el.dataset.key, off: aT(el) - top } : null;
   }
-  function restoreAnchor(a) { const el = IN.querySelector(`.ev[data-key="${CSS.escape(a.key)}"]`); if (el) { el.classList.add('in'); TL.scrollTop = el.offsetTop - a.off; } }
+  function restoreAnchor(a) { const el = IN.querySelector(`.ev[data-key="${CSS.escape(a.key)}"]`); if (el) { el.classList.add('in'); TL.scrollTop = aT(el) - a.off; } }
+  const aT = el => el.getBoundingClientRect().top - IN.getBoundingClientRect().top; // vị trí trong danh sách (khối năm có position:relative nên không dùng offsetTop)
   const evEl = key => IN.querySelector(`.ev[data-key="${CSS.escape(key)}"]`);
   function scrollToKey(key, { bounce = true, smooth = true } = {}) {
     const el = evEl(key); if (!el) return;
     el.classList.add('in');
-    TL.scrollTo({ top: Math.max(0, el.offsetTop - innerHeight * .3), behavior: smooth && !REDUCED ? 'smooth' : 'auto' });
+    TL.scrollTo({ top: Math.max(0, aT(el) - innerHeight * .3), behavior: smooth && !REDUCED ? 'smooth' : 'auto' });
     if (bounce) setTimeout(() => { el.classList.remove('hl'); void el.offsetWidth; el.classList.add('hl'); haptic(10); }, smooth ? 650 : 50);
   }
   const keyOfMid = mid => st.events.find(e => e.ms.some(m => m.id === mid))?.key;
@@ -231,7 +275,7 @@ export function initTimeline(A) {
     });
   }
   TL.addEventListener('scroll', () => onScroll(), { passive: true });
-  addEventListener('resize', () => { if (wide() !== st.wide) render(); });
+  addEventListener('resize', () => { if (wide() !== st.wide) render(); else if (A.family()) drawLanes(); });
   // giãn cao su khi kéo quá đầu/cuối (iPhone đã có sẵn; máy tính dùng con lăn thì tự làm)
   if (!IOS) {
     let over = 0, idle = 0, stop = null;
@@ -250,7 +294,7 @@ export function initTimeline(A) {
     if (!fsDrag) return; if (Math.abs(e.clientY - fsDrag.y) > 6) fsDrag.moved = true; if (!fsDrag.moved) return;
     const r = FSC.getBoundingClientRect(), f = clamp((e.clientY - r.top - 22) / (r.height - 44), 0, 1);
     TL.scrollTop = f * (TL.scrollHeight - TL.clientHeight);
-    const mid = TL.scrollTop + TL.clientHeight * .4, el = [...IN.querySelectorAll('.ev')].find(x => x.offsetTop + x.offsetHeight > mid);
+    const mid = TL.scrollTop + TL.clientHeight * .4, el = [...IN.querySelectorAll('.ev')].find(x => aT(x) + x.offsetHeight > mid);
     const ev = el && st.byKey.get(el.dataset.key);
     if (ev) { const d = new Date(ev.ts0), bb = FSC.querySelector('.bb'); const txt = `${MONTH(d.getMonth())}, ${d.getFullYear()}`; if (bb.textContent !== txt) { bb.textContent = txt; haptic(4); } bb.style.transform = `translate3d(0,${(e.clientY - r.top - 20).toFixed(0)}px,0)`; }
   });
@@ -262,11 +306,13 @@ export function initTimeline(A) {
     box.innerHTML = [...years].map(([y, mm]) => `<div class="jy"><h3>${y}</h3><div class="jms">${[...mm].map(([m, c]) => `<button data-ym="${y}-${m}">${MONTH(m)}<small>${c} ngày</small></button>`).join('')}</div></div>`).join('') || '<p class="lead">Chưa có sự kiện nào.</p>';
     A.openModal($('#mJump'));
   }
-  $('#mJump').addEventListener('click', e => { const b = e.target.closest('[data-ym]'); if (!b) return; A.closeModal($('#mJump')); const el = IN.querySelector(`.mo[data-ym="${b.dataset.ym}"]`); if (el) setTimeout(() => TL.scrollTo({ top: el.offsetTop - 90, behavior: REDUCED ? 'auto' : 'smooth' }), 250); });
+  $('#mJump').addEventListener('click', e => { const b = e.target.closest('[data-ym]'); if (!b) return; A.closeModal($('#mJump')); const el = IN.querySelector(`.mo[data-ym="${b.dataset.ym}"]`); if (el) setTimeout(() => TL.scrollTo({ top: aT(el) - 90, behavior: REDUCED ? 'auto' : 'smooth' }), 250); });
 
   IN.addEventListener('click', e => {
     const bk = e.target.closest('.bk'); if (bk) { e.stopPropagation(); A.openDiary(bk.dataset.diary); return; }
-    const a = e.target.closest('[data-a]'); if (a?.dataset.a === 'kid') { A.openKidMenu(a); return; } if (a?.dataset.a === 'add') { A.openAdd(); return; }
+    const kf = e.target.closest('[data-kf]');
+    if (kf) { const KS = kidsAll(); st.filter = st.filter || new Set(KS.map(k => k.id)); const id = kf.dataset.kf; if (st.filter.has(id)) { if (st.filter.size > 1) st.filter.delete(id); else { A.toast('Cần ít nhất 1 bé', 1200); return; } } else st.filter.add(id); if (st.filter.size === KS.length) st.filter = null; haptic(6); render(); IN.querySelector(`[data-kf="${id}"]`)?.classList.add('pop'); return; }
+    const a = e.target.closest('[data-a]'); if (a?.dataset.a === 'kid') { A.openKidMenu(a); return; } if (a?.dataset.a === 'add') { A.openAdd(); return; } if (a?.dataset.a === 'prof') { A.openProfile(); return; }
     if (performance.now() < st.guard) return;
     const cd = e.target.closest('.cd'); if (cd) openEvent(cd.closest('.ev').dataset.key, cd);
   });
@@ -426,6 +472,8 @@ export function initTimeline(A) {
     const nt = PV.querySelector('.pv-nt'); nt.textContent = m.note || ''; nt.hidden = !m.note;
     PV.querySelector('[data-a=split]').hidden = !(st.cur && !st.cur.merged && V.i > 0);
     PV.querySelector('.pv-more').classList.toggle('chk', m.dateSrc === 'check' || m.dateSrc === 'file');
+    const KS = kidsAll(), pk = PV.querySelector('.pv-kids');
+    pk.innerHTML = KS.length > 1 ? `<span>Bé trong ảnh:</span>${KS.map(k => `<button data-tag="${k.id}" class="${A.kidsOf(m).includes(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${A.avatar(k)}" alt="">${esc(k.name)}</button>`).join('')}` : '';
   }
   const curMedia = () => track.children[1]?.querySelector('.pv-m');
   const setX = x => { V.x = x; track.style.transform = `translate3d(${x}px,0,0)`; };
@@ -524,6 +572,8 @@ export function initTimeline(A) {
     tr.addEventListener('pointerup', tup); tr.addEventListener('pointercancel', tup);
   }
   PV.addEventListener('click', async e => {
+    const tg = e.target.closest('[data-tag]');
+    if (tg) { const m = V.list[V.i]; let ids = A.kidsOf(m).slice(); const id = tg.dataset.tag; if (ids.includes(id)) { if (ids.length < 2) { A.toast('Ảnh cần thuộc ít nhất 1 bé', 1500); return; } ids = ids.filter(x => x !== id); } else ids.push(id); await A.setMomentKids(m, ids); haptic(6); layoutSlides(); return; }
     const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a, m = V.list[V.i];
     if (a === 'close') closeViewer();
     else if (a === 'save') A.saveOriginal(m);
