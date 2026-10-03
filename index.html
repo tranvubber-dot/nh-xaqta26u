@@ -791,6 +791,40 @@ body.v12:not(.tlfam) #tlv .rail { display: none; }
 #tbar .glassbtn { width: 40px; height: 40px; } #tbar #tbTheme { display: none; } #tbar .rt { gap: 8px; }
 #tbar .tt { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; padding: 0 6px; }
 #tabbar > button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+/* v1.4.1 — nhóm kỷ niệm */
+body { --cardsolid: #211946; } body[data-theme="dawn"] { --cardsolid: #fff3f0; }
+.utoast { z-index: 85 !important; } body.evopen .utoast.bk, body.sheet .utoast.bk, body.pvopen .utoast.bk, body.cmopen .utoast.bk { opacity: 0 !important; pointer-events: none; }
+.ev.grp .cd { border: 1.5px solid transparent; background: linear-gradient(165deg, var(--gl1), var(--gl2)) padding-box, linear-gradient(var(--cardsolid, #1f1745), var(--cardsolid, #1f1745)) padding-box, linear-gradient(135deg, #9fe1cb, #8fb6ff 45%, #c3a6ff 75%, #ff8fbf) border-box; box-shadow: 0 0 26px rgba(143,182,255,.32), var(--sh); }
+.ev.grp .dot { width: 26px; height: 26px; left: calc(var(--rx) - var(--lx) - 13px); top: 47px; display: grid; place-items: center; color: #1b1440; background: radial-gradient(circle at 35% 30%, #fff, #9fe1cb 45%, #8fb6ff); box-shadow: 0 0 0 5px rgba(143,182,255,.25), 0 0 20px #8fb6ff; }
+.mb.gb { color: #10284a; background: linear-gradient(135deg, #d5f5ea, #b9cfff); }
+.evp-days { display: flex; gap: 6px; overflow-x: auto; padding: 4px 16px 2px; scrollbar-width: none; } .evp-days::-webkit-scrollbar { display: none; } .evp-days[hidden] { display: none; }
+.evp-days button { flex: none; height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; font-weight: 700; background: rgba(255,255,255,.1); border: 1px solid var(--glb); color: var(--text); }
+.evp-days button.on { background: var(--accent); color: #fff; border-color: transparent; }
+.modal.gsheet .card { display: flex; flex-direction: column; }
+@media (max-width: 767px) { body.v12 .modal.gsheet .card { height: calc(100% - var(--safe-t) - 10px); max-height: none; } }
+@media (min-width: 768px) { .modal.gsheet .card { width: min(720px, 100%); height: min(90vh, 900px); } }
+.gp-name { display: block; width: 100%; margin: 4px 0 8px; font: 700 21px var(--font); color: var(--text); background: var(--field); border: 1.5px solid var(--accent); border-radius: 16px; padding: 12px 14px; outline: none; }
+.gp-sug { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; } .gp-sug button { height: 32px; padding: 0 12px; font-size: 13px; border-radius: 16px; }
+.gp-note { display: block; width: 100%; min-height: 44px; height: 44px; resize: vertical; font: 600 15px var(--font); color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; outline: none; }
+.gp-t { margin: 16px 0 6px; font-size: 15px; } .gp-t small { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.gp-range { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--sub); }
+.gp-range label { display: flex; align-items: center; gap: 6px; } .gp-range input { font: 600 14px var(--font); color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; } .gp-range button { height: 34px; font-size: 13px; padding: 0 12px; }
+.gp-days { display: flex; flex-direction: column; gap: 14px; padding-bottom: 8px; }
+.gp-day header { position: sticky; top: -4px; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 6px 4px; background: var(--pane); border-radius: 12px; }
+.gp-all { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; } .gp-all input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+.gp-all span { display: flex; flex-direction: column; min-width: 0; } .gp-all b { font-size: 14px; } .gp-all small { font-size: 12px; font-weight: 600; color: var(--muted); }
+.gp-cnt { font-size: 12.5px; font-weight: 700; color: var(--accent); flex: none; }
+.gp-g { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; touch-action: pan-y; } @media (max-width: 400px) { .gp-g { grid-template-columns: repeat(4, 1fr); } }
+.gp-i { position: relative; aspect-ratio: 1; padding: 0; border: none; border-radius: 8px; overflow: hidden; background: var(--pc); -webkit-touch-callout: none; }
+.gp-i img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .3s, transform .3s cubic-bezier(.3,1.5,.5,1); } .gp-i img.ok { opacity: 1; }
+.gp-ck { position: absolute; right: 4px; top: 4px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff; background: rgba(0,0,0,.25); box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.gp-i.on img { transform: scale(.86); border-radius: 6px; } .gp-i.on { background: color-mix(in srgb, var(--accent), transparent 55%); }
+.gp-i.on .gp-ck { background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/13px no-repeat; }
+.gp-i.v::after { content: ""; position: absolute; left: 5px; bottom: 5px; border: 5px solid transparent; border-left: 8px solid #fff; border-right: 0; filter: drop-shadow(0 0 2px #000); }
+.gp-og { position: absolute; left: 4px; top: 4px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 6px; color: #10284a; background: #b9cfff; }
+.gp-bar { position: sticky; bottom: calc(-22px - var(--safe-b)); z-index: 3; display: flex; align-items: center; gap: 8px; margin: 8px -20px calc(-22px - var(--safe-b)); padding: 12px 16px calc(12px + var(--safe-b)); background: linear-gradient(180deg, var(--gl1), var(--gl2)), var(--pane); border-top: 1px solid var(--glb); }
+.gp-n { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700; } .gp-bar button { flex: none; height: 44px; } .gp-bar .primary:disabled { opacity: .45; }
+.addgrp { margin-top: 14px; } .addgrp-s { display: block; margin-top: 6px; font-size: 12.5px; font-weight: 600; color: var(--accent); }
 /* v1.4.1 — đặt tên tại chỗ */
 .evp-ti { cursor: text; } .evp-ti .tt { outline: none; border-radius: 10px; } .evp-ti .pen { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-left: 6px; border-radius: 50%; vertical-align: 4px; background: rgba(255,255,255,.16); opacity: .85; font-style: normal; }
 .evp-ti.editing { -webkit-line-clamp: unset; display: block; } .evp-ti.editing .tt { background: rgba(255,255,255,.14); box-shadow: 0 0 0 2px rgba(255,255,255,.55); padding: 0 6px; -webkit-user-select: text; user-select: text; } .evp-ti.editing .pen { display: none; }
@@ -901,6 +935,7 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
   <div id="drop"><span class="big">📸</span>Kéo thả ảnh, video vào đây<br>hoặc bấm để chọn</div>
   <input type="file" id="fileIn" accept="image/*,video/*" multiple hidden>
   <div id="addList"></div>
+  <label class="f addgrp" id="addGrpBox" hidden>Đặt tên nhóm cho đợt ảnh này <small class="opt">tuỳ chọn — vd “Đi biển Cửa Lò”</small><input id="addGrp" maxlength="60" placeholder="Để trống nếu không cần gom nhóm" autocomplete="off"><span class="addgrp-s"></span></label>
   <div class="prog" id="addProg"><i></i></div>
   <div class="foot"><button data-close>Huỷ</button><button class="primary" id="addSave" disabled>✨ Lưu vào dòng thời gian</button></div>
 </div></div>

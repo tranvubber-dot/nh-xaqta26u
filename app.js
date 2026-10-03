@@ -313,7 +313,7 @@ async function buildBackup(onProg) {
     }
     onProg?.(i / Math.max(1, moments.length));
   }
-  const diaries = (await dbAll('diaries')).filter(d => !d.deleted), settings = { ev: {}, bg: {} };
+  const diaries = (await dbAll('diaries')).filter(d => !d.deleted), settings = { ev: {}, bg: {}, groups: (await metaGet('groups')) || [] };
   { const e = await metaGet('ev:fam'); if (e) settings.ev.fam = e; }
   for (const k of kids) { const av = await dbGet('blobs', 'av_' + k.id); if (av) { blobs.push({ key: 'av_' + k.id, type: av.type || 'image/jpeg', size: av.size, off }); parts.push(av); off += av.size; } }
   for (const k of kids) { const e = await metaGet('ev:' + k.id), g = await metaGet('bg:' + k.id); if (e) settings.ev[k.id] = e; if (g) settings.bg[k.id] = g; const b = await dbGet('blobs', 'bg_' + k.id); if (b) { blobs.push({ key: 'bg_' + k.id, type: b.type || 'image/jpeg', size: b.size, off }); parts.push(b); off += b.size; } }
@@ -354,6 +354,7 @@ async function importBackup(file, onProg) {
   }
   for (const [kid, v] of Object.entries(hd.settings?.ev || {})) if (!(await metaGet('ev:' + kid))) await metaSet('ev:' + kid, v);
   for (const [kid, v] of Object.entries(hd.settings?.bg || {})) if (!(await metaGet('bg:' + kid))) { await metaSet('bg:' + kid, v); const b = bmap.get('bg_' + kid); if (b) await dbPut('blobs', file.slice(base + b.off, base + b.off + b.size, b.type), 'bg_' + kid); }
+  if (hd.settings?.groups?.length) { const cur = (await metaGet('groups')) || [], have2 = new Set(cur.map(g => g.id)); for (const g of hd.settings.groups) if (!have2.has(g.id)) cur.push(g); await metaSet('groups', cur); S.groups = cur; }
   return { nk, nm, skip, nd };
 }
 
@@ -1597,6 +1598,7 @@ async function restoreMoments(list) { for (const m of list) { delete m.deleted; 
 async function trashDiary(d) { d.deleted = Date.now(); await dbPut('diaries', d); await diaryChanged(); undoToast(`Đã chuyển “${esc(d.title)}” vào thùng rác`, async () => { delete d.deleted; await dbPut('diaries', d); await diaryChanged(); }); }
 async function purgeOld() {
   const lim = Date.now() - TRASH_DAYS * 864e5;
+  { const gs = await metaGet('groups'); if (gs?.length) { const ids = new Set((await dbKeys('moments')).map(String)); const ng = gs.map(g => ({ ...g, momentIds: g.momentIds.filter(id => ids.has(String(id))) })).filter(g => g.momentIds.length); if (JSON.stringify(ng) !== JSON.stringify(gs)) await metaSet('groups', ng); } }
   for (const m of await dbAll('moments')) if (m.deleted && m.deleted < lim) { await dbDel('blobs', 'o_' + m.id); await dbDel('blobs', 't_' + m.id); await dbDel('moments', m.id); }
   for (const d of await dbAll('diaries')) if (d.deleted && d.deleted < lim) { await dbDel('blobs', 'd_' + d.id); await dbDel('diaries', d.id); }
   for (const k of await dbAll('kids')) if (k.deleted && k.deleted < lim) { await dbDel('blobs', 'av_' + k.id); await dbDel('kids', k.id); }
@@ -1892,8 +1894,9 @@ function openAdd() {
   if (S.mode === 'show') stopShow();
   openModal($('#mAdd')); refreshAddBtn();
 }
-function resetAdd() { ADD.day = null; if ($('#addDay')) { $('#addDay').value = ''; $('#addDayH').textContent = ''; } for (const r of ADD.rows) if (r.url) URL.revokeObjectURL(r.url); ADD.rows = []; $('#addList').innerHTML = ''; $('#addProg').style.display = 'none'; $('#addProg i').style.width = 0; refreshAddBtn(); }
+function resetAdd() { if ($('#addGrp')) $('#addGrp').value = ''; ADD.day = null; if ($('#addDay')) { $('#addDay').value = ''; $('#addDayH').textContent = ''; } for (const r of ADD.rows) if (r.url) URL.revokeObjectURL(r.url); ADD.rows = []; $('#addList').innerHTML = ''; $('#addProg').style.display = 'none'; $('#addProg i').style.width = 0; refreshAddBtn(); }
 function refreshAddBtn() {
+  { const days = new Set(ADD.rows.filter(r => r.ready && !r.bad).map(r => ymd(r.ts))), box = $('#addGrpBox'); box.hidden = days.size < 2 && !$('#addGrp').value; const ts = ADD.rows.filter(r => r.ready && !r.bad).map(r => r.ts).sort((a, b) => a - b); box.querySelector('.addgrp-s').textContent = ts.length && days.size > 1 ? `${ts.length} ảnh · ${days.size} ngày · ${dmy(ts[0]).slice(0, 5)} – ${dmy(ts[ts.length - 1])}` : ''; }
   const b = $('#addSave'), n = ADD.rows.length;
   b.disabled = !n || ADD.pending > 0 || ADD.busy;
   b.textContent = ADD.busy ? 'Đang lưu…' : ADD.pending ? `Đang đọc ${ADD.pending} tệp…` : n ? `Lưu ${n} khoảnh khắc vào dòng thời gian` : 'Lưu vào dòng thời gian';
@@ -1962,7 +1965,7 @@ $('#addSave').onclick = saveAdd;
 async function saveAdd() {
   const rows = ADD.rows.filter(r => r.ready && !r.bad); if (!rows.length || ADD.busy) return;
   if (!ADD.kids.length) { const ks = $('#addKids'); ks.classList.remove('need'); void ks.offsetWidth; ks.classList.add('need'); toast('Ảnh này của bé nào? Chạm avatar để chọn nhé', 2600); return; }
-  ADD.busy = true; refreshAddBtn(); $('#addProg').style.display = 'block';
+  ADD.gname = ($('#addGrp')?.value || '').trim(); ADD.busy = true; refreshAddBtn(); $('#addProg').style.display = 'block';
   await askPersist();
   const ids = [];
   try {
@@ -1985,6 +1988,10 @@ async function saveAdd() {
   TL.refreshAll(null, ids); const k = target && TL.keyOfMid(target.id); if (k) setTimeout(() => TL.scrollToKey(k, { bounce: false }), 120);
   const own = news.length ? kidsOf(news[0]).map(id => cap(S.kids.find(x => x.id === id)?.name)).filter(Boolean).join(', ') : '';
   const evs = [...new Set(news.map(m => TL.keyOfMid(m.id)).filter(Boolean))].map(k2 => TL.events.find(e => e.key === k2)).filter(Boolean);
+  const gname = ADD.gname; ADD.gname = '';
+  if (gname) { const g = { id: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kidIds: [...new Set(news.flatMap(kidsOf))], name: gname, note: '', cover: null, momentIds: news.slice().sort((a, b) => a.ts - b.ts).map(m => m.id), created: Date.now() };
+    S.groups = [...(S.groups || []), g]; await metaSet('groups', S.groups); TL.render(); setTimeout(() => TL.scrollToKey('g:' + g.id), 200); toast(`Đã tạo nhóm “${gname}” · ${TL.spanTxt(news)}`, 3200); setTimeout(() => maybeRemindBackup(ids.length), 3600); updateNow(); return; }
+  if (TL.suggestGroup(ids)) { updateNow(); setTimeout(() => maybeRemindBackup(ids.length), 8500); return; }
   const e1 = evs.length === 1 ? evs[0] : null, named = e1 && (TL.meta?.titles?.[e1.key] || e1.group);
   if (e1 && !named) undoToast(`Đã thêm ${ids.length} ảnh vào ngày ${dmy(e1.ts0).slice(0, 5)} · Đặt tên?`, async () => { const t = await prompt2(`Đặt tên cho ngày ${dmy(e1.ts0)}`, '', 60); if (t?.trim()) { await TL.setTitle(e1.key, t.trim()); toast('Đã đặt tên “' + t.trim() + '”', 1600); } }, 6500, { label: 'Đặt tên', icon: 'edit' });
   else toast(evs.length === 1 ? `Đã thêm ${ids.length} ảnh vào “${evs[0].title}”` : evs.length > 1 ? `Đã thêm ${ids.length} ảnh vào ${evs.length} ngày` : `Đã thêm ${ids.length} khoảnh khắc vào dải của ${own}`, 2800);
@@ -2106,7 +2113,8 @@ async function maybeRemindBackup(added = 0) {
   const due = since >= 10 || (last ? now - last > 7 * 864e5 : (S.all.length >= 10 || now - Math.min(...S.all.map(m => m.created || now)) > 7 * 864e5));
   if (!due || now - lastAsk < 20 * 3600e3) return;
   await metaSet('bkRemind', now);
-  setTimeout(() => undoToast('💾 Sao lưu ngay — ảnh của bạn chỉ nằm trong máy này', () => doBackup(), 9000, { label: 'Sao lưu', icon: 'download' }), added ? 2600 : 0);
+  const show = (n = 0) => { if (document.querySelector('.modal.open, .cm') || /\b(evopen|pvopen|hsopen|evshow|showing|dopen)\b/.test(document.body.className)) { if (n < 40) setTimeout(() => show(n + 1), 3000); return; } undoToast('💾 Sao lưu ngay — ảnh của bạn chỉ nằm trong máy này', () => doBackup(), 9000, { label: 'Sao lưu', icon: 'download', cls: 'bk' }); };
+  setTimeout(show, added ? 2600 : 0);
 }
 const b64u = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode(...u8.subarray(i, i + 8192)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 const unb64u = t => { const s = atob(t.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length + 3) % 4)); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
@@ -2430,6 +2438,7 @@ function kidMenu(el) {
 function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(() => $('#bgList')?.closest('.sec')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 380); }
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 const TL = initTimeline({ kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
+  groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   music: on => on ? startMusic() : Music.stop(), confetti: c => P.confetti(c), nhac: ks => nhacFor(ks ? ks.map(k => S.kids.find(x => x.id === k.id)) : null),
   kids: () => S.kids.map(dispKid), family: () => !!S.family, kidsOf, avatar: k => P.avatarNow(k), setMomentKids, openProfile: () => P.openProfile(dispKid(S.kid)),
   trashMoments, pickKids, setKidsMany, updateMany, shareMany, setBgFromMoment, avatarFromMoment, kidMenu, prompt: prompt2, diaryMenu: (id, el) => D.diaryMenu(id, el), dbGet, metaGet, metaSet, ymd, dmy, WD, parseYmd, dayStart, ageText, openModal, closeModal, toast, ask,
@@ -2451,7 +2460,9 @@ function initBars() {
     const b = e.target.closest('[data-t]'); if (!b) return; const t = b.dataset.t; haptic(6);
     if (t === 'tl') { if (document.body.classList.contains('galaxy')) exitGalaxy(); else if (TL.isOpen()) { TL.closeViewer(); TL.closeEvent(); } else TL.scroller.scrollTo({ top: 0, behavior: 'smooth' }); }
     else if (t === 'diary') $('#bDiary').click();
-    else if (t === 'add') { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); openAdd(); }
+    else if (t === 'add') { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); if (!S.kids.length || !(S.all || []).length) { openAdd(); return; } contextMenu({ at: b, title: 'Thêm vào dòng thời gian', items: [
+      { icon: 'image', label: 'Thêm ảnh, video', act: () => openAdd() },
+      { icon: 'grid', label: 'Tạo nhóm kỷ niệm <small class="cm-n">gom nhiều ngày</small>', act: () => TL.openGroupPicker() }] }); }
     else if (t === 'show') { TL.closeViewer(); TL.closeEvent(); $('#bShow').click(); }
     else if (t === 'set') $('#bSet').click();
   });
@@ -2459,6 +2470,7 @@ function initBars() {
   $('#tbMore').innerHTML = icon('more', 23, 2.2);
   $('#tbMore').onclick = e => { const gx = document.body.classList.contains('galaxy'); contextMenu({ at: e.currentTarget, title: 'Tuỳ chọn', items: [
     !gx && { icon: 'check', label: 'Chọn nhiều ngày', act: () => TL.startSel('tl') },
+    !gx && S.kid && { icon: 'grid', label: 'Tạo nhóm kỷ niệm', act: () => TL.openGroupPicker() },
     { icon: 'image', label: 'Đổi hình nền', act: () => openBgSettings() },
     { icon: S.theme === 'dawn' ? 'moon' : 'sun', label: S.theme === 'dawn' ? 'Đổi sang Đêm ngân hà' : 'Đổi sang Bình minh', act: () => $('#bTheme').click() },
     { icon: 'heart', label: TL.hidePreg ? 'Hiện ảnh lúc mang bầu' : 'Ẩn ảnh lúc mang bầu', act: () => TL.setHidePreg(!TL.hidePreg) },
@@ -2521,6 +2533,7 @@ async function boot() {
   try {
     theme = (await metaGet('theme')) || 'night'; S.music = (await metaGet('music')) || 'builtin'; S.musicName = (await metaGet('musicName')) || '';
     await purgeOld();
+    S.groups = (await metaGet('groups')) || [];
     S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0));
   } catch (e) { console.error(e); toast('Trình duyệt chặn bộ nhớ — bạn mở bằng Safari/Chrome thường (không ở chế độ ẩn danh) nhé', 8000); }
   setTheme(theme, false);
