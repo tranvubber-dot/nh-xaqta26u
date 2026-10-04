@@ -5,7 +5,7 @@ import { SIGN, GIAP_L, MENH_L, NUM, lifePath, jobLine, giapPair, signPair, ELEME
 import { chibiAvatarSVG, chibiSVG, svgURL, mountChibiEditor, familySceneHTML } from './chibi.js';
 import { isChild, isMe, isPartner, roleOf, roleName, sortPeople } from './doi.js';
 // người lớn (hoặc ai đã tự chọn nhân vật) dùng chibi; bé từ các bản cũ giữ hình vẽ cũ
-export const useChibi = k => !!k?.chibi || (!!k?.role && !isChild(k));
+export const useChibi = k => !k?.avDrawn; // v1.8.1: mọi người dùng chibi theo tuổi, trừ ai đã tự chọn hình vẽ cũ
 export const drawnAvatar = k => useChibi(k) ? svgURL(chibiAvatarSVG(k)) : avatarSVG(k);
 
 export const KID_COLORS = ['#4f9dff', '#2fc6c0', '#7c86ff', '#55c8f5', '#54cf8e', '#ff76ad', '#b483ff', '#ff8a78', '#ffc24f', '#e07cf0'];
@@ -67,7 +67,7 @@ export function initProfile(A) {
     return raster(kid);
   }
   // avatar vẽ sẵn: rasterize một lần thành PNG để hàng trăm viên tuổi không phải giải mã SVG mỗi lần
-  const RS = new Map(), rkey = k => `${k.id}:${k.color}:${k.gender}:${k.avStyle || 0}:${k.role || ''}:${k.chibi ? JSON.stringify(k.chibi) : ''}`;
+  const RS = new Map(), rkey = k => `${k.id}:${k.color}:${k.gender}:${k.avStyle || 0}:${k.avDrawn ? 1 : 0}:${k.role || ''}:${k.birth || ''}:${k.chibi ? JSON.stringify(k.chibi) : ''}`;
   async function raster(kid) {
     const key = rkey(kid); if (RS.has(key)) return RS.get(key);
     const im = new Image(); im.src = drawnAvatar(kid); await im.decode().catch(() => { });
@@ -89,8 +89,8 @@ export function initProfile(A) {
   }
   function renderStyles() {
     const k = C.kid; if (!k) return; const box = M.querySelector('.avst');
-    if (useChibi(k) || k.role) { box.innerHTML = `<button data-a="tochibi" class="tochibi"><img src="${svgURL(chibiAvatarSVG(k))}" alt=""><span>Dùng nhân vật chibi</span></button>`; return; }
-    box.innerHTML = [0, 1, 2].map(i => `<button data-st="${i}" class="${C.style === i ? 'on' : ''}"><img src="${avatarSVG(k, i)}" alt=""></button>`).join('');
+    const cb = `<button data-a="tochibi" class="tochibi"><img src="${svgURL(chibiAvatarSVG(k))}" alt=""><span>Dùng nhân vật chibi</span></button>`;
+    box.innerHTML = cb + (k.role && !isChild(k) ? '' : [0, 1, 2].map(i => `<button data-st="${i}" class="${C.style === i && k.avDrawn ? 'on' : ''}"><img src="${avatarSVG(k, i)}" alt=""></button>`).join(''));
   }
   async function openAvatar(kid, done, src) {
     C.kid = kid; C.done = done; C.style = kid.avatar || src ? null : (kid.avStyle ?? 0);
@@ -113,7 +113,7 @@ export function initProfile(A) {
     const pk = e.target.closest('.avpick [data-mid]'); if (pk) { const m = A.allMoments().find(x => x.id === pk.dataset.mid); const b = (!m.heic && m.type === 'image' && await A.dbGet('blobs', 'o_' + m.id)) || await A.dbGet('blobs', 't_' + m.id); M.querySelector('.avpick').hidden = true; await setSrc(b); return; }
     const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
     if (a === 'file') M.querySelector('.avf').click();
-    else if (a === 'tochibi') { A.closeModal(M); const done = C.done; setTimeout(() => openChibi(C.kid, done), 120); }
+    else if (a === 'tochibi') { delete C.kid.avDrawn; A.closeModal(M); const done = C.done; setTimeout(() => openChibi(C.kid, done), 120); }
     else if (a === 'kid') {
       const g = M.querySelector('.avpick'); g.hidden = !g.hidden; if (g.hidden) return;
       const ms = A.allMoments().filter(m => m.type === 'image' && A.kidsOf(m).includes(C.kid.id)).sort((x, y) => y.ts - x.ts).slice(0, 60);
@@ -121,7 +121,7 @@ export function initProfile(A) {
       g.querySelectorAll('[data-mid]').forEach(x => A.dbGet('blobs', 't_' + x.dataset.mid).then(t => { if (t) x.style.backgroundImage = `url('${URL.createObjectURL(t)}')`; }));
     } else if (a === 'ok') {
       const k = C.kid;
-      if (C.style != null) { k.avatar = 0; k.avStyle = C.style; }
+      if (C.style != null) { k.avatar = 0; k.avStyle = C.style; k.avDrawn = true; }
       else {
         const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d'), base = Math.max(VW / C.w, VW / C.h) * C.s, f = 256 / VW;
         x.fillStyle = '#fff'; x.fillRect(0, 0, 256, 256); x.imageSmoothingQuality = 'high';

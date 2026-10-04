@@ -42,7 +42,40 @@ const THEMES = {
   night: { bg: '#1c1840', water: '#2b3f86', park: '#22365a', land: '#241f4d', build: '#2c2758', b3: '#3b3470', road: '#cfc6ff', road2: '#8d84d6', casing: '#3a2f78', text: '#f3eeff', halo: '#1a1440', rail: '#6b63b0' },
   dawn: { bg: '#fff5ee', water: '#a8dcff', park: '#c9efc0', land: '#ffeedd', build: '#ffe3ec', b3: '#ffd6e4', road: '#ffffff', road2: '#ffe6bf', casing: '#f3c9b0', text: '#4a2c4e', halo: '#ffffff', rail: '#d7b9c9' }
 };
+// v1.8.1 — kiểu "Sáng (giống Google)": nền xám sáng, công viên xanh lá, nước xanh dương, đường trắng / quốc lộ vàng, POI chữ màu theo loại.
+// Chỉ đổi màu style OpenFreeMap (dữ liệu © OpenMapTiles © OpenStreetMap contributors), không dùng tile của Google.
+const POI_COL = ['match', ['get', 'class'], ['hospital', 'doctors', 'pharmacy', 'dentist'], '#d93025', ['school', 'college', 'university', 'kindergarten', 'library'], '#8d5a3c', ['restaurant', 'fast_food', 'cafe', 'bar', 'pub', 'ice_cream', 'bakery', 'food_court'], '#e8710a',
+  ['park', 'garden', 'playground', 'zoo', 'campsite'], '#188038', ['shop', 'grocery', 'supermarket', 'clothes', 'mall', 'convenience'], '#1a73e8', ['lodging', 'hotel'], '#c5221f', ['place_of_worship', 'religion', 'attraction', 'museum', 'monument'], '#7b5ea7', ['bus', 'railway', 'transit'], '#1967d2', '#5f6368'];
+function lightStyle(style) {
+  const name = ['coalesce', ['get', 'name:vi'], ['get', 'name'], ['get', 'name:latin']];
+  style.layers = style.layers.filter(l => !/shield/.test(l.id));
+  for (const l of style.layers) {
+    const p = l.paint ||= {}, id = l.id, major = /motorway|trunk_primary/.test(id);
+    if (l.type === 'symbol' && l.layout?.['text-field'] && !/one_way/.test(id)) {
+      l.layout['text-field'] = name; p['text-halo-color'] = '#ffffff'; p['text-halo-width'] = 1.6;
+      if (/^poi/.test(id)) { p['text-color'] = POI_COL; l.layout['text-font'] = ['Noto Sans Bold']; }
+      else if (/^highway-name/.test(id)) { p['text-color'] = '#3c4043'; l.layout['text-font'] = ['Noto Sans Bold']; }
+      else if (/^water/.test(id)) p['text-color'] = '#1a73e8';
+      else p['text-color'] = '#3c4043';
+    }
+    if (id === 'background') p['background-color'] = '#f2f3f4';
+    else if (id === 'natural_earth') l.layout = { ...(l.layout || {}), visibility: 'none' };
+    else if (id === 'water') p['fill-color'] = '#9cd3f5';
+    else if (/^waterway/.test(id) && l.type === 'line') p['line-color'] = '#9cd3f5';
+    else if (/^park$|landcover_(wood|grass)|landuse_(pitch|track|cemetery)/.test(id) && l.type === 'fill') { p['fill-color'] = '#c9eacb'; p['fill-opacity'] = 1; }
+    else if (id === 'park_outline') p['line-color'] = '#b4ddb7';
+    else if (id === 'landuse_residential') { p['fill-color'] = '#ebedf0'; p['fill-opacity'] = 1; }
+    else if (id === 'landuse_hospital') p['fill-color'] = '#fbe3e1'; else if (id === 'landuse_school') p['fill-color'] = '#f3ede4';
+    else if (id === 'building') { p['fill-color'] = '#e3e5e8'; p['fill-outline-color'] = '#d6d9dd'; }
+    else if (id === 'building-3d') { p['fill-extrusion-color'] = '#e6e8eb'; p['fill-extrusion-opacity'] = .9; }
+    else if (l.type === 'line' && /casing/.test(id)) p['line-color'] = major ? '#e9bc62' : '#d5d8dc';
+    else if (l.type === 'line' && /rail/.test(id)) p['line-color'] = '#c1c5ca';
+    else if (l.type === 'line' && /^(road|bridge|tunnel)_/.test(id)) p['line-color'] = major ? '#fde293' : /secondary_tertiary/.test(id) ? '#ffffff' : '#ffffff';
+  }
+  return style;
+}
 function themed(style, theme) {
+  if (theme === 'light') return lightStyle(style);
   style.layers = style.layers.filter(l => !/shield/.test(l.id)); // biển số đường kiểu Mỹ: không cần ở VN, bỏ cho nhẹ
   const C = THEMES[theme] || THEMES.dawn, name = ['coalesce', ['get', 'name:vi'], ['get', 'name'], ['get', 'name:latin']];
   for (const l of style.layers) {
@@ -111,7 +144,10 @@ export function initMap(A) {
     map.addLayer({ id: 'evs-x', type: 'circle', source: 'evs', paint: { 'circle-radius': 1, 'circle-opacity': 0, 'circle-stroke-opacity': 0 } }); // lớp vô hình: nguồn chỉ nạp ô dữ liệu khi có lớp dùng nó
     const sync = () => {
       if (!map?.getSource('evs')) return; const seen = new Set(), bb = map.getBounds(), want = [];
-      for (const f of map.querySourceFeatures('evs')) { const p = f.properties, id = p.cluster ? 'c:' + p.cluster_id : p.key; if (seen.has(id)) continue; seen.add(id); if (!bb.contains(f.geometry.coordinates)) continue; want.push({ id, f }); }
+      const cw = BOX.clientWidth, ch = BOX.clientHeight, top = M.tab ? 120 : 130, bot = 70; // ảnh sát mép (bị cắt) thì chưa hiện, kéo bản đồ vào là hiện
+      for (const f of map.querySourceFeatures('evs')) { const p = f.properties, id = p.cluster ? 'c:' + p.cluster_id : p.key; if (seen.has(id)) continue; seen.add(id); if (!bb.contains(f.geometry.coordinates)) continue;
+        if (!p.cluster && M.orbKeys?.has(p.key)) continue; // đã bay quanh nhân vật
+        const pt = map.project(f.geometry.coordinates); if (pt.x < 38 || pt.x > cw - 38 || pt.y < top || pt.y > ch - bot) continue; want.push({ id, f }); }
       want.sort((x, y) => (y.f.properties.point_count || 1) - (x.f.properties.point_count || 1) || (y.f.properties.ts || 0) - (x.f.properties.ts || 0));
       const keep = new Set(want.slice(0, MAXMK).map(w => w.id));
       for (const [k, m] of M.evMk) if (!keep.has(k)) { m.remove(); M.evMk.delete(k); }
@@ -127,12 +163,21 @@ export function initMap(A) {
       if (g.length < 2) { a.m.setOffset([0, 0]); continue; } const r = 26 + g.length * 5; g.forEach((b, i) => { const ang = i / g.length * Math.PI * 2 - Math.PI / 2; b.m.setOffset([Math.round(Math.cos(ang) * r), Math.round(Math.sin(ang) * r * .7)]); }); }
   }
   // kỷ niệm quanh đây (≤ 2 km quanh vị trí hiện tại): bay vòng quanh chibi "Bạn đang ở đây"
+  // v1.8.1 — kỷ niệm bay VÒNG QUANH nhân vật "Bạn đang ở đây": gắn chung một DOM với marker của nhân vật (không đặt theo toạ độ riêng),
+  // ảnh 56 px viền trắng, bán kính ~80 px, quỹ đạo chậm + nhấp nhô. Trong 2 km thì lấy kỷ niệm gần đó, không có thì lấy kỷ niệm mới nhất.
+  function orbitList() {
+    if (!M.here) return { list: [], near: false };
+    const all = A.events().filter(e => e.stack?.[0]); let near = all.map(e => ({ e, g: eventGeo(e) })).filter(x => x.g && distM(x.g, M.here) < 2000).map(x => x.e);
+    const isNear = near.length > 0; if (!isNear) near = all.slice().sort((a, b) => b.ts0 - a.ts0);
+    return { list: near.slice(0, 6), near: isNear };
+  }
   function orbit() {
-    const el = M.hereEl; if (!el || !M.here) return; let o = el.querySelector('.mk-orb'); const near = A.events().map(e => ({ e, g: eventGeo(e) })).filter(x => x.g && distM(x.g, M.here) < 2000).slice(0, 6);
-    if (!near.length) { o?.remove(); return; } if (o && o.dataset.n === String(near.length)) return; o?.remove();
-    o = document.createElement('span'); o.className = 'mk-orb'; o.dataset.n = near.length;
-    o.innerHTML = near.map((x, i) => `<i style="--a:${(i / near.length * 360).toFixed(0)}deg"><img alt="" data-mid="${x.e.stack[0]?.id || ''}"></i>`).join(''); el.appendChild(o);
+    const el = M.hereEl; if (!el || !M.here) return; let o = el.querySelector('.mk-orb'); const { list, near } = orbitList(); M.orbKeys = near ? new Set(list.map(e => e.key)) : new Set();
+    const sig = list.map(e => e.key).join('|'); if (o && o.dataset.sig === sig) return; o?.remove(); if (!list.length) return;
+    o = document.createElement('span'); o.className = 'mk-orb'; o.dataset.sig = sig; const n = list.length;
+    o.innerHTML = list.map((e, i) => `<span class="ob" style="--a:${(i / n * 360).toFixed(0)}deg;--ph:${(i * .53).toFixed(2)}s"><button data-k="${esc(e.key)}" aria-label="${esc(e.title)}"><img alt="" data-mid="${e.stack[0].id}"></button></span>`).join(''); el.appendChild(o);
     o.querySelectorAll('img').forEach(im => A.thumbURL?.(im.dataset.mid).then(u => { if (u) im.src = u; }));
+    o.onclick = ev => { const b = ev.target.closest('[data-k]'); if (!b) return; ev.stopPropagation(); preview(b.dataset.k); };
   }
   // thẻ xem trước khi chạm ảnh: ảnh, tên sự kiện, ngày, người được gắn → "Mở kỷ niệm"
   const PV = V.querySelector('.mp-pv');
@@ -204,7 +249,9 @@ export function initMap(A) {
   const fly = (p, t, z = 16.2) => { title(t || ''); map?.flyTo({ center: LL(p), zoom: z, pitch: 56, bearing: -18, speed: 1.2, curve: 1.4, essential: true }); };
   // ---------- thanh dưới ----------
   V.querySelector('.mp-back').onclick = () => close();
+  async function setKind(k) { await A.metaSet('sy:mapStyle', k); M.kind = k; const t = k === 'theme' ? (A.theme?.() || 'dawn') : 'light'; if (map && M.theme !== t) { const s0 = await baseStyle(); M.theme = t; map.setStyle(themed(s0, t), { diff: false }); map.once('style.load', () => { M.evMk.forEach(m => m.remove()); M.evMk.clear(); addEvLayers(); addRoute(M.route); setAccuracy(); refresh(); }); } }
   V.querySelector('.mp-more').onclick = e => contextMenu({ at: e.currentTarget, title: 'Bản đồ', items: [
+    { icon: 'palette', label: 'Kiểu bản đồ', note: M.kind === 'theme' ? 'Theo giao diện' : 'Sáng', act: () => contextMenu({ at: e.currentTarget, title: 'Kiểu bản đồ', items: [{ label: '☀️ Sáng (giống Google)', on: M.kind !== 'theme', act: () => setKind('light') }, { label: '🌌 Theo giao diện của app', on: M.kind === 'theme', act: () => setKind('theme') }] }) },
     { icon: 'info', label: 'Về dữ liệu bản đồ', act: () => A.toast('Bản đồ dùng dữ liệu OpenStreetMap qua OpenFreeMap; khu vực bạn xem được tải từ máy chủ bản đồ. Toạ độ kỷ niệm chỉ lưu trong máy và Google Drive của bạn.', 6500) }] });
   V.querySelector('.mp-bar').addEventListener('click', async e => {
     e.stopPropagation(); const b = e.target.closest('[data-m]'); if (!b || !map) return; haptic(8);
@@ -242,7 +289,8 @@ export function initMap(A) {
       ML ||= (await import('./lib/maplibre-gl.mjs')).default || await import('./lib/maplibre-gl.mjs');
       let at = o.at; if (!at) { const ps = await places(); const h = ps.find(p => p.kind === 'home') || ps[0]; if (h) at = { lat: h.lat, lon: h.lon, name: h.name }; }
       if (!at) { const g = A.events().map(eventGeo).find(Boolean); if (g) at = { ...g, name: g.name || '' }; }
-      const style = themed(await baseStyle(), A.theme?.() || 'dawn'); M.theme = A.theme?.();
+      M.kind = (await A.metaGet('sy:mapStyle')) || 'light'; const tk = M.kind === 'theme' ? (A.theme?.() || 'dawn') : 'light';
+      const style = themed(await baseStyle(), tk); M.theme = tk;
       // tab Bản đồ: lần đầu mở trong phiên thì bắt đầu từ toàn cảnh Việt Nam rồi bay xuống; các lần sau mở lại đúng chỗ cũ
       const flyIn = M.tab && !o.at && !M.last, back = M.tab && !o.at && M.last;
       map = new ML.Map({ container: BOX, style, center: flyIn ? [106.2, 16.2] : back ? M.last.center : at ? LL(at) : [105.8524, 21.0287], zoom: flyIn ? 4.6 : back ? M.last.zoom : at ? 16 : 5.2, pitch: flyIn ? 0 : back ? M.last.pitch : at ? 56 : 0, bearing: flyIn ? 0 : back ? M.last.bearing : at ? -18 : 0, maxPitch: 62, maxZoom: 18.5, attributionControl: false, canvasContextAttributes: { antialias: true }, fadeDuration: 150 });
@@ -267,7 +315,7 @@ export function initMap(A) {
       }
     } catch (e) { LD.hidden = true; console.warn('bản đồ', e); A.toast('Chưa mở được bản đồ — kiểm tra mạng rồi thử lại', 3500); }
   }
-  return { open, close, isOpen: () => V.classList.contains('open'), get map() { return map; }, isTab: () => M.tab && V.classList.contains('open'), setTheme: t => { if (map && M.theme !== t) baseStyle().then(s => { M.theme = t; map.setStyle(themed(s, t), { diff: false }); map.once('style.load', () => { M.evMk.forEach(m => m.remove()); M.evMk.clear(); addEvLayers(); addRoute(M.route); setAccuracy(); refresh(); }); }); } };
+  return { open, close, isOpen: () => V.classList.contains('open'), get map() { return map; }, isTab: () => M.tab && V.classList.contains('open'), setTheme: t => { if (M.kind !== 'theme') return; if (map && M.theme !== t) baseStyle().then(s => { M.theme = t; map.setStyle(themed(s, t), { diff: false }); map.once('style.load', () => { M.evMk.forEach(m => m.remove()); M.evMk.clear(); addEvLayers(); addRoute(M.route); setAccuracy(); refresh(); }); }); } };
 }
 
 // ---------- khung bản đồ cho video "Bản đồ hành trình": bản đồ ẩn, máy quay theo lộ trình, đợi tải xong rồi mới chụp ----------

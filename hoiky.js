@@ -44,8 +44,9 @@ export async function buildMemoir(o) {
   // ---- bìa ----
   pageNo = 1; { const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#ffd9ea'); g.addColorStop(.55, '#ffe9c4'); g.addColorStop(1, '#d9ccff'); x.fillStyle = g; x.fillRect(0, 0, W, H);
     for (let i = 0; i < 70; i++) { x.fillStyle = `rgba(255,255,255,${.3 + (i * 37 % 10) / 20})`; x.beginPath(); x.arc((i * 211) % W, (i * 389) % H, 3 + (i % 5), 0, 7); x.fill(); }
-    const fam = (o.people || []).slice(0, 8); const sz = Math.min(230, CW / Math.max(1, fam.length)); let fx = W / 2 - fam.length * sz / 2;
-    for (const p of fam) { const u = o.chibi?.(p); if (u) { const im = new Image(); im.src = u; try { await im.decode(); x.drawImage(im, fx, 560, sz, sz * 4 / 3); } catch (e) { } } fx += sz; }
+    if (o.scene) { const im = new Image(); im.src = o.scene; try { await im.decode(); const k = Math.min(CW / im.width, 440 / im.height); x.drawImage(im, W / 2 - im.width * k / 2, 1010 - im.height * k, im.width * k, im.height * k); } catch (e) { } }
+    else { const fam = (o.people || []).slice(0, 8); const sz = Math.min(230, CW / Math.max(1, fam.length)); let fx = W / 2 - fam.length * sz / 2;
+    for (const p of fam) { const u = o.chibi?.(p); if (u) { const im = new Image(); im.src = u; try { await im.decode(); x.drawImage(im, fx, 560, sz, sz * 4 / 3); } catch (e) { } } fx += sz; } }
     x.textAlign = 'center'; x.fillStyle = '#9a4d7a'; x.font = F(700, 44); x.fillText('HỒI KÝ', W / 2, 300); x.fillStyle = '#3d1b35'; x.font = F(700, 92);
     wrap(x, title, CW).forEach((l, i) => x.fillText(l, W / 2, 420 + i * 104));
     const y0 = evs.length ? new Date(evs[0].ts0).getFullYear() : '', y1 = evs.length ? new Date(evs[evs.length - 1].ts0).getFullYear() : '';

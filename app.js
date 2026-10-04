@@ -13,7 +13,7 @@ const { GOOGLE_CLIENT_ID } = CFG;
 import { ROLES, roleOf, isMe, isChild, isPartner, isElder, roleName, showsAge, findMe, sortPeople, sinceOf, anchorOf, chaptersOf, chapterAt, approxLabel, approxTs, SEASONS, PRECS } from './doi.js';
 import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 import { initOnboarding } from './lamquen.js';
-import { chibiSVG, chibiWaveSVG, svgURL } from './chibi.js';
+import { chibiSVG, chibiWaveSVG, svgURL, familySceneHTML, setChibiMe } from './chibi.js';
 import { initSfx } from './sfx.js';
 import { initAI, testKey, resetModel as aiReset } from './ai.js';
 import { buildArchive } from './luutru.js';
@@ -1617,7 +1617,7 @@ async function exportMemoir(ch = null) {
   const me = ME(), evs = (TL.events || []).filter(e => !ch || e.chapter?.key === ch.key); if (!evs.length) { toast('Chưa có kỷ niệm nào để in', 2000); return null; }
   const svgC = new Map(); const chibi = p => { if (!svgC.has(p.id)) svgC.set(p.id, svgURL(chibiSVG(p, { w: 240 }))); return svgC.get(p.id); };
   toast('📕 Đang dựng hồi ký… giữ app mở nhé', 4000);
-  const r = await buildMemoir({ title: ch ? `${ch.title}` : me ? `Hành trình của ${cap(me.name)}` : 'Hành trình của gia đình', me: me && dispKid(me), people: sortPeople(S.kids).map(dispKid), chapters: S.chapters || [], events: evs, roleName, chibi,
+  const r = await buildMemoir({ title: ch ? `${ch.title}` : me ? `Hành trình của ${cap(me.name)}` : 'Hành trình của gia đình', me: me && dispKid(me), people: sortPeople(S.kids).map(dispKid), chapters: S.chapters || [], events: evs, roleName, chibi, scene: (() => { const h = familySceneHTML(sortPeople(S.kids).map(dispKid), new Map(), { me: me && dispKid(me) }), m = /<svg[^>]*viewBox="([^"]+)"[^>]*>([\s\S]*)<\/svg>/.exec(h); if (!m) return ''; const [, , , vw, vh] = [0, ...m[1].split(' ').map(Number)]; return svgURL(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${m[1]}" width="${Math.round(vw * 4)}" height="${Math.round(vh * 4)}">${m[2]}</svg>`); })(),
     image: async (m, big) => { try { const b = (big && m.type === 'image' && !m.heic && await dbGet('blobs', 'o_' + m.id)) || await dbGet('blobs', 't_' + m.id); return b ? await createImageBitmap(b, { imageOrientation: 'from-image' }) : null; } catch (e) { return null; } },
     onProg: p => { if (p.pages % 5 === 0) toast(`📕 Đang dựng hồi ký… ${p.pages} trang`, 2500); } });
   const name = `Hoi-ky-${noAccent(ch ? ch.title : me?.name || 'hanh-trinh')}.pdf`, f = new File([r.pdf], name, { type: 'application/pdf' });
@@ -1660,7 +1660,7 @@ $('#askYes').onclick = () => askDone?.(true);
 // ---------- Bé ----------
 const avatar = n => (n || '?').trim().charAt(0).toUpperCase();
 // v1.6.0: "Tôi" làm gốc — LIFE() = đang xem hành trình cả đời (mọi người, mọi ảnh); không có Tôi thì S.family là "Cả nhà" như cũ
-const ME = () => findMe(S.kids);
+const ME = () => { const m = findMe(S.kids); setChibiMe(m); return m; };
 const LIFE = () => !!S.family && !!ME();
 const whoOf = k => isMe(k) ? 'bạn' : cap(k?.name), WhoOf = k => isMe(k) ? 'Bạn' : cap(k?.name);
 function renderKidBtn() { const tt = $('#tbTitle'); if (tt) tt.textContent = S.family ? 'Hành trình của bạn' : S.kid ? KN() : ''; renderKidBtn0(); }
@@ -2935,7 +2935,7 @@ function storyHub(at) {
   ] });
 }
 // ---------- 🎬 VIDEO KỶ NIỆM ----------
-const VID = initVideoUI({ ai: o => aiOpen(o), MOBILE, toast, openModal, closeModal, dmy, ymd, noAccent, approxLabel, shareOrDownload, get drive() { return DRV; },
+const VID = initVideoUI({ ai: o => aiOpen(o), mapTheme: async () => (await metaGet('sy:mapStyle')) === 'theme' ? S.theme : 'light', MOBILE, toast, openModal, closeModal, dmy, ymd, noAccent, approxLabel, shareOrDownload, get drive() { return DRV; },
   blob: k => dbGet('blobs', k), thumbBlob: id => dbGet('blobs', 't_' + id), thumbURL: async id => { const b = await dbGet('blobs', 't_' + id); return b ? URL.createObjectURL(b) : ''; },
   me: () => ME(), confetti: () => P.confetti('#ffd27f'),
   avatarImgs: async ps => { const out = []; for (const k0 of ps.slice(0, 6)) { const k = S.kids.find(x => x.id === k0.id) || k0, im = new Image(); im.src = k.avatar ? await P.avatarURL(k) : (k.role || k.chibi) ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(chibiSVG(k, { w: 240 })) : P.avatarNow(k); try { await im.decode(); out.push(im); } catch (e) { } } return out; },

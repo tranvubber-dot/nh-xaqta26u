@@ -78,7 +78,7 @@ export function initVideoUI(A) {
       V.eng = createEngine(CV, { W, H }); }
     const MB = await import('./lib/mediabunny.min.mjs');
     const assets = makeAssets({ getBlob: it => A.blob('o_' + it.id), getThumb: it => A.thumbBlob(it.id), avatars: await A.avatarImgs(V.o.people || []), MB });
-    if (V.tpl === 'bando' && V.geo) { try { busy(true, 'Đang tải bản đồ cho đoạn mở đầu…'); V.mapF?.dispose?.(); V.mapF = assets.saban = await mapIntro({ route: V.route.length ? V.route : [V.geo], W, H, theme: A.theme?.() || 'dawn' }); } catch (e) { console.warn('bản đồ', e); } }
+    if (V.tpl === 'bando' && V.geo) { try { busy(true, 'Đang tải bản đồ cho đoạn mở đầu…'); V.mapF?.dispose?.(); V.mapF = assets.saban = await mapIntro({ route: V.route.length ? V.route : [V.geo], W, H, theme: (await A.mapTheme?.()) || A.theme?.() || 'dawn' }); } catch (e) { console.warn('bản đồ', e); } }
     // tiếng gốc của các clip video (nếu bạn chọn giữ): lấy đúng đoạn clip hiện trên video, trộn nhỏ dưới nhạc
     if (V.orig !== '0') { const cs = SB.scenes.filter(s => s.kind === 'clip'); if (cs.length) { busy(true, 'Đang lấy tiếng gốc của clip…');
       const list = []; for (const s of cs) { const [a, b] = sceneSpan(SB, s), key = s.item.id + '|' + (b - a).toFixed(3); if (!V.clipAud.has(key)) V.clipAud.set(key, await clipAudio(await A.blob('o_' + s.item.id), b - a, { MB, dur: s.item.dur }).catch(() => null)); list.push({ buffer: V.clipAud.get(key), at: a, len: b - a }); }
