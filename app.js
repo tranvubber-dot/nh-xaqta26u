@@ -14,7 +14,7 @@ import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 import { initOnboarding } from './lamquen.js';
 import { chibiSVG } from './chibi.js';
 
-const VERSION = '1.5.1';
+const VERSION = '1.6.0';
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
 const MUTE = Q.has('im');
@@ -2739,7 +2739,7 @@ function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
 const TL = initTimeline({ life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
-  story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
+  allCount: () => (S.all || []).length, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
   music: on => on ? startMusic() : Music.stop(), confetti: c => P.confetti(c), nhac: ks => nhacFor(ks ? ks.map(k => S.kids.find(x => x.id === k.id)) : null),

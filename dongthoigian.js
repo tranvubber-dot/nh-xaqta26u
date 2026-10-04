@@ -279,7 +279,7 @@ export function initTimeline(A) {
       : [`<header class="lt"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><button class="lt-name" data-a="kid"><h1>${esc(kid.name)}</h1>${icon('chevronDown', 20, 2.2)}</button></div><p>${esc([isMe(kid) ? 'Ảnh có bạn' : !isChild(kid) ? roleName(kid) : '', A.ageText(kid, Date.now(), false)].filter(Boolean).join(' · ') || '')}${n ? ` · ${n} khoảnh khắc` : ''}</p></header>`,
         evs.length ? `<button class="rstart" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button>` : ''];
     document.body.style.setProperty('--kc', fam && !life ? '#ff8fbf' : ((life ? me?.color : kid.color) || '#ff8fbf'));
-    if (!evs.length) out.push(`<div class="empty"><div class="em-ic">${icon('sparkle', 46, 1.4)}</div><h3>${life ? 'Hành trình của bạn đang chờ những khoảnh khắc đầu tiên' : `Dòng thời gian của ${esc(kid.name)} đang chờ những khoảnh khắc đầu tiên`}</h3><p>Bấm nút <b>+</b> ở giữa thanh dưới để thêm ảnh, video. App tự đọc ngày chụp và xếp vào đúng ngày.${life ? ' Ảnh cũ chụp lại từ ảnh giấy cũng được — chọn “ảnh cũ” rồi nhập năm bạn nhớ.' : ''}</p><button class="primary" data-a="add">${icon('plus', 18, 2.2)}<span>Thêm khoảnh khắc đầu tiên</span></button></div>`);
+    if (!evs.length) out.push(`<div class="empty"><div class="em-ic">${icon('sparkle', 46, 1.4)}</div><h3>${life ? 'Hành trình của bạn đang chờ những khoảnh khắc đầu tiên' : isMe(kid) && A.moments().length === 0 && (A.allCount?.() || 0) > 0 ? 'Chưa có ảnh nào gắn bạn' : `Dòng thời gian của ${esc(kid.name)} đang chờ những khoảnh khắc đầu tiên`}</h3>${isMe(kid) && (A.allCount?.() || 0) > 0 ? '<p>Ảnh có bạn sẽ hiện ở đây. Mở một sự kiện → <b>Chọn nhiều ảnh</b> → <b>Ai trong ảnh</b> để gắn bạn vào.</p>' : ''}<p>Bấm nút <b>+</b> ở giữa thanh dưới để thêm ảnh, video. App tự đọc ngày chụp và xếp vào đúng ngày.${life ? ' Ảnh cũ chụp lại từ ảnh giấy cũng được — chọn “ảnh cũ” rồi nhập năm bạn nhớ.' : ''}</p><button class="primary" data-a="add">${icon('plus', 18, 2.2)}<span>Thêm khoảnh khắc đầu tiên</span></button></div>`);
     // chương đời: mỗi chương mở bằng một thẻ tiêu đề lớn; chương chưa có ảnh vẫn hiện (gợi ý thêm ảnh cũ)
     const chEvs = new Map(chs.map(c => [c.key, []])), pre = []; for (const e of evs) { if (e.chapter) chEvs.get(e.chapter.key)?.push(e); else if (life) pre.push(e); }
     let ci = chs.length - 1; const flushCh = upto => { const html = []; while (ci >= 0 && (!upto || chs[ci].ts > upto.ts)) { html.push(chapHTML(chs[ci], [], me, true)); ci--; } return html; };
@@ -324,7 +324,7 @@ export function initTimeline(A) {
   // tên lớn tự thu cỡ chữ cho vừa một dòng (tối thiểu 28px, quá nữa thì "…")
   function fitTitle() {
     const h = IN.querySelector('.lt h1'), b = h?.closest('.lt-name'), row = h?.closest('.lt-row'); if (!h) return;
-    h.style.fontSize = ''; const max = row.clientWidth - (row.querySelector('.lt-av, .lt-avs')?.offsetWidth || 0) - 12 - 30;
+    h.style.fontSize = ''; const max = Math.max(row.clientWidth, Math.min(IN.clientWidth, innerWidth) - 32) - (row.querySelector('.lt-av, .lt-avs')?.offsetWidth || 0) - 12 - 30;
     let fs = parseFloat(getComputedStyle(h).fontSize) || 42; b.style.maxWidth = max + 'px';
     while (h.scrollWidth > h.clientWidth + 1 && fs > 28) { fs -= 2; h.style.fontSize = fs + 'px'; }
   }
