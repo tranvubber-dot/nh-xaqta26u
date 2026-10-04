@@ -16,8 +16,9 @@ import { chibiSVG } from './chibi.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
+import { initVideoUI } from './videoui.js';
 
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
 const MUTE = Q.has('im');
@@ -1756,7 +1757,7 @@ function openKid(kid, opt = {}) {
   if (kid?.birthApprox) $('#kidBd').value = '';
   CAL.mode = 'd'; setCal(kid?.birthLunar ? 'a' : 'd'); if (kid?.birthApprox) $('#kidBdH').textContent = `Bạn mới nhập năm sinh ${kid.birth.slice(0, 4)} — chọn ngày sinh đầy đủ để xem cung hoàng đạo (để trống thì giữ nguyên)`; if (kid?.birthLunar) { const L = kid.birthLunar; $('#kidLd').value = L.d; $('#kidLm').value = L.m; $('#kidLy').value = L.y; $('#kidLl').checked = !!L.leap; kidBdHint(); }
   $('#kidFn').value = kid?.fullName || ''; $('#kidTm').value = kid?.birthTime || ''; $('#kidPl').value = kid?.place || ''; $('#kidKg').value = kid?.weight ? String(kid.weight).replace('.', ',') : ''; $('#kidCm').value = kid?.length ? String(kid.length).replace('.', ',') : ''; $('#kidBx').open = !!(kid?.birthTime || kid?.place || kid?.weight || kid?.length);
-  $('#kidCancel').hidden = first; $('#kidDel').hidden = !kid || S.kids.length < 1; $('#kidFirst').hidden = !first; $('#kfLink').value = ''; if (first) $('#kidLead').after($('#kidFirst'));
+  $('#kidCancel').hidden = first; $('#mKid').classList.toggle('can', !first); $('#kidDel').hidden = !kid || S.kids.length < 1; $('#kidFirst').hidden = !first; $('#kfLink').value = ''; if (first) $('#kidLead').after($('#kidFirst'));
   kidRoleUi(); kidSheetUi();
   openModal($('#mKid')); setTimeout(() => $('#kidIn').focus(), 350);
 }
@@ -2712,6 +2713,12 @@ async function makeDiary(ms) {
   const d = await D.build(list); await D.saveDiary(d, true); TL.closeEvent(); D.openEditor(d.id);
   const nd = new Set(list.map(m => ymd(m.ts))).size; toast(nd > 1 ? `Đã tạo 1 cuốn nhật ký ${nd} chương (mỗi ngày một chương)` : 'Đã tạo nhật ký — bạn chỉnh lời, khung tuỳ thích nhé', 3500);
 }
+// đổi ảnh đại diện: nhân vật chibi hoặc ảnh thật (từ máy / từ ảnh trong app, cắt tròn)
+function avatarMenu(k, at) {
+  contextMenu({ at, title: 'Ảnh đại diện', items: [
+    { icon: 'smile', label: 'Nhân vật chibi <small class="cm-n">tóc, áo, phụ kiện</small>', act: () => P.openChibi(k, async kk => { await dbPut('kids', kk); await P.warm([kk]); renderKidBtn(); TL.render(); buildGalaxy(); toast('Đã đổi nhân vật', 1500); }) },
+    { icon: 'image', label: 'Ảnh thật <small class="cm-n">chọn từ máy hoặc ảnh trong app</small>', act: () => P.openAvatar({ ...k, chibi: null, role: null }, async kk => { const raw = S.kids.find(x => x.id === k.id); Object.assign(raw, { avatar: kk.avatar, avStyle: kk.avStyle }); await dbPut('kids', raw); await P.warm([raw]); renderKidBtn(); TL.render(); buildGalaxy(); toast('Đã đổi ảnh đại diện', 1500); }) }] });
+}
 function openKidMenu(a) {
   const me = ME(), ps = sortPeople(S.kids), go = k => { if (k.id !== S.kid?.id || S.family) { leaveIntro(true); metaSet('family', false); selectKid(k.id, true); } };
   const note = k => isMe(k) ? 'chỉ ảnh có bạn' : [roleName(k), k.birth ? dmy(parseYmd(k.birth)) : ''].filter(Boolean).join(' · ');
@@ -2723,6 +2730,8 @@ function openKidMenu(a) {
     S.kid && !LIFE() && { icon: 'star', label: `Hồ sơ của ${esc(isMe(S.kid) ? 'bạn' : KN())}`, act: () => P.openProfile(dispKid(S.kid)) },
     S.kid && { icon: 'edit', label: LIFE() || isMe(S.kid) ? 'Sửa hồ sơ của bạn' : `Sửa thông tin ${esc(KN())}`, act: () => openKid(S.kid) },
     { icon: 'plus', label: me ? 'Thêm người thân' : 'Thêm bé', act: () => openKid(null) },
+    me && { icon: 'smile', label: 'Đổi ảnh đại diện của bạn', act: () => avatarMenu(me, a) },
+    S.family && S.kids.length > 1 && { icon: 'check', label: TL.filterOn ? 'Tắt lọc theo người' : 'Lọc dòng thời gian theo người', act: () => TL.toggleFilter() },
     !me && { icon: 'sparkle', label: 'Tạo hồ sơ của tôi <small class="cm-n">hành trình cả đời</small>', act: () => openKid(null, { role: 'me' }) }] });
 }
 // chọn bé cho một hoặc nhiều ảnh
@@ -2767,7 +2776,7 @@ function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
 const TL = initTimeline({ life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
-  allCount: () => (S.all || []).length, voice: { open: (m, o) => VOICE.open(m, o), play: (m, o) => VOICE.play(m, o), ok: () => VOICE.supported() }, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
+  allCount: () => (S.all || []).length, makeVideo: o => makeVideo(o), voice: { open: (m, o) => VOICE.open(m, o), play: (m, o) => VOICE.play(m, o), ok: () => VOICE.supported() }, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
   music: on => on ? startMusic() : Music.stop(), confetti: c => P.confetti(c), nhac: ks => nhacFor(ks ? ks.map(k => S.kids.find(x => x.id === k.id)) : null),
@@ -2791,7 +2800,22 @@ function storyHub(at) {
     openVideoMaker && { icon: 'video', label: 'Video kỷ niệm <small class="cm-n">tự dựng MP4</small>', act: () => openVideoMaker() }
   ] });
 }
-var openVideoMaker = null;
+// ---------- 🎬 VIDEO KỶ NIỆM ----------
+const VID = initVideoUI({ MOBILE, toast, openModal, closeModal, dmy, ymd, noAccent, approxLabel, shareOrDownload, get drive() { return DRV; },
+  blob: k => dbGet('blobs', k), thumbBlob: id => dbGet('blobs', 't_' + id), thumbURL: async id => { const b = await dbGet('blobs', 't_' + id); return b ? URL.createObjectURL(b) : ''; },
+  me: () => ME(), confetti: () => P.confetti('#ffd27f'),
+  avatarImgs: async ps => { const out = []; for (const k0 of ps.slice(0, 6)) { const k = S.kids.find(x => x.id === k0.id) || k0, im = new Image(); im.src = k.avatar ? await P.avatarURL(k) : (k.role || k.chibi) ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(chibiSVG(k, { w: 240 })) : P.avatarNow(k); try { await im.decode(); out.push(im); } catch (e) { } } return out; },
+  areaFor: async g => { const SBM = await import('./saban.js'), ar = SBM.areaOf(g.lat, g.lon); let a = await SBM.unpackArea(await dbGetRaw('blobs', 'osm:' + ar.key)); if (!a && navigator.onLine) { a = SBM.compactArea(await SBM.fetchOverpass(ar.lat, ar.lon), ar.lat, ar.lon); await dbPutRaw('blobs', await SBM.packArea(a), 'osm:' + ar.key); } return a; },
+  addToTimeline: async (file, o, ms) => { const id = uid(), th = await videoThumb(file); await dbPut('blobs', file, 'o_' + id); await dbPut('blobs', th.blob, 't_' + id); const last = ms.reduce((a, b) => b.ts > a.ts ? b : a, ms[0]), kids = [...new Set(ms.flatMap(kidsOf))];
+    const m = { id, kn: 1, tv: 2, kidId: kids[0] || S.kid?.id, kidIds: kids.length ? kids : [S.kid?.id], ts: last.ts + 60e3, title: '🎬 ' + (o.title || 'Video kỷ niệm'), note: '', type: 'video', mime: file.type, name: file.name, size: file.size, dur: th.dur || 0, w: th.w, h: th.h, color: th.color, dateSrc: 'user', created: Date.now() };
+    if (o.group) { o.group.momentIds.push(id); await metaSet('groups', S.groups); } await dbPut('moments', m); await afterDataChange(); } });
+var openVideoMaker = () => {
+  const evs = TL.events.filter(e => e.ms.length >= 3).slice(0, 40); if (!evs.length) { toast('Cần ít nhất 3 ảnh trong một sự kiện để làm video', 2600); return; }
+  contextMenu({ title: 'Video kỷ niệm cho…', items: [
+    ...(S.chapters || []).slice().reverse().map(c => { const ms = TL.events.filter(e => e.chapter?.key === c.key).flatMap(e => e.ms); return ms.length >= 3 && { label: `${c.ic} Chương ${c.num} · ${esc(c.title)}`, note: `${ms.length} khoảnh khắc`, act: () => makeVideo({ ms, title: c.title, sub: `Chương ${c.num}`, people: [ME()].filter(Boolean) }) }; }),
+    ...evs.map(e => ({ icon: e.group || e.type === 'trip' ? 'grid' : 'image', label: esc(e.title), note: TL.spanTxt(e.ms), act: () => makeVideo({ ms: e.ms, title: e.title, sub: TL.spanTxt(e.ms), people: e.kids.map(id => S.kids.find(k => k.id === id)).filter(Boolean), key: e.key, group: e.group }) }))] });
+};
+function makeVideo(o) { if (S.mode === 'show') stopShow(); VID.open(o); }
 // TỔNG KẾT NĂM: chọn ảnh tiêu biểu của năm (cột mốc, chuyến đi, sự kiện nhiều ảnh) → kể chuyện, hoặc lưu thành truyện tranh
 function yearPicks(y, n = 28) {
   const evs = TL.events.filter(e => new Date(e.ts0).getFullYear() === y && !e.approx); const score = e => (e.mile ? 50 : 0) + (e.type === 'trip' ? 30 : e.type !== 'daily' ? 15 : 0) + Math.min(20, e.ms.length);
@@ -2936,6 +2960,7 @@ async function boot() {
     setTimeout(() => checkUpdate(true), 3000);
     if (/#hoso=/.test(location.hash)) setTimeout(() => importProfiles(location.hash), 600);
   }
+  initSheets(m => closeModal(m)); // các hộp tạo sau (giọng kể, lịch, video, nhân vật…) cũng có thanh kéo
   N.fromHash(); addEventListener("hashchange", () => { N.fromHash(); if (/#hoso=/.test(location.hash)) importProfiles(location.hash); });
   if ('serviceWorker' in navigator && location.protocol === 'https:' && !TEST) navigator.serviceWorker.register('sw.js').catch(() => { });
 }
@@ -3038,7 +3063,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], VID, makeVideo, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));

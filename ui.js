@@ -121,29 +121,47 @@ export function icon(name, size = 24, sw = 1.7) {
 export function initSheets(closeFn) {
   const narrow = () => innerWidth < 768;
   document.querySelectorAll('.modal .card').forEach(card => {
-    if (card.querySelector(':scope > .grab')) return;
-    const g = document.createElement('div'); g.className = 'grab'; g.innerHTML = '<i></i>'; card.prepend(g);
-    let y0 = 0, dy = 0, on = false, lt = 0, ly = 0, v = 0, stop = null;
+    if (card.querySelector(':scope > .shd')) return;
+    // hàng đầu DÍNH: thanh kéo + tiêu đề + nút ✕ — luôn thấy dù đã cuộn tới đáy
+    const hd = document.createElement('div'); hd.className = 'shd'; hd.innerHTML = '<div class="grab"><i></i></div>';
+    const h2 = card.querySelector(':scope > h2'); const row = document.createElement('div'); row.className = 'shd-r';
+    if (h2) row.appendChild(h2); row.insertAdjacentHTML('beforeend', '<button class="shx" type="button" data-close aria-label="Đóng"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>');
+    hd.appendChild(row); card.prepend(hd);
+    if (card.closest('#mKid')) row.querySelector('.shx').classList.add('kshx'); // lần đầu (chưa có ai) ẩn theo nút Huỷ
+    let y0 = 0, dy = 0, on = false, armed = false, pid = null, lt = 0, ly = 0, v = 0, stop = null;
     const set = y => { card.style.transform = `translateY(${Math.max(0, y) + (y < 0 ? rubber(y, 200) : 0)}px)`; };
-    const start = e => {
-      if (!narrow()) return;
-      if (e.target !== g && !g.contains(e.target) && !(card.scrollTop <= 0 && e.target.closest('h2,.lead'))) return;
-      on = true; y0 = e.clientY; dy = 0; ly = e.clientY; lt = performance.now(); v = 0; stop?.(); card.style.transition = 'none';
-      try { card.setPointerCapture(e.pointerId); } catch (er) { }
-    };
-    card.addEventListener('pointerdown', start);
-    card.addEventListener('pointermove', e => {
-      if (!on) return; dy = e.clientY - y0; const now = performance.now(); v = (e.clientY - ly) / Math.max(1, now - lt); ly = e.clientY; lt = now;
-      set(dy < 0 ? dy : dy);
-    });
-    const end = () => {
-      if (!on) return; on = false;
-      const m = card.closest('.modal');
-      if (dy > 130 || v > .7) { haptic(6); card.style.transition = ''; card.style.transform = ''; closeFn(m); return; }
+    const begin = () => { on = true; stop?.(); card.style.transition = 'none'; };
+    const finish = () => {
+      const was = on; armed = false; on = false; pid = null; if (!was) return;
+      const m = card.closest('.modal'), H = card.offsetHeight || 600;
+      if (dy > Math.min(160, H * .25) || v > .7) { haptic(6); card.style.transition = ''; card.style.transform = ''; closeFn(m); return; }
       stop = animateSpring(dy, 0, { k: 320, c: 24, v: v * 1000 }, y => set(y), () => { card.style.transition = ''; card.style.transform = ''; });
     };
-    card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+    const track = y => { dy = y - y0; const now = performance.now(); v = (y - ly) / Math.max(1, now - lt); ly = y; lt = now; set(dy); };
+    // 1) kéo từ hàng đầu: sheet đi theo ngón tay ngay, bất kể nội dung đang cuộn ở đâu (trừ khi chạm nút ✕)
+    hd.addEventListener('pointerdown', e => {
+      if (!narrow() || e.button > 0 || e.target.closest('button, input, a')) return;
+      armed = true; pid = e.pointerId; y0 = ly = e.clientY; dy = 0; lt = performance.now(); v = 0;
+    });
+    hd.addEventListener('pointermove', e => {
+      if (!armed || e.pointerId !== pid) return;
+      if (!on) { if (Math.abs(e.clientY - y0) < 6) return; begin(); try { hd.setPointerCapture(e.pointerId); } catch (er) { } }
+      track(e.clientY);
+    });
+    hd.addEventListener('pointerup', finish); hd.addEventListener('pointercancel', finish);
+    // 2) kéo trong nội dung: chỉ cuộn; khi nội dung ĐÃ Ở ĐỈNH và kéo xuống thật (> 8px) thì mới chuyển sang kéo sheet (như iOS)
+    let ty0 = 0, tdy = 0, tOn = false, tArm = false;
+    card.addEventListener('touchstart', e => { if (!narrow() || e.touches.length !== 1 || hd.contains(e.target)) { tArm = false; return; } tArm = card.scrollTop <= 0; ty0 = e.touches[0].clientY; tdy = 0; tOn = false; }, { passive: true });
+    card.addEventListener('touchmove', e => {
+      if (!tArm) return; const y = e.touches[0].clientY; tdy = y - ty0;
+      if (!tOn) { if (tdy < 8 || card.scrollTop > 0) { if (tdy < -4) tArm = false; return; } if (e.target.closest('input[type=range], .vk-ph, .ce-h, .rchips')) { tArm = false; return; } tOn = true; y0 = ty0 + 8; ly = y; lt = performance.now(); v = 0; dy = 0; begin(); }
+      e.preventDefault(); track(y);
+    }, { passive: false });
+    card.addEventListener('touchend', () => { if (tOn) { tOn = false; finish(); } tArm = false; });
+    card.addEventListener('touchcancel', () => { if (tOn) { tOn = false; finish(); } tArm = false; });
   });
+  // dự phòng: nút đóng/huỷ nhận pointerup; nếu WebKit không phát click thì vẫn đóng sau 350 ms
+  if (!initSheets.wired) { initSheets.wired = true; document.addEventListener('pointerup', e => { const b = e.target.closest?.('.modal.open [data-close]'); if (!b) return; const m = b.closest('.modal'); setTimeout(() => { if (m.classList.contains('open')) closeFn(m); }, 350); }, true); }
 }
 export const fmtLong = ts => { const d = new Date(ts); return `${['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][d.getDay()]}, ${d.getDate()} tháng ${d.getMonth() + 1}, ${d.getFullYear()}`; };
 export { clamp };

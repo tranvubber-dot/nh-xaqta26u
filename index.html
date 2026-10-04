@@ -1116,6 +1116,81 @@ html.big .ch-ic, html.big .tl-cb, html.big .hs-cb, html.big .lc-cb, html.big .la
 .tp-pl { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 13.5px; } .tp-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; } .tp-acts button { height: 38px; padding: 0 12px; font-size: 13px; }
 body.mapopen #tabbar, body.mapopen #fsc, body.mapopen #tbar { visibility: hidden; pointer-events: none; }
 .sb-pin.here .pi { animation: pinPulse 1.2s ease-in-out infinite; }
+
+/* v1.7.0: video kỷ niệm */
+.vk-pv { position: relative; margin: 6px auto 10px; width: min(100%, 300px); aspect-ratio: 9 / 16; border-radius: 22px; overflow: hidden; background: #120c24; box-shadow: 0 14px 40px rgba(0,0,0,.35); }
+#mVid.wide .vk-pv { aspect-ratio: 16 / 9; width: 100%; }
+.vk-cv, .vk-out { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.vk-play { position: absolute; left: 50%; top: 50%; width: 72px; height: 72px; margin: -36px 0 0 -36px; border-radius: 50%; border: none; padding: 0; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.22); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); transition: opacity .3s; }
+#mVid.playing .vk-play { opacity: 0; } #mVid.playing .vk-pv:hover .vk-play { opacity: 1; }
+.vk-busy { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; color: #fff; background: rgba(18,12,36,.7); font-size: 14px; } .vk-busy i { width: 36px; height: 36px; margin: 0 auto; border-radius: 50%; border: 4px solid rgba(255,255,255,.25); border-top-color: #ff8fbf; animation: spinR 1s linear infinite; }
+.vk-row { margin-top: 12px; } .vk-row > b, .vk-row > div > b { display: block; font-size: 13px; color: var(--sub); margin-bottom: 6px; } .vk-row.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } .vk-row small { font-weight: 600; color: var(--muted); }
+.vk-ch { display: flex; flex-wrap: wrap; gap: 6px; } .vk-ch button { padding: 7px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; height: auto; } .vk-ch button.on { background: linear-gradient(135deg, #ff8fbf, #ffb36b); color: #fff; border-color: transparent; } .vk-ch button:disabled { opacity: .4; }
+.vk-ph { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; } .vk-ph button { position: relative; flex: none; width: 58px; height: 58px; padding: 0; border-radius: 12px; overflow: hidden; } .vk-ph img { width: 100%; height: 100%; object-fit: cover; } .vk-ph span { position: absolute; left: 4px; top: 3px; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px #000; } .vk-ph button.v::after { content: '▶'; position: absolute; right: 4px; bottom: 2px; font-size: 11px; color: #fff; } .vk-ph .add { display: grid; place-items: center; }
+.vk-prog { margin-top: 12px; } .vk-bar { height: 10px; border-radius: 6px; background: var(--field); overflow: hidden; } .vk-bar i { display: block; height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, #ff8fbf, #ffd27f); transition: width .25s; } .vk-pt { margin: 6px 0 0; font-weight: 700; font-size: 13.5px; }
+.vk-done { margin-top: 12px; } .vk-dt { font-weight: 800; margin: 0 0 8px; } .vk-acts { display: flex; flex-wrap: wrap; gap: 8px; } .vk-acts button { height: 44px; }
+.chip.kn { color: var(--text); background: rgba(255,210,127,.22); }
+
+/* v1.7.0 (fix): hàng hành động cân đối dưới tiêu đề sự kiện */
+.evp-cta { margin-top: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
+.evp-cta .cta2 { flex: none; width: 54px; height: 54px; padding: 0; border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 10.5px; font-weight: 800; color: #fff; background: rgba(10,6,24,.42); border: 1px solid rgba(255,255,255,.3); box-shadow: none; }
+.evp-cta .cta2 small { font-size: 10.5px; font-weight: 800; line-height: 1; } .evp-cta .cta2.on { background: color-mix(in srgb, #ff8fbf 45%, rgba(10,6,24,.4)); border-color: #ffc2dc; }
+.evp-cta .cta1 { height: 54px; border-radius: 18px; padding: 0 20px; }
+.evp-chips { gap: 6px; } .evp-chips:empty { display: none; }
+body[data-theme="dawn"] .evp-cta .cta2 { color: #3d1b35; background: rgba(255,255,255,.7); border-color: rgba(61,27,53,.15); }
+
+/* v1.7.0 (fix): nút cuối sheet chia đều bề ngang trên điện thoại */
+@media (max-width: 767px) { .modal .foot { flex-wrap: wrap; } .modal .foot > button { flex: 1 1 0; min-width: 0; } .modal .foot > button[hidden] { display: none; } .modal .foot > button.danger { flex: 1 0 100%; order: 3; background: none; border-color: transparent; } }
+.vo-tips { margin: 0; padding: 0 4px; list-style: none; display: grid; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--sub); text-align: left; } .vo-tips li::before { content: '💬 '; }
+#mVoice.rec .vo-tips, #mVoice.has .vo-tips { display: none; } #mVoice:not(.rec):not(.has) .vo-wave { display: none; }
+.vo-box { padding: 4px 0 0; gap: 10px; }
+.hs-cb, button.hs-av { display: block; border: none; background: none; padding: 0; cursor: pointer; } button.hs-av { margin: 0 auto; }
+
+/* ===== v1.7.0 (fix): HỆ LƯỚI dòng đời — cột dải bên trái, mọi nội dung nằm sau cột dải ===== */
+#tl.fam { --lx: max(46px, calc(30px + var(--nl) * 8px)); --rx: 14px; }
+#tl.fam .lt { margin-left: calc(var(--lx) * -1 + 14px); margin-bottom: 26px; }
+#tl:not(.wide) .yh, #tl.fam .yh { margin-left: 0 !important; }
+#tl:not(.wide) .mo, #tl.fam .mo { margin-left: 0 !important; }
+#tl:not(.wide) .mo span, #tl.fam .mo span { padding-left: 11px; }
+#tl:not(.wide) .mo span::before, #tl.fam .mo span::before { display: block !important; left: calc(var(--rx) - var(--lx) - 5px); }
+#tl:not(.wide) .mo span::after, #tl.fam .mo span::after { content: ''; position: absolute; top: 50%; height: 1.5px; left: calc(var(--rx) - var(--lx) + 6px); width: calc(var(--lx) - var(--rx) - 6px); background: linear-gradient(90deg, var(--accent-2), transparent); opacity: .55; }
+#tl:not(.wide) .yh::before, #tl.fam .yh::before { content: ''; position: absolute; left: calc(var(--rx) - var(--lx) - 7px); top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, var(--accent-2) 65%); box-shadow: 0 0 10px var(--accent-2); }
+#tl:not(.wide) .yh::after, #tl.fam .yh::after { content: ''; position: absolute; top: 50%; height: 2px; margin-top: -1px; left: calc(var(--rx) - var(--lx) + 7px); width: calc(var(--lx) - var(--rx) - 7px); background: linear-gradient(90deg, var(--accent-2), transparent); opacity: .6; }
+.chap, #tl.fam .chap, .otd, #tl.fam .otd, .bdb { margin-left: 0 !important; }
+#tl:not(.wide) .tl-end { margin-left: 0; } #tl:not(.wide) .tl-end > .ic, #tl:not(.wide) .tl-end > .tl-cb { position: absolute; left: calc(var(--rx) - var(--lx) - 9px); }
+#tl:not(.wide) .tl-end > .tl-cb { left: calc(var(--rx) - var(--lx) - 23px); top: -18px; }
+#tl:not(.wide) .tl-end > span:last-child { margin-left: 0; }
+.kdots { left: calc(var(--lx) * -1); }
+.kd { width: 10px; height: 10px; margin-left: -5px; top: 54px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px rgba(255,255,255,.75), 0 0 10px var(--c); }
+.kd.m { width: 14px; height: 14px; margin: -2px 0 0 -7px; background: #ffd36b; box-shadow: 0 0 0 2px var(--c), 0 0 14px #ffc85a; }
+.lh { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2.5px rgba(255,255,255,.85), 0 0 12px var(--c); }
+/* tiêu đề hành trình: avatar của bạn + tên xuống dòng đẹp + nút xổ thành viên */
+.lt2 .lt-row { align-items: flex-start; } .lt-mid { min-width: 0; flex: 1; }
+.lt2 h1.lt-t { white-space: normal !important; overflow: visible; text-overflow: clip; font-size: clamp(26px, 7.2vw, 38px); line-height: 1.12; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-wrap: balance; }
+.lt2 p { margin-top: 4px; }
+.lt-mem { margin-top: 12px; height: 40px; padding: 0 12px 0 6px; gap: 6px; border-radius: 20px; display: inline-flex; align-items: center; font-weight: 800; font-size: 13.5px; background: var(--btn); border: 1px solid var(--line); color: var(--text); transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
+.lt-mem:active { transform: scale(.95); }
+.lt-mem img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; margin-right: -12px; box-shadow: 0 0 0 2px var(--c); } .lt-mem img:last-of-type { margin-right: 0; }
+.lt-mem b { display: grid; place-items: center; min-width: 28px; height: 28px; border-radius: 14px; margin-left: -6px; font-size: 12px; background: var(--glass-2, rgba(255,255,255,.2)); }
+.lt-mem span { margin-left: 4px; }
+
+/* v1.7.0 (fix): hàng đầu sheet dính cố định — thanh kéo + tiêu đề + ✕ */
+.shd { position: relative; z-index: 6; } .shd .grab { display: none; }
+.shd-r { display: flex; align-items: center; gap: 10px; } .shd-r h2 { flex: 1; min-width: 0; margin: 0 0 6px; }
+.shx { flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: grid; place-items: center; margin: -4px -4px 4px 0; background: var(--btn); border: 1px solid var(--line); color: var(--sub); }
+@media (max-width: 767px) {
+  body.v12 .modal .card { padding-top: 0; }
+  .shd { position: sticky; top: 0; margin: 0 -20px 6px; padding: 0 20px 6px; background: linear-gradient(180deg, var(--pane) 82%, transparent); cursor: grab; touch-action: none; }
+  html.wk .shd { background: linear-gradient(180deg, var(--cardsolid) 82%, transparent); }
+  .shd .grab { display: grid; place-items: center; height: 26px; padding: 0; margin: 0; background: none; position: static; }
+  .shd-r { min-height: 40px; }
+}
+#mKid:not(.can) .shx.kshx { display: none; }
+
+.ob-cal { display: inline-flex; gap: 4px; padding: 3px; margin-bottom: 8px; border-radius: 999px; background: rgba(255,255,255,.14); } .ob-cal button { height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 800; color: #fff; background: none; border: none; } .ob-cal button.on { background: #fff; color: #7a3d63; }
+.ob-lun { display: grid; grid-template-columns: .8fr 1.3fr 1.1fr auto; gap: 6px; align-items: center; } .ob-lun .ob-in { padding: 10px 8px; font-size: 16px; min-width: 0; } .ob-lun label { color: #fff; font-weight: 700; font-size: 12.5px; display: flex; gap: 4px; align-items: center; }
+.ob-dl { min-height: 20px; margin-top: 8px; font-weight: 700; font-size: 14px; color: rgba(255,255,255,.9); }
+.ob-link { margin-top: 6px; height: auto; padding: 4px 0; border: none; background: none; color: #ffd27f; font-weight: 800; font-size: 13.5px; text-decoration: underline; }
 </style>
 </head>
 <body data-theme="night" class="v12">
@@ -1234,7 +1309,8 @@ body.mapopen #tabbar, body.mapopen #fsc, body.mapopen #tbar { visibility: hidden
 
 <div class="modal" id="mSet"><div class="card glass">
   <h2>Cài đặt</h2>
-  <div class="sec" style="border:none;padding-top:0;margin-top:12px"><h3>Các bé</h3><div id="kidsList"></div><button id="kidAdd">➕ Thêm bé</button></div>
+  <div class="sec" style="border:none;padding-top:0;margin-top:8px"><h3>Phiên bản</h3><div class="upd-row"><span>Phiên bản <b id="verNow"></b> · <span id="updState">đang kiểm tra…</span></span><button id="bUpdate">↻ Cập nhật app</button></div><p class="hint" style="margin-top:6px">Cập nhật chỉ tải lại phần vỏ app — ảnh, video, dữ liệu của bạn giữ nguyên.</p></div>
+  <div class="sec"><h3>Các bé</h3><div id="kidsList"></div><button id="kidAdd">➕ Thêm bé</button></div>
   <div class="sec"><h3>Phong cách</h3><div class="seg" id="segTheme"><button data-v="night">🌌 Đêm ngân hà</button><button data-v="dawn">🌅 Bình minh</button></div></div>
   <div class="sec"><h3>Hiển thị</h3>
     <label class="tog"><span>Chữ to, dễ đọc <small>cho người lớn tuổi: chữ, nút to hơn, chuyển động nhẹ hơn</small></span><input type="checkbox" id="setBig"></label>
@@ -1265,7 +1341,6 @@ body.mapopen #tabbar, body.mapopen #fsc, body.mapopen #tbar { visibility: hidden
     <p class="hint" id="gemInfo"></p>
     <p class="hint">Lưu ý: khi bạn bấm “✨ AI viết lời”, ảnh nhỏ của các khung sẽ được gửi tới Google để AI viết lời.</p></div>
   <div class="sec"><h3>Cài lên điện thoại</h3><p class="hint" style="margin:0">iPhone/iPad: mở link bằng <b>Safari</b> › bấm nút Chia sẻ <b>⬆︎</b> › <b>Thêm vào MH chính</b>.<br>Android: mở bằng Chrome › menu <b>⋮</b> › <b>Cài đặt ứng dụng</b>.</p></div>
-  <div class="sec"><h3>Phiên bản</h3><div class="upd-row"><span>Phiên bản <b id="verNow"></b> · <span id="updState">đang kiểm tra…</span></span><button id="bUpdate">↻ Cập nhật app</button></div><p class="hint" style="margin-top:6px">Cập nhật chỉ tải lại phần vỏ app — ảnh, video, dữ liệu của bạn giữ nguyên.</p></div>
   <div class="sec about"><div class="ab-card">
     <img src="icons/icon-192.png" alt="" class="ab-ic">
     <div class="ab-t"><b>Hành Trình Của Bạn</b><small id="abVer"></small></div>

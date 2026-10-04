@@ -1,7 +1,7 @@
 // Hành Trình Của Bạn — MÀN LÀM QUEN kiểu trò chuyện (lần đầu mở app, hoặc người dùng cũ tạo hồ sơ "Tôi").
 // Mỗi câu hỏi là một thẻ kính trượt vào có nảy; câu trả lời đọng lại thành bong bóng chat phía trên.
 import { icon, haptic } from './ui.js';
-import { canChi, CHI, CON } from './hoso-data.js';
+import { canChi, CHI, CON, zodiacOf, solar2lunar, lunar2solar, LUNAR_MONTH } from './hoso-data.js';
 import { chibiSVG, mountChibiEditor, accForJob, defaultChibi } from './chibi.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -31,17 +31,38 @@ export function initOnboarding(A) {
     c.querySelector('.ob-go').onclick = go; c.querySelector('#obName').onkeydown = e => { if (e.key === 'Enter') go(); };
     c.querySelector('.ob-alt')?.addEventListener('click', e => { const b = e.target.closest('[data-x]'); if (!b) return; close(null); if (b.dataset.x === 'kid') A.onKid?.(); else if (b.dataset.x === 'google') A.signIn?.(); else A.onBackup?.(); });
   }
-  // 2. năm sinh (ngày, tháng tuỳ chọn)
+  // 2. ngày sinh đầy đủ (dương hoặc âm lịch); không nhớ thì chỉ năm
+  const WDN = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
   function sYear() {
-    const c = card(`<h2>Rất vui được gặp, ${esc(D.name)}! 🎈</h2><p><b>Bạn sinh năm bao nhiêu?</b></p>
-      <input class="ob-in" id="obY" inputmode="numeric" maxlength="4" placeholder="Ví dụ: 1992"><div class="ob-tuoi" id="obT"></div>
-      <details class="ob-more"><summary>Thêm ngày, tháng sinh <small>để xem cung hoàng đạo, thần số học</small></summary><input class="ob-in" id="obD" type="date"></details>
-      <button class="primary ob-go">Tiếp ${icon('chevronRight', 16, 2.4)}</button>`, '#obY');
-    const Y = c.querySelector('#obY'), DD = c.querySelector('#obD'), T = c.querySelector('#obT'), now = new Date().getFullYear();
-    const upd = () => { const d = DD.value, y = d ? +d.slice(0, 4) : +Y.value; if (d && Y.value !== d.slice(0, 4)) Y.value = d.slice(0, 4); T.textContent = y >= 1900 && y <= now ? tuoi(y) : ''; if (T.textContent) T.animate?.([{ transform: 'scale(.8)' }, { transform: 'scale(1.06)' }, { transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.34,1.56,.64,1)' }); };
-    Y.oninput = upd; DD.oninput = upd;
-    const go = () => { const d = DD.value, y = d ? +d.slice(0, 4) : +Y.value; if (!(y >= 1900 && y <= now)) { A.toast('Bạn nhập năm sinh 4 chữ số nhé', 1600); return; } D.birth = d || `${y}-07-01`; D.birthApprox = d ? null : 'y'; next('Bạn sinh năm bao nhiêu?', d ? `${d.slice(8)}/${d.slice(5, 7)}/${y}` : String(y), sJob); };
-    c.querySelector('.ob-go').onclick = go; Y.onkeydown = e => { if (e.key === 'Enter') go(); };
+    const now = new Date().getFullYear();
+    const c = card(`<h2>Rất vui được gặp, ${esc(D.name)}! 🎈</h2><p><b>Bạn sinh ngày nào?</b></p>
+      <div class="ob-cal"><button type="button" data-c="d" class="on">Dương lịch</button><button type="button" data-c="a">Âm lịch</button></div>
+      <input class="ob-in" id="obD" type="date" max="${now}-12-31">
+      <div class="ob-lun" id="obL" hidden><select class="ob-in" id="obLd">${Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select><select class="ob-in" id="obLm">${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">Tháng ${i + 1}</option>`).join('')}</select><input class="ob-in" id="obLy" inputmode="numeric" maxlength="4" placeholder="Năm"><label><input type="checkbox" id="obLl"> nhuận</label></div>
+      <div class="ob-yo" id="obYo" hidden><input class="ob-in" id="obY" inputmode="numeric" maxlength="4" placeholder="Năm sinh, ví dụ: 1992"></div>
+      <div class="ob-dl" id="obDl"></div><div class="ob-tuoi" id="obT"></div>
+      <button type="button" class="ob-link" id="obOnly">Chỉ nhớ năm sinh</button>
+      <button class="primary ob-go">Tiếp ${icon('chevronRight', 16, 2.4)}</button>`, '#obD');
+    let mode = 'd';
+    const $c = s => c.querySelector(s), solar = () => {
+      if (mode === 'y') { const y = +$c('#obY').value; return y >= 1900 && y <= now ? { y, birth: `${y}-07-01`, apx: 'y' } : null; }
+      if (mode === 'a') { const d = +$c('#obLd').value, m = +$c('#obLm').value, y = +$c('#obLy').value, l = $c('#obLl').checked; if (!(y >= 1900 && y <= now)) return null; const r = lunar2solar(d, m, y, l); if (!r) return null; const b = solar2lunar(r.d, r.m, r.y); if (b.d !== d || b.m !== m) return null; return { y: r.y, birth: `${r.y}-${String(r.m).padStart(2, '0')}-${String(r.d).padStart(2, '0')}`, lunar: { d, m, y, leap: l } }; }
+      const v = $c('#obD').value; return /^\d{4}-\d\d-\d\d$/.test(v) && +v.slice(0, 4) >= 1900 ? { y: +v.slice(0, 4), birth: v } : null;
+    };
+    const upd = () => { const r = solar(), T = $c('#obT'), L = $c('#obDl');
+      if (!r) { T.textContent = ''; L.textContent = mode === 'a' && $c('#obLy').value.length === 4 ? 'Ngày âm này không có trong năm đó' : ''; return; }
+      const dt = new Date(r.birth + 'T12:00:00'), lun = solar2lunar(dt.getDate(), dt.getMonth() + 1, dt.getFullYear()), z = r.apx ? null : zodiacOf(dt.getMonth() + 1, dt.getDate());
+      L.textContent = r.apx ? '' : `${WDN[dt.getDay()]}, ${dt.getDate()} tháng ${dt.getMonth() + 1}, ${dt.getFullYear()}${mode === 'a' ? ' (dương lịch)' : ` · âm lịch ${lun.d}/${lun.m}`}`;
+      const ly = r.apx ? r.y : lun.y; T.textContent = `${r.y} · tuổi ${CHI[(ly + 8) % 12]} (${canChi(ly)})${z ? ` · ${z.kh} ${z.ten}` : ''}`;
+      T.animate?.([{ transform: 'scale(.8)' }, { transform: 'scale(1.06)' }, { transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.34,1.56,.64,1)' }); };
+    const setMode = m => { mode = m; $c('#obD').hidden = m !== 'd'; $c('#obL').hidden = m !== 'a'; $c('#obYo').hidden = m !== 'y'; c.querySelector('.ob-cal').hidden = m === 'y'; c.querySelectorAll('.ob-cal button').forEach(b => b.classList.toggle('on', b.dataset.c === m)); $c('#obOnly').textContent = m === 'y' ? 'Nhập đủ ngày sinh' : 'Chỉ nhớ năm sinh'; upd(); };
+    c.querySelector('.ob-cal').onclick = e => { const b = e.target.closest('[data-c]'); if (b) { const r = solar(); if (b.dataset.c === 'a' && r && !r.apx && mode === 'd') { const dt = new Date(r.birth + 'T12:00:00'), L = solar2lunar(dt.getDate(), dt.getMonth() + 1, dt.getFullYear()); $c('#obLd').value = L.d; $c('#obLm').value = L.m; $c('#obLy').value = L.y; $c('#obLl').checked = L.leap; } setMode(b.dataset.c); haptic(5); } };
+    $c('#obOnly').onclick = () => setMode(mode === 'y' ? 'd' : 'y');
+    c.querySelectorAll('input, select').forEach(x => x.addEventListener(x.tagName === 'SELECT' || x.type === 'checkbox' ? 'change' : 'input', upd));
+    const go = () => { const r = solar(); if (!r) { A.toast(mode === 'y' ? 'Bạn nhập năm sinh 4 chữ số nhé' : 'Bạn chọn đủ ngày, tháng, năm sinh nhé', 1800); return; }
+      D.birth = r.birth; D.birthApprox = r.apx || null; D.birthLunar = r.lunar || null; const dt = new Date(r.birth + 'T12:00:00');
+      next('Bạn sinh ngày nào?', r.apx ? `năm ${r.y}` : `${dt.getDate()}/${dt.getMonth() + 1}/${r.y}${r.lunar ? ` (âm ${r.lunar.d}/${r.lunar.m})` : ''}`, sJob); };
+    c.querySelector('.ob-go').onclick = go; $c('#obY').onkeydown = e => { if (e.key === 'Enter') go(); };
   }
   // 3. công việc
   function sJob() {
@@ -72,11 +93,11 @@ export function initOnboarding(A) {
   }
   // 6. hoàn tất
   function sDone() {
-    const y = +D.birth.slice(0, 4);
-    const c = card(`<div class="ob-done">${chibiSVG(person(), { w: 120 })}</div><h2>Chào mừng ${esc(D.name)}! 🎉</h2><p>${esc(tuoi(y))}${D.job ? ` · ${esc(D.job)}` : ''}${D.home ? ` · ${esc(D.home)}` : ''}</p><p>Hành trình của bạn đã sẵn sàng. Thêm ảnh bất kỳ lúc nào — cả ảnh cũ chụp lại từ ảnh giấy.</p><button class="primary ob-go big">Bắt đầu hành trình ✨</button>`);
+    const y = +D.birth.slice(0, 4), dt0 = new Date(D.birth + 'T12:00:00'), z0 = D.birthApprox ? null : zodiacOf(dt0.getMonth() + 1, dt0.getDate());
+    const c = card(`<div class="ob-done">${chibiSVG(person(), { w: 120 })}</div><h2>Chào mừng ${esc(D.name)}! 🎉</h2><p>${esc(tuoi(y))}${z0 ? ' · ' + z0.kh + ' ' + z0.ten : ''}${D.job ? ` · ${esc(D.job)}` : ''}${D.home ? ` · ${esc(D.home)}` : ''}</p><p>Hành trình của bạn đã sẵn sàng. Thêm ảnh bất kỳ lúc nào — cả ảnh cũ chụp lại từ ảnh giấy.</p><button class="primary ob-go big">Bắt đầu hành trình ✨</button>`);
     CB.innerHTML = ''; A.confetti?.(D.color);
     c.querySelector('.ob-done svg')?.animate?.([{ transform: 'scale(.3) rotate(-20deg)' }, { transform: 'scale(1.15) rotate(6deg)' }, { transform: 'none' }], { duration: 700, easing: 'cubic-bezier(.34,1.56,.64,1)' });
-    c.querySelector('.ob-go').onclick = () => close({ name: D.name, birth: D.birth, birthApprox: D.birthApprox, gender: D.gender || null, color: D.color, chibi: D.chibi, jobs: D.job ? [{ job: D.job, at: null, from: null, to: null }] : [], home: D.home ? { name: D.home } : null });
+    c.querySelector('.ob-go').onclick = () => close({ name: D.name, birth: D.birth, birthApprox: D.birthApprox, birthLunar: D.birthLunar || null, gender: D.gender || null, color: D.color, chibi: D.chibi, jobs: D.job ? [{ job: D.job, at: null, from: null, to: null }] : [], home: D.home ? { name: D.home } : null });
   }
   function close(v) { O.classList.remove('open'); O.setAttribute('aria-hidden', 'true'); document.body.classList.remove('obopen'); const r = res; res = null; setTimeout(() => { CHAT.innerHTML = ''; Q.innerHTML = ''; }, 400); r?.(v); }
   O.querySelector('.ob-x').onclick = () => close(null);

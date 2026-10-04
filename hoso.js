@@ -209,6 +209,9 @@ export function initProfile(A) {
     const b = e.target.closest('[data-a]'); if (!b) return; const k = HS._kid;
     if (b.dataset.a === 'edit') { closeProfile(); A.editKid(k); }
     else if (b.dataset.a === 'chibi') openChibi(A.rawKid(k.id));
+    else if (b.dataset.a === 'avsel') { const raw = A.rawKid(k.id); A.contextMenu({ at: b, title: 'Ảnh đại diện', items: [
+      { icon: 'smile', label: 'Nhân vật chibi', act: () => openChibi(raw) },
+      { icon: 'image', label: 'Ảnh thật (từ máy hoặc ảnh trong app)', act: () => openAvatar({ ...raw, chibi: null, role: null }, async kk => { raw.avatar = kk.avatar; raw.avStyle = kk.avStyle; await A.saveKid(raw); openProfile(A.dispKid(raw.id)); }) }] }); }
     else if (b.dataset.a === 'aimg') saveAdultCard(k);
     else if (b.dataset.a === 'flip') { const c = b.closest('.fc'); c.classList.toggle('on'); haptic(8); }
     else if (b.dataset.a === 'job') openJob(A.rawKid(k.id), b.dataset.i != null ? +b.dataset.i : null);
@@ -235,7 +238,7 @@ export function initProfile(A) {
   async function openAdult(kid) {
     document.querySelector('.confetti')?.remove(); const R = readingOf(kid), col = kid.color || '#ff8fbf', me = isMe(kid), job = curJob(kid);
     HS.style.setProperty('--kc', col); HS.style.setProperty('--kc2', mix(col, '#ffffff', .45)); HS._adult = true; HS._kid = kid;
-    const hero = kid.avatar ? `<div class="hs-av"><img src="${await avatarURL(kid)}" alt=""><i></i></div>` : `<div class="hs-cb">${chibiSVG(kid, { w: 150 })}</div>`;
+    const hero = kid.avatar ? `<button class="hs-av" data-a="avsel" aria-label="Đổi ảnh đại diện"><img src="${await avatarURL(kid)}" alt=""><i></i></button>` : `<button class="hs-cb" data-a="avsel" aria-label="Đổi ảnh đại diện">${chibiSVG(kid, { w: 150 })}</button>`;
     const born = kid.birth ? (kid.birthApprox ? `sinh năm ${kid.birth.slice(0, 4)}` : `sinh ${fmtLong(new Date(kid.birth + 'T12:00:00').getTime())}`) : '';
     const L = R?.P?.lunar, lun = L ? `Âm lịch ${L.d}/${L.m}${L.leap ? ' nhuận' : ''} · ${R.canChi}` : R ? `Năm ${R.canChi}` : '';
     const fc = (cls, front, back) => `<section class="fc ${cls}" data-a="flip"><div class="fc-in"><div class="fc-f">${front}<small class="fc-h">chạm để lật ${icon('chevronRight', 12, 2.4)}</small></div><div class="fc-b">${back}</div></div></section>`;
@@ -265,7 +268,7 @@ export function initProfile(A) {
     if (pairs.length) cards.push(`<section class="t big pairs"><h3>${icon('heart', 16)}Hợp nhau</h3>${pairs.join('')}</section>`);
     HI.innerHTML = `<div class="hs-hero">${hero}<h1>${esc(me ? kid.name : kid.name)}</h1>${kid.fullName ? `<div class="hs-fn">${esc(kid.fullName)}</div>` : ''}
         <p>${esc([me ? 'Hồ sơ của bạn' : roleName(kid), born].filter(Boolean).join(' · '))}</p>${lun ? `<p class="hs-lun">${esc(lun)}${job ? ` · ${esc(job.job)}` : ''}</p>` : ''}
-        <div class="hs-tools"><button data-a="edit">${icon('edit', 18)}<span>Sửa thông tin</span></button><button data-a="chibi">${icon('smile', 18)}<span>Đổi nhân vật</span></button></div></div>
+        <div class="hs-tools"><button data-a="edit">${icon('edit', 18)}<span>Sửa thông tin</span></button><button data-a="avsel">${icon('smile', 18)}<span>Đổi ảnh đại diện</span></button></div></div>
       <h2 class="hs-dv">✨ Đọc vị bản thân</h2>
       <div class="hs-grid adult">${cards.join('')}</div><p class="hs-note">Mang tính tham khảo cho vui · không bàn chuyện vận hạn, tương lai</p>
       <div class="hs-acts"><button class="primary" data-a="aimg">${icon('download', 18, 2)}<span>Lưu thẻ Đọc vị thành ảnh</span></button></div>`;

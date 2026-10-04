@@ -8,7 +8,7 @@ const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2,
 
 export function initVoice(A) {
   document.body.insertAdjacentHTML('beforeend', `<div class="modal" id="mVoice"><div class="card glass" style="width:min(420px,100%)"><h2>🎤 Kể lại kỷ niệm</h2><p class="lead vo-t"></p>
-    <div class="vo-box"><canvas class="vo-wave" width="600" height="120"></canvas><div class="vo-time">0:00</div><button class="vo-rec" aria-label="Ghi âm"><i></i>${icon('mic', 34, 2)}</button><p class="vo-h">Chạm để bắt đầu kể · tối đa 3 phút</p></div>
+    <div class="vo-box"><ul class="vo-tips"><li>Hôm đó là dịp gì, ở đâu?</li><li>Ai có mặt, ai làm gì vui nhất?</li><li>Điều bạn muốn con cháu nhớ về ngày này</li></ul><canvas class="vo-wave" width="600" height="120"></canvas><div class="vo-time">0:00</div><button class="vo-rec" aria-label="Ghi âm"><i></i>${icon('mic', 34, 2)}</button><p class="vo-h">Chạm để bắt đầu kể · tối đa 3 phút</p></div>
     <div class="vo-acts" hidden><button data-v="play">${icon('play', 17, 2.2)}<span>Nghe lại</span></button><button data-v="redo">${icon('mic', 17, 2)}<span>Ghi lại</span></button><button data-v="del" class="danger" hidden>${icon('trash', 17)}<span>Xoá lời kể</span></button></div>
     <div class="foot"><button data-close>Huỷ</button><button class="primary" id="voOk" disabled>Lưu lời kể</button></div></div></div>`);
   const M = document.getElementById('mVoice'), REC = M.querySelector('.vo-rec'), CV = M.querySelector('.vo-wave'), X = CV.getContext('2d');
@@ -32,7 +32,7 @@ export function initVoice(A) {
   }
   function stop() { if (R.rec?.state === 'recording') { R.rec.stop(); haptic(10); } }
   function ui() {
-    const on = R.rec?.state === 'recording'; M.classList.toggle('rec', on); M.querySelector('.vo-h').textContent = on ? 'Đang ghi… chạm để dừng' : R.blob ? `Đã ghi ${fmt(R.dur)} — nghe lại hoặc lưu` : R.m?.voice ? `Đã có lời kể ${fmt(R.m.voice.dur || 0)}` : 'Chạm để bắt đầu kể · tối đa 3 phút';
+    const on = R.rec?.state === 'recording'; M.classList.toggle('rec', on); M.classList.toggle('has', !!R.blob); M.querySelector('.vo-h').textContent = on ? 'Đang ghi… chạm để dừng' : R.blob ? `Đã ghi ${fmt(R.dur)} — nghe lại hoặc lưu` : R.m?.voice ? `Đã có lời kể ${fmt(R.m.voice.dur || 0)}` : 'Chạm để bắt đầu kể · tối đa 3 phút';
     M.querySelector('.vo-acts').hidden = on || (!R.blob && !R.m?.voice); M.querySelector('[data-v=del]').hidden = !R.m?.voice || !!R.blob; document.getElementById('voOk').disabled = !R.blob || on;
   }
   REC.onclick = () => R.rec?.state === 'recording' ? stop() : start();
