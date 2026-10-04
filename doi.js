@@ -23,7 +23,7 @@ export const isMe = p => roleOf(p) === 'me';
 export const isChild = p => !!R(roleOf(p))?.child;
 export const isPartner = p => !!R(roleOf(p))?.partner;
 export const isElder = p => !!R(roleOf(p))?.elder;
-export const roleName = p => R(roleOf(p))?.t || 'Người thân';
+export const roleName = p => { const r = roleOf(p); if (r === 'con' && p?.gender) return p.gender === 'f' ? 'Con gái' : 'Con trai'; if (r === 'chau' && p?.gender) return p.gender === 'f' ? 'Cháu gái' : 'Cháu trai'; return R(r)?.t || 'Người thân'; };
 export const showsAge = p => isChild(p) || isMe(p) || !!p?.showAge; // người lớn: mặc định ẩn tuổi
 export const findMe = ps => (ps || []).find(isMe) || null;
 // thứ tự hiển thị: Tôi → bạn đời → con → cháu → bố mẹ, ông bà → anh chị em → còn lại

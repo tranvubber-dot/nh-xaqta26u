@@ -249,18 +249,25 @@ export function initTimeline(A) {
     const showType = e.type !== 'daily' && !(e.mile && (e.type === 'mile' || e.type === 'bday' || e.type === 'wed'));
     const chips = [e.ms.some(m => m.kn) ? '<span class="chip kn">🎬 video kỷ niệm</span>' : '', e.ms.some(m => m.voice) ? `<span class="chip vo">${icon('mic', 13, 2.2)}lời kể</span>` : '', e.geo?.name ? `<span class="chip geo">${icon('pin', 13, 2.2)}${esc(e.geo.name.split(',')[0])}</span>` : '', showType ? `<span class="chip ty" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</span>` : '', `<span class="chip">${icon(e.nImg ? 'image' : 'video', 15, 1.9)}${esc(countTxt(e))}</span>`,
       e.diaries.length ? `<button class="chip bk" data-diary="${e.diaries[0].id}">${icon('book', 15, 1.9)}nhật ký</button>` : '',
-      ...(A.family() ? e.ages.filter(a => a.txt !== e.title && !(e.mile && /chào đời/.test(a.txt))).slice(0, 2).map(a => `<span class="chip age" style="--c:${a.color}"><img class="mav" src="${A.avatar(kidById(a.id))}" alt="">${esc(a.txt)}</span>`) : [ag ? `<span class="chip age">${esc(ag)}</span>` : '']),
+      ...(A.family() ? e.ages.filter(a => a.txt !== e.title && !(e.mile && /chào đời/.test(a.txt))).slice(0, 2).map(a => `<span class="chip age" style="--c:${a.color}"><i class="mdot"></i>${esc(a.txt)}</span>`) : [ag ? `<span class="chip age">${esc(ag)}</span>` : '']),
       ...e.sibs.map(x => `<span class="chip sib" style="--c:${kidById(x.id)?.color}">${icon('heart', 13, 2)}${esc(x.txt)}</span>`)].join('');
     return `<article class="ev ${side}${e.mile ? ' mile' : ''}${e.group ? ' grp' : ''}${e.preg ? ' preg' : ''}${e.type !== 'daily' ? ' typed' : ''}${e.approx ? ' apx' : ''}" data-key="${esc(e.key)}" style="--tc:${T.c}">
-      ${A.family() ? `<div class="kdots">${e.kids.map(id => { const k = kidById(id), i = kidsAll().indexOf(k); return `<i class="kd${e.mile?.kid === id ? ' m' : ''}" style="left:${LANE_X(i)}px;--c:${k.color}"></i>`; }).join('')}</div>` : `<div class="dot">${e.mile ? icon(e.mile.ic, 13, 2.2) : e.group ? icon('grid', 12, 2.2) : ''}</div>`}
+      ${A.family() ? `<div class="kdots"><i class="kd${e.mile ? ' m' : ''}" style="left:${LANE_X(0)}px;--c:${laneCol()}"></i></div>` : `<div class="dot">${e.mile ? icon(e.mile.ic, 13, 2.2) : e.group ? icon('grid', 12, 2.2) : ''}</div>`}
       <div class="cd" role="button" tabindex="0" aria-label="${esc(e.title)}">
         <div class="tx">
           <div class="dt">${e.mile ? `<span class="mb">${e.mile.emo || icon(e.mile.ic, 12, 2.1)}Cột mốc</span>` : ''}${e.approx ? `<span class="mb ab">${icon('calendar', 12, 2.1)}ước chừng</span>` : ''}${e.group ? `<span class="mb gb">${icon('grid', 12, 2.1)}Nhóm · ${e.days.length} ngày</span>` : ''}<span>${esc(dateTxt(e))}</span></div>
           <h3>${esc(e.title)}</h3>
-          <div class="chips">${chips}</div>
+          <div class="chips">${chips}</div>${A.family() ? avRow(e) : ''}
         </div>
         <div class="stk n${e.stack.length}">${e.stack.map((m, j) => `<div class="pol p${j}${m.type === 'video' ? ' v' : ''}"><img data-mid="${m.id}" alt="" decoding="async" loading="lazy"></div>`).join('')}${e.nVid ? `<span class="vb">${icon('play', 11, 2.4)}</span>` : ''}</div>
       </div></article>`;
+  }
+  // v1.8.0: một dải duy nhất — màu dải = màu của bạn; hàng avatar nhỏ của người thân được gắn vào sự kiện (không ai = chỉ mình bạn)
+  const laneCol = () => (A.me?.() || A.kid())?.color || '#ff8fbf';
+  function avRow(e) {
+    const ps = e.kids.map(kidById).filter(k => k && !isMe(k)); if (!ps.length) return '';
+    const nm = ps.slice(0, 3).map(k => cap(k.name)).join(', ') + (ps.length > 3 ? ` +${ps.length - 3}` : '');
+    return `<div class="avs" aria-label="Có mặt: ${esc(nm)}">${ps.slice(0, 5).map(k => `<img src="${A.avatar(k)}" style="--c:${k.color || '#ff8fbf'}" alt="">`).join('')}${ps.length > 5 ? `<b>+${ps.length - 5}</b>` : ''}<span>${esc(nm)}</span></div>`;
   }
   // tiêu đề chương đời (hành trình của bạn): màu riêng, ảnh bìa, số chương, khoảng năm + tuổi
   function chapHTML(c, evs, me, empty) {
@@ -277,13 +284,11 @@ export function initTimeline(A) {
     const evs = compute(), n = A.moments().length;
     const fam = A.family(), life = !!A.life?.(), KS = kidsAll(), me = life ? A.me() : null, chs = life ? A.chapters() : [];
     const who = isMe(kid) ? 'bạn' : kid.name, Who = isMe(kid) ? 'Bạn' : kid.name;
-    TL.classList.toggle('fam', fam); TL.classList.toggle('life', life); document.body.classList.toggle('tlfam', fam); TL.style.setProperty('--nl', fam ? KS.length : 1);
+    TL.classList.toggle('fam', fam); TL.classList.toggle('life', life); document.body.classList.toggle('tlfam', fam); TL.style.setProperty('--nl', 1);
     const lifeSub = me ? [A.ageText(me, Date.now(), false), chs.length ? `${chs.length} chương` : '', `${n} khoảnh khắc`].filter(Boolean).join(' · ') : '';
     const others = KS.filter(k => !life || !isMe(k)), lead = life ? me : KS[0];
     const memL = life ? KS.filter(k => !A.hidden?.().has(k.id)) : others;
-    const out = fam ? [`<header class="lt lt2"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ" style="--c:${lead.color || '#ff8fbf'}"><img src="${A.avatar(lead)}" alt=""></button><div class="lt-mid"><h1 class="lt-t">${life ? 'Hành trình của ' + esc(me.name) : 'Cả nhà'}</h1><p>${life ? esc(lifeSub) : `${KS.length} bé · ${n} khoảnh khắc · ${evs.length} ngày đáng nhớ`}</p></div></div>
-        <button class="lt-mem" data-a="kid" aria-label="Thành viên">${memL.slice(0, 3).map(k => `<img src="${A.avatar(k)}" style="--c:${k.color}" alt="">`).join('')}${memL.length > 3 ? `<b>+${memL.length - 3}</b>` : ''}<span>${life ? (KS.length > 1 ? `${KS.length - (A.hidden?.().size || 0)}/${KS.length} người` : 'Thêm người thân') : others.length ? 'Thành viên' : 'Thêm người thân'}</span>${icon('chevronDown', 16, 2.4)}</button>
-        ${KS.length > 1 && st.showFilter ? `<div class="kflt">${KS.map(k => `<button data-kf="${k.id}" class="${!st.filter || st.filter.has(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${A.avatar(k)}" alt=""><span>${esc(isMe(k) ? 'Bạn' : k.name)}</span></button>`).join('')}</div>` : ''}</header>`, '<div class="lanes"></div>']
+    const out = fam ? [`<header class="lt lt2"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ của bạn" style="--c:${lead.color || '#ff8fbf'}"><img src="${A.avatar(lead)}" alt=""></button><div class="lt-mid"><h1 class="lt-t">${life ? 'Hành trình của ' + esc(me.name) : 'Hành trình của bạn'}</h1><p>${life ? esc(lifeSub) : `${n} khoảnh khắc · ${evs.length} ngày đáng nhớ`}</p></div></div></header>`, '<div class="lanes"></div>']
       : [`<header class="lt"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><button class="lt-name" data-a="kid"><h1>${esc(kid.name)}</h1>${icon('chevronDown', 20, 2.2)}</button></div><p>${esc([isMe(kid) ? 'Ảnh có bạn' : !isChild(kid) ? roleName(kid) : '', A.ageText(kid, Date.now(), false)].filter(Boolean).join(' · ') || '')}${n ? ` · ${n} khoảnh khắc` : ''}</p></header>`,
         evs.length ? `<button class="rstart" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button>` : ''];
     document.body.style.setProperty('--kc', fam && !life ? '#ff8fbf' : ((life ? me?.color : kid.color) || '#ff8fbf'));
@@ -336,32 +341,14 @@ export function initTimeline(A) {
     let fs = parseFloat(getComputedStyle(h).fontSize) || 42; b.style.maxWidth = max + 'px';
     while (h.scrollWidth > h.clientWidth + 1 && fs > 22) { fs -= 2; h.style.fontSize = fs + 'px'; }
   }
-  new ResizeObserver(() => { if (!A.family()) layRail(); }).observe(IN);
+  let roT = 0; new ResizeObserver(() => { if (!A.family()) layRail(); else { clearTimeout(roT); roT = setTimeout(drawLanes, 120); } }).observe(IN); // thẻ hiện dần (content-visibility) đổi chiều cao → vẽ lại dải
   // các dải song song của Cả nhà: mỗi bé một màu, bắt đầu từ ngày sinh (đoạn mang bầu nét đứt), avatar so le ở đầu dải
   // HỆ LƯỚI: cột dải bên trái (mỗi người một dải cách 8px), nội dung chỉ nằm sau cột dải
   function drawLanes() {
-    const box = IN.querySelector('.lanes'); if (!box) return; const KS = kidsAll(), evEls = [...IN.querySelectorAll('.ev')], me = A.me?.();
+    const box = IN.querySelector('.lanes'); if (!box) return; const evEls = [...IN.querySelectorAll('.ev')];
     if (!evEls.length) { box.innerHTML = ''; return; }
-    const y0 = IN.querySelector('.yr, .chap'), top = (y0 ? aT(y0) : aT(evEls[0]) - 70) + 6, html = [], ev = el => st.byKey.get(el.dataset.key);
-    KS.forEach((k, i) => {
-      if (st.filter && !st.filter.has(k.id)) return; if (A.hidden?.().has(k.id)) return;
-      const x = LANE_X(i) - 1.5, mine = evEls.filter(el => ev(el)?.kids.includes(k.id)), anc = A.life?.() ? sinceOf(k, me) : (isChild(k) ? k.birth : anchorOf(k, me));
-      const ancT = anc ? A.dayStart(A.parseYmd(anc)) : null;
-      if (isMe(k) && A.life?.()) { // dải chính của bạn: suốt hành trình, tới ngày bạn chào đời
-        const end = IN.querySelector('.tl-end') || evEls[evEls.length - 1], bot = aT(end) + 12;
-        html.push(`<div class="lane me" style="left:${x}px;top:${top}px;height:${Math.max(40, bot - top)}px;--c:${k.color}"><i></i></div>`);
-      } else {
-        if (!mine.length && ancT == null) return;
-        // dải chạy từ hiện tại xuống tới ngày người này bước vào đời bạn (con: ngày sinh); trước đó nét đứt (con: lúc mang bầu)
-        const after = ancT == null ? mine : evEls.filter(el => ev(el) && ev(el).ts0 >= ancT), endEl = after[after.length - 1];
-        const bot = endEl ? aT(endEl) + 60 : top; if (endEl) html.push(`<div class="lane" style="left:${x}px;top:${top}px;height:${Math.max(40, bot - top)}px;--c:${k.color}"><i></i></div>`);
-        const pre = ancT == null ? [] : mine.filter(el => ev(el).ts0 < ancT);
-        if (pre.length) { const pb = aT(pre[pre.length - 1]) + 60; if (pb > bot) html.push(`<div class="lane preg" style="left:${x}px;top:${bot}px;height:${pb - bot}px;--c:${k.color}"></div>`); }
-        if (!endEl && !pre.length) return;
-      }
-      html.push(`<i class="lh" style="left:${LANE_X(i) - 3.5}px;top:${top - 10 - (i % 2) * 9}px;--c:${k.color}" title="${esc(k.name)}"></i>`);
-    });
-    box.innerHTML = html.join('');
+    const y0 = IN.querySelector('.yr, .chap'), top = (y0 ? aT(y0) : aT(evEls[0]) - 70) + 6, end = IN.querySelector('.tl-end') || evEls[evEls.length - 1], bot = aT(end) + 12, c = laneCol();
+    box.innerHTML = `<div class="lane me" style="left:${LANE_X(0) - 1.5}px;top:${top}px;height:${Math.max(40, bot - top)}px;--c:${c}"><i></i></div><i class="lh" style="left:${LANE_X(0) - 3.5}px;top:${top - 10}px;--c:${c}"></i>`;
   }
   // banner sinh nhật: 7 ngày trước sinh nhật (và đúng ngày)
   function bdays() {

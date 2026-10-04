@@ -1623,20 +1623,37 @@ const avatar = n => (n || '?').trim().charAt(0).toUpperCase();
 const ME = () => findMe(S.kids);
 const LIFE = () => !!S.family && !!ME();
 const whoOf = k => isMe(k) ? 'bạn' : cap(k?.name), WhoOf = k => isMe(k) ? 'Bạn' : cap(k?.name);
-function renderKidBtn() { const tt = $('#tbTitle'); if (tt) tt.textContent = LIFE() ? 'Hành trình của bạn' : S.family ? 'Cả nhà' : S.kid ? KN() : ''; renderKidBtn0(); }
+function renderKidBtn() { const tt = $('#tbTitle'); if (tt) tt.textContent = S.family ? 'Hành trình của bạn' : S.kid ? KN() : ''; renderKidBtn0(); }
 function renderKidBtn0() { $('#kidName').textContent = S.kid ? KN() : '…'; $('#kidBtn .av').textContent = S.kid ? avatar(KN()) : '✨'; }
+// v1.8.0: chỉ còn MỘT hành trình (của bạn). selectKid giữ tên cũ cho các chỗ gọi, nhưng luôn vào hành trình chung.
 async function selectKid(id, intro = true) {
   S.kid = S.kids.find(k => k.id === id) || S.kids[0]; if (!S.kid) return;
   await metaSet('curKid', S.kid.id);
-  S.family = false; await loadAll();
   closeLBNow(); hover.c = null; hover.vidC = null;
-  buildGalaxy(); renderKidBtn(); buildScrub();
   document.body.classList.remove('intro', 'galaxy');
-  await TL.reload(); await loadBg(); setMode('tl'); updateNow();
+  await enterFamily(); updateNow();
 }
 async function loadAll() {
   const ms = await dbAll('moments'), ds = await dbAll('diaries');
   S.all = ms.filter(m => !m.deleted); S.trash = ms.filter(m => m.deleted); S.allDiaries = ds.filter(d => !d.deleted); S.trashD = ds.filter(d => d.deleted); refreshKid();
+}
+// ---------- v1.8.0: chuyển dữ liệu sang MỘT hành trình (chạy một lần, cờ meta 'mig18') ----------
+// Mọi bé / người cũ thành người thân (bản ghi giữ nguyên, ảnh vẫn gắn họ). Tên, ghi chú, gộp/tách, ảnh bìa, loại, cột mốc
+// đã đặt ở dải riêng từng người được chép sang hành trình chung (ev:fam) nếu ở đó chưa có. Không xoá ev:<người> để máy chưa nâng cấp vẫn đọc được.
+async function migrate18() {
+  try {
+    if (await metaGet('mig18')) return;
+    const fam = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {}, types: {}, miles: {} }, (await metaGet('ev:fam')) || {}); let ch = false;
+    const inMerge = new Set((fam.merges || []).flat());
+    for (const k of sortPeople(S.kids)) {
+      const m = await metaGet('ev:' + k.id); if (!m) continue;
+      for (const f of ['titles', 'notes', 'covers', 'types', 'miles', 'splits']) for (const [key, v] of Object.entries(m[f] || {})) { fam[f] ||= {}; if (fam[f][key] == null && v != null && v !== '') { fam[f][key] = v; ch = true; } }
+      for (const g of m.merges || []) if (g.length > 1 && !g.some(x => inMerge.has(x))) { fam.merges.push(g.slice()); g.forEach(x => inMerge.add(x)); ch = true; }
+      if (await metaGet('hidePreg:' + k.id) && !(await metaGet('hidePreg:fam'))) await metaSet('hidePreg:fam', true);
+    }
+    if (ch) await metaSet('ev:fam', fam);
+    await metaSet('family', true); await metaSet('mig18', Date.now());
+  } catch (e) { console.warn('mig18', e); }
 }
 // ---------- Thùng rác: xoá = đưa vào thùng rác 30 ngày, có Hoàn tác ----------
 const TRASH_DAYS = 30;
@@ -1672,15 +1689,15 @@ const TRSEL = new Set();
 function trBtns() { const n = TRSEL.size; $('#trRestore').textContent = n ? `Khôi phục ${n} mục` : 'Khôi phục tất cả'; $('#trPurge').textContent = n ? `Xoá vĩnh viễn ${n} mục` : 'Dọn sạch thùng rác'; $('#trRestore').disabled = $('#trPurge').disabled = !S.trash.length && !n; }
 function refreshKid() {
   S.chapters = LIFE() ? chaptersOf(ME(), S.kids, S.chCfg) : [];
-  const vis = id => S.kids.some(k => k.id === id) && !(LIFE() && S.hidden?.has(id));
-  const id = S.kid?.id; S.moments = LIFE() ? (S.all || []).filter(m => kidsOf(m).some(vis)) : (S.all || []).filter(m => kidsOf(m).includes(id));
-  S.diaries = (S.allDiaries || []).filter(d => d.kidId === id || (d.kids || []).includes(id));
+  const id = S.kid?.id; S.moments = S.family ? (S.all || []).slice() : (S.all || []).filter(m => kidsOf(m).includes(id));
+  S.diaries = S.family ? (S.allDiaries || []).slice() : (S.allDiaries || []).filter(d => d.kidId === id || (d.kids || []).includes(id));
 }
 const dispKid = k => k ? { ...k, name: cap(k.name) } : null;
 async function enterFamily() {
-  if (S.kids.length < 2 && !ME()) return; S.family = true; await metaSet('family', true);
+  if (!S.kids.length) return; S.family = true; await metaSet('family', true);
   closeLBNow(); TL.closeViewer(); TL.closeEvent(); document.body.classList.remove('galaxy'); await P.warm(S.kids);
-  if (ME()) { S.kid = ME(); await metaSet('curKid', S.kid.id); refreshKid(); buildGalaxy(); buildScrub(); await loadBg(); }
+  if (ME()) S.kid = ME(); else if (!S.kid || !S.kids.includes(S.kid)) S.kid = S.kids[0];
+  await metaSet('curKid', S.kid.id); await loadAll(); buildGalaxy(); buildScrub(); await loadBg();
   await TL.reload(); renderKidBtn(); setMode('tl'); haptic(10);
 }
 $('#kidBtn').onclick = e => { e.stopPropagation(); openKidMenu(e.currentTarget); };
@@ -1826,6 +1843,15 @@ $('#kidG').onclick = e => { const b = e.target.closest('[data-v]'); if (!b || !k
 $('#kidC').onclick = e => { const c = e.target.dataset.c; if (!c || !kidDraft) return; kidDraft.color = c; haptic(5); kidSheetUi(); };
 $('#kidAvB').onclick = () => { if (!kidDraft) return; const m = $('#mKid'); P.openAvatar({ ...kidDraft, name: cap($('#kidIn').value) || 'bé' }, k => { Object.assign(kidDraft, { avatar: k.avatar, avStyle: k.avStyle }); P.warm([kidDraft]).then(kidSheetUi); setTimeout(() => openModal(m), 50); }); };
 async function removeKid(k) {
+  const me = ME();
+  if (me && !isMe(k)) { // v1.8.0: ảnh thuộc hành trình của bạn — xoá người thân chỉ bỏ gắn người đó, ảnh vẫn giữ nguyên
+    const n = (await dbAll('moments')).filter(m => !m.deleted && kidsOf(m).includes(k.id));
+    if (!(await ask(`Xoá ${cap(k.name)} khỏi gia đình?`, `${n.length} ảnh/video có ${cap(k.name)} vẫn giữ nguyên trong hành trình của bạn, chỉ bỏ gắn tên. Khôi phục được trong thùng rác ${TRASH_DAYS} ngày.`, `Xoá ${cap(k.name)}`, true))) return false;
+    const now = Date.now();
+    for (const m of n) { const rest = kidsOf(m).filter(x => x !== k.id); m.kidIds = rest.length ? rest : [me.id]; m.kidId = m.kidIds[0]; m.unk = [...(m.unk || []), k.id]; await dbPut('moments', m); }
+    k.deleted = now; await dbPut('kids', k); S.kids = S.kids.filter(x => x.id !== k.id);
+    return true;
+  }
   const n = (await dbAll('moments')).filter(m => !m.deleted && kidsOf(m).includes(k.id)), own = n.filter(m => kidsOf(m).length === 1), shared = n.length - own.length;
   const msg = `${own.length} ảnh/video chỉ của ${cap(k.name)} sẽ vào thùng rác (khôi phục được trong ${TRASH_DAYS} ngày).` + (shared ? ` ${shared} ảnh chụp chung với bé khác vẫn giữ, chỉ bỏ gắn ${cap(k.name)}.` : '');
   if (!(await ask(`Xoá ${cap(k.name)}?`, msg, `Xoá ${cap(k.name)}`, true))) return false;
@@ -2743,7 +2769,7 @@ function renderMem() {
   M.querySelector('.mm-l').innerHTML = ps.map((k, i) => `<div class="mm-r" data-id="${k.id}" style="--d:${Math.min(i, 8) * 35}ms"><img src="${P.avatarNow(k)}" alt="" style="--c:${k.color || '#ff8fbf'}"><span class="mm-t"><b>${esc(isMe(k) ? cap(k.name) + ' (bạn)' : cap(k.name))}</b><small>${esc([isMe(k) ? 'Bạn' : roleName(k), ageText(k, Date.now(), false)].filter(Boolean).join(' · '))}</small></span><label class="sw"><input type="checkbox" class="cong-tac" data-id="${k.id}"${S.hidden.has(k.id) ? '' : ' checked'} aria-label="Hiện ${esc(cap(k.name))}"></label></div>`).join('');
 }
 function openKidMenu(a) {
-  if (ME() && LIFE()) { memberSheet(); return; }
+  if (S.family) { P.openProfile(dispKid(ME() || S.kid)); return; } // v1.8.0: không còn đổi dải — mở hồ sơ (có mục Gia đình của bạn)
   const me = ME(), ps = sortPeople(S.kids), go = k => { if (k.id !== S.kid?.id || S.family) { leaveIntro(true); metaSet('family', false); selectKid(k.id, true); } };
   const note = k => isMe(k) ? 'chỉ ảnh có bạn' : [roleName(k), k.birth ? dmy(parseYmd(k.birth)) : ''].filter(Boolean).join(' · ');
   contextMenu({ at: a, title: me ? 'Xem hành trình của' : 'Chọn bé', items: [
@@ -2792,14 +2818,13 @@ function kidMenu(el) {
     { icon: 'star', label: `Hồ sơ của ${esc(KN())}`, act: () => P.openProfile(dispKid(k)) },
     { icon: 'smile', label: 'Đổi avatar', act: () => P.openAvatar(k, async kk => { await dbPut('kids', kk); await P.warm([kk]); renderKidBtn(); TL.render(); buildGalaxy(); }) },
     { icon: 'edit', label: 'Sửa tên, ngày sinh, giới tính, màu', act: () => openKid(k) },
-    { icon: 'image', label: 'Đổi hình nền', act: () => openBgSettings() },
-    S.kids.length > 1 && { icon: 'people', label: 'Xem Cả nhà', act: () => enterFamily() }
+    { icon: 'image', label: 'Đổi hình nền', act: () => openBgSettings() }
   ] });
 }
 function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(() => $('#bgList')?.closest('.sec')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 380); }
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
-const TL = initTimeline({ hidden: () => LIFE() ? S.hidden : new Set(), life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
+const TL = initTimeline({ hidden: () => new Set(), life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
   allCount: () => (S.all || []).length, makeVideo: o => makeVideo(o), voice: { open: (m, o) => VOICE.open(m, o), play: (m, o) => VOICE.play(m, o), ok: () => VOICE.supported() }, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
@@ -2978,8 +3003,8 @@ async function boot() {
     for (const k of S.kids) if (!k.color) { k.color = defaultColor(k.gender, S.kids.filter(x => x !== k && x.color).map(x => x.color)); await dbPut('kids', k); }
     await splitNames();
     await P.warm(S.kids);
+    await migrate18();
     const id = await metaGet('curKid'); await selectKid(S.kids.some(k => k.id === id) ? id : S.kids[0].id, true);
-    { const fam = await metaGet('family'); if (ME() ? fam !== false : S.kids.length > 1 && fam) await enterFamily(); }
     setTimeout(async () => { if (!ME() && !(await metaGet('meAsk'))) { meBanner(); return; } for (const k of S.kids) { if (k.gender || !isChild(k) || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
     setTimeout(() => queueThumbFix((S.all || []).slice().sort((a, b) => b.ts - a.ts)), 4000);
     if (DRV.signedIn) setTimeout(() => DRV.afterLogin(), 1500);

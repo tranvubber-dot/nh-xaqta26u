@@ -820,6 +820,10 @@ html.wk .utoast, html.wk #gban, html.wk .evp-bbg { background: linear-gradient(1
 html.wk .evp-bar .glassbtn, html.wk .pv-top .glassbtn, html.wk .pv-vc button { background: rgba(20,14,40,.55) !important; }
 html.wk body.evopen #tabbar { transition: none !important; visibility: hidden; }
 .ev { content-visibility: auto; contain-intrinsic-size: auto 190px; }
+/* v1.8.0 — một dải: hàng avatar người thân được gắn trong thẻ sự kiện */
+.avs { display: flex; align-items: center; margin-top: 8px; min-width: 0; } .avs img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px var(--cardsolid, #241a4a), 0 0 0 3.5px var(--c); flex: none; } .avs img + img { margin-left: -6px; }
+.avs b { flex: none; margin-left: 4px; font-size: 11.5px; font-weight: 800; color: var(--sub); } .avs span { margin-left: 8px; min-width: 0; font-size: 12.5px; font-weight: 700; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip.age .mdot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
 /* v1.8.0 — chống giật khi cuộn: đang cuộn thì dừng mọi hoạt ảnh lặp trong dòng thời gian (dải chảy, viền phát sáng, sao lấp lánh) */
 #tl.scr .lane i, #tl.scr .mb .ic, #tl.scr .ev.mile .cd::after, #tl.scr .ch-ic, #tl.scr .tl-cb, #tl.scr .rail2 i::before, #tl.scr .rhead, #tl.scr .bdb, #tl.scr .tl-more i, #tl.scr .avs i { animation-play-state: paused !important; }
 .chap, .otd, .bdb { content-visibility: auto; contain-intrinsic-size: auto 150px; }
