@@ -460,7 +460,26 @@ export function initDrive(A) {
       const j = await json('/drive/v3/files?' + new URLSearchParams({ q: `name='${qesc(name)}' and '${root}' in parents and trashed=false`, fields: 'files(id)', spaces: 'drive', pageSize: '2' }));
       const id = j.files?.[0]?.id; return await upload({ blob, name, mime: mime || blob.type, parents: id ? undefined : [root], fileId: id || undefined, key: 'root:' + name + ':' + blob.size });
     } catch (e) { console.warn('putRoot', e.message); return null; } }
+  // ---------- v1.8.0: ALBUM CHUNG CẢ NHÀ — thư mục riêng (nhãn appProperties 'album') chia sẻ cho người nhà ----------
+  async function album(create = false) {
+    if (!on || !signedIn()) return null; await loadReg(); if (REG.album?.id) return REG.album;
+    if (!create) { try { const j = await json('/drive/v3/files?' + new URLSearchParams({ q: "appProperties has { key='nganha' and value='album' } and mimeType='application/vnd.google-apps.folder' and trashed=false", fields: 'files(id,name)', spaces: 'drive', pageSize: '2' })); const f = j.files?.[0]; if (f) { REG.album = { id: f.id, name: f.name }; regDirty = true; await saveReg(); return REG.album; } } catch (e) { } return null; }
+    const root = await ensureFolder('root', ROOT_NAME, 'root'); const id = await ensureFolder('album', 'Album chung cả nhà', root); await saveReg(); return REG.album || { id };
+  }
+  async function shareAlbum(email) {
+    const a = await album(true); if (!a) return false;
+    await json(`/drive/v3/files/${a.id}/permissions?` + new URLSearchParams({ sendNotificationEmail: 'true', emailMessage: 'Mời bạn cùng xem và thêm ảnh vào album chung của gia đình (app Hành Trình Của Bạn).', fields: 'id' }), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: email }) });
+    return true;
+  }
+  async function albumPeople() { const a = await album(); if (!a) return []; try { const j = await json(`/drive/v3/files/${a.id}/permissions?fields=permissions(id,emailAddress,role,displayName)`); return (j.permissions || []).filter(p => p.role !== 'owner'); } catch (e) { return []; } }
+  // gửi ảnh vào album: đã có bản gốc trên Drive thì sao chép tệp (không tải lại), chưa có thì tải thẳng lên
+  async function toAlbum(m, blob, name) {
+    const a = await album(true); if (!a) return null;
+    if (m.driveFileId) { try { return (await json(`/drive/v3/files/${m.driveFileId}/copy?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parents: [a.id], name }) })).id; } catch (e) { } }
+    if (!blob) return null; return upload({ blob, name, mime: blob.type || m.mime, parents: [a.id], key: 'alb:' + m.id });
+  }
+  async function accessToken() { return getToken(false); }
   const fetchFile = async id => { if (!on || !signedIn()) return null; try { return await download(id); } catch (e) { return null; } };
-  const api = { on, boot, organize, putApp, getApp, putVisible, putRoot, fetchFile, folderOf, rootId, loadReg, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
+  const api = { on, boot, organize, putApp, getApp, putVisible, putRoot, album, shareAlbum, albumPeople, toAlbum, accessToken, fetchFile, folderOf, rootId, loadReg, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
   return api;
 }

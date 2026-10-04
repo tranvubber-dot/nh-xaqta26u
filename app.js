@@ -8,7 +8,8 @@ import { initProfile, KID_COLORS, defaultColor } from './hoso.js';
 import { initNhac } from './nhac.js';
 import { birthIntro, showOutro } from './modau.js';
 import { initDrive } from './drive.js';
-import { GOOGLE_CLIENT_ID } from './config.js';
+import * as CFG from './config.js';
+const { GOOGLE_CLIENT_ID } = CFG;
 import { ROLES, roleOf, isMe, isChild, isPartner, isElder, roleName, showsAge, findMe, sortPeople, sinceOf, anchorOf, chaptersOf, chapterAt, approxLabel, approxTs, SEASONS, PRECS } from './doi.js';
 import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 import { initOnboarding } from './lamquen.js';
@@ -18,6 +19,7 @@ import { initAI, testKey, resetModel as aiReset } from './ai.js';
 import { buildArchive } from './luutru.js';
 import { initLetters } from './thu.js';
 import { buildMemoir } from './hoiky.js';
+import { initAlbum } from './album.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
@@ -1624,6 +1626,8 @@ async function exportMemoir(ch = null) {
   if (MOBILE && navigator.canShare?.({ files: [f] })) { try { await navigator.share({ files: [f], title: name }); return f; } catch (e) { if (e.name === 'AbortError') return f; } }
   await shareOrDownload(f, name); return f;
 }
+// v1.8.0: 👨‍👩‍👧 album chung cả nhà (Drive + Google Picker)
+let ALB = null; const album = () => ALB ||= initAlbum({ get drive() { return DRV; }, apiKey: CFG.GOOGLE_API_KEY || '', appId: CFG.GOOGLE_APP_ID || '', prompt: prompt2, toast, ymd, blob: id => dbGet('blobs', 'o_' + id), importFiles: files => importFilesQuiet(files), closeAll: () => document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')) });
 // v1.8.0: âm thanh hiệu ứng (sfx.js) — không phát khi đang chiếu có nhạc hoặc đang dựng / xem video
 window.SFX = initSfx({ block: () => { try { return document.body.classList.contains('showing') || !!document.querySelector('#mVid.open, #vkFs.on') || !!INTRO?.active; } catch (e) { return false; } } });
 function openModal(m) { const was = m.classList.contains('open'); m.classList.add('open'); haptic(5); if (!was) SFX.play('pop'); }
@@ -2327,7 +2331,7 @@ function flyToBook(id) {
 
 // ---------- Cài đặt ----------
 async function renderSettings() {
-  renderBkLast(); DRV?.renderSettings(); $('#verNow').textContent = VERSION; $('#abVer').textContent = 'Phiên bản ' + VERSION; checkUpdate(true);
+  renderBkLast(); DRV?.renderSettings(); album().render($('#albSec')).catch(() => { }); $('#verNow').textContent = VERSION; $('#abVer').textContent = 'Phiên bản ' + VERSION; checkUpdate(true);
   if ($('#kidNhacAll')) $('#kidNhacAll').hidden = S.kids.length < 2;
   const ms = await dbAll('moments');
     { const h = $('#kidsList').previousElementSibling; if (h) h.textContent = ME() ? 'Bạn và người thân' : 'Các bé'; $('#kidAdd span').textContent = ME() ? 'Thêm người thân' : 'Thêm bé'; }
@@ -2899,7 +2903,7 @@ function kidMenu(el) {
 function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(() => $('#bgList')?.closest('.sec')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 380); }
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
-const TL = initTimeline({ hidden: () => new Set(), ai: o => aiOpen(o), ageOf: (k, ts) => ageText(k, ts, false), life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
+const TL = initTimeline({ hidden: () => new Set(), albumOn: () => !!DRV?.signedIn, toAlbum: e => album().sendEvent(e), ai: o => aiOpen(o), ageOf: (k, ts) => ageText(k, ts, false), life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
   allCount: () => (S.all || []).length, makeVideo: o => makeVideo(o), voice: { open: (m, o) => VOICE.open(m, o), play: (m, o) => VOICE.play(m, o), ok: () => VOICE.supported() }, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
@@ -3199,7 +3203,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, letters, exportMemoir, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, letters, exportMemoir, album, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));

@@ -886,6 +886,7 @@ export function initTimeline(A) {
       { icon: 'grid', label: GRID.hidden ? 'Xem dạng lưới' : 'Ẩn lưới', act: async () => { await ensure(); showGrid(GRID.hidden, true); } },
       { icon: 'check', label: 'Chọn nhiều ảnh', act: async () => { await ensure(); showGrid(true, true); startSel('ev'); } },
       { sep: 1 },
+      A.albumOn?.() && { icon: 'share', label: '📤 Gửi vào album chung cả nhà', act: () => A.toAlbum(e) },
       A.driveFolderOf?.(e) && { icon: 'image', label: 'Mở thư mục nhóm trên Drive', act: () => window.open('https://drive.google.com/drive/folders/' + A.driveFolderOf(e), '_blank') },
       { icon: 'split', label: 'Rã nhóm (giữ ảnh)', act: () => dissolveGroup(e.group) },
       { icon: 'trash', label: 'Xoá nhóm và ảnh…', danger: true, act: () => deleteGroupAll(e) }] }); return; }
@@ -911,6 +912,7 @@ export function initTimeline(A) {
       older && { icon: 'merge', label: `Gộp với ngày trước (${A.dmy(older.ts0).slice(0, 5)})`, act: () => mergeWith(e, older) },
       newer && { icon: 'merge', label: `Gộp với ngày sau (${A.dmy(newer.ts0).slice(0, 5)})`, act: () => mergeWith(e, newer) },
       e.merged && { icon: 'split', label: 'Tách lại thành từng ngày', act: async () => { st.meta.merges = st.meta.merges.filter(g => !g.includes(e.key)); await saveMeta(); render(); } },
+      A.albumOn?.() && { icon: 'share', label: '📤 Gửi vào album chung cả nhà', act: () => A.toAlbum(e) },
       A.driveFolderOf?.(e) && { icon: 'image', label: 'Mở thư mục sự kiện trên Drive', act: () => window.open('https://drive.google.com/drive/folders/' + A.driveFolderOf(e), '_blank') },
       { icon: 'trash', label: 'Xoá sự kiện…', danger: true, act: () => deleteEvent(e) }
     ] });
