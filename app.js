@@ -27,7 +27,7 @@ import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
 import { initVideoUI } from './videoui.js';
 
-const VERSION = '1.8.1';
+const VERSION = '1.8.2';
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
 const MUTE = Q.has('im');
