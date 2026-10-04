@@ -1358,7 +1358,7 @@ export function initTimeline(A) {
   return {
     async reload() { await loadMeta(); render(false); },
     toggleFilter() { st.showFilter = !st.showFilter; if (!st.showFilter) st.filter = null; render(); }, get filterOn() { return !!st.showFilter; },
-    render, refreshAll, scrollToKey, keyOfMid, openEvent, closeEvent, openViewer, closeViewer, openJump,
+    render, refreshAll, scrollToKey, keyOfMid, openEvent, closeEvent, openViewer, closeViewer, openJump, thumbURL,
     setTitle, refreshThumb, eventsForKid: (kid, moments, meta) => compute({ kid, moments, meta: Object.assign(META0(), meta || {}) }), get events() { return st.events; }, get meta() { return st.meta; }, setMeta: async m => { st.meta = Object.assign(META0(), m); await saveMeta(); },
     guard: (ms = 550) => { st.guard = performance.now() + ms; },
     startSel, endSel, eventMenu, get hidePreg() { return st.hidePreg; },

@@ -103,3 +103,33 @@ export function mountChibiEditor(el, person, onChange) {
   draw();
   return { get: () => ({ ...st }), set: (patch) => { Object.assign(st, patch); draw(); } };
 }
+
+// v1.8.0 — chibi VẪY TAY cho cảnh cả nhà: tay phải giơ lên (nhóm .arm xoay quanh vai bằng CSS), đầu có thể thay bằng ảnh thật cắt tròn
+export function chibiWaveSVG(p, { face = '', w = 120 } = {}) {
+  const c = chibiOf(p), P = parts(c), sc = c.sc, sk = SKINS[c.sk || 0], uid = 'f' + String(p?.id || Math.random()).replace(/[^a-z0-9]/gi, '');
+  const body = P.body.replace(/<rect x="78" y="102"[^>]*\/>/, '').replace(/<circle cx="87" cy="126"[^>]*\/>/, '');
+  const arm = `<g class="arm"><g transform="rotate(32 84 104)"><rect x="78.5" y="78" width="11" height="28" rx="5.5" fill="${sc}"/><circle cx="84" cy="77" r="6" fill="${sk}"/></g></g>`;
+  const head = face ? `<defs><clipPath id="${uid}"><circle cx="60" cy="56" r="35"/></clipPath></defs><circle cx="60" cy="56" r="38.5" fill="#fff"/><image href="${face}" x="25" y="21" width="70" height="70" preserveAspectRatio="xMidYMid slice" clip-path="url(#${uid})"/>` : P.head + P.accF;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" width="${w}" height="${w * 4 / 3}"><ellipse cx="60" cy="152" rx="30" ry="6" fill="rgba(0,0,0,.14)"/>${body}${arm}${head}</svg>`;
+}
+// bố trí cảnh cả nhà: Tôi + bạn đời ở giữa, con đứng trước (nhỏ hơn), bố mẹ / ông bà / anh chị em hai bên phía sau.
+// people: đã sắp xếp; faces: Map id → URL ảnh thật (nếu có). Trả HTML (div định vị theo %, tự co theo số người 1–8+).
+export function familySceneHTML(people, faces = new Map(), { me = null } = {}) {
+  const role = p => roleOf(p), mid = [], front = [], back = [];
+  for (const p of people) { const r = role(p); if (r === 'me' || r === 'vo' || r === 'chong' || r === 'ny') mid.push(p); else if (isChild(p)) front.push(p); else back.push(p); }
+  mid.sort((a, b) => (role(a) === 'me' ? 0 : 1) - (role(b) === 'me' ? 0 : 1));
+  const out = [], n = people.length, k = n <= 3 ? 1 : n <= 5 ? .9 : n <= 7 ? .8 : .7;
+  const fig = (p, x, bottom, h, z, i) => out.push(`<div class="fs-p" style="left:${Math.max(10, Math.min(90, x)).toFixed(1)}%;bottom:${bottom}%;height:${(h * k).toFixed(1)}%;z-index:${z};--i:${i};--b:${((i * 0.37) % 1).toFixed(2)}s;--w:${(0.15 + (i * 0.53) % 1 * .5).toFixed(2)}s"><div class="fs-b">${chibiWaveSVG(p, { face: faces.get(p.id) || '' })}</div></div>`);
+  let i = 0;
+  // giữa: Tôi (+ bạn đời)
+  const mx = mid.length === 1 ? [50] : mid.length === 2 ? [39, 61] : mid.map((_, j) => 50 + (j - (mid.length - 1) / 2) * 16);
+  // sau: chia hai bên
+  const L = back.filter((_, j) => j % 2 === 0), R = back.filter((_, j) => j % 2 === 1), span = Math.max(1, Math.max(L.length, R.length));
+  const step = Math.min(13, 26 / span), side = mid.length > 1 ? 19 : 30;
+  L.forEach((p, j) => fig(p, side - j * step, 26, 58, 1, i++)); R.forEach((p, j) => fig(p, 100 - side + j * step, 26, 58, 1, i++));
+  mid.forEach((p, j) => fig(p, mx[j], 14, 70, 2, i++));
+  // trước: con, cháu (nhỏ hơn)
+  const fx = front.map((_, j) => 50 + (j - (front.length - 1) / 2) * Math.min(15, 60 / Math.max(1, front.length)));
+  front.forEach((p, j) => fig(p, fx[j], 2, 46, 3, i++));
+  return `<div class="fam-scene${n === 1 ? ' solo' : ''}" role="img" aria-label="Cả nhà đang vẫy tay chào">${out.join('')}</div>`;
+}

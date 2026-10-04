@@ -2,8 +2,8 @@
 import { icon, animateSpring, haptic, fmtLong, clamp, REDUCED } from './ui.js';
 import { profileOf, LUNAR_MONTH, MENH_TA, napAm, canChi, CHI, CON } from './hoso-data.js';
 import { SIGN, GIAP_L, MENH_L, NUM, lifePath, jobLine, giapPair, signPair, ELEMENT_TXT } from './docvi.js';
-import { chibiAvatarSVG, chibiSVG, svgURL, mountChibiEditor } from './chibi.js';
-import { isChild, isMe, isPartner, roleOf, roleName } from './doi.js';
+import { chibiAvatarSVG, chibiSVG, svgURL, mountChibiEditor, familySceneHTML } from './chibi.js';
+import { isChild, isMe, isPartner, roleOf, roleName, sortPeople } from './doi.js';
 // người lớn (hoặc ai đã tự chọn nhân vật) dùng chibi; bé từ các bản cũ giữ hình vẽ cũ
 export const useChibi = k => !!k?.chibi || (!!k?.role && !isChild(k));
 export const drawnAvatar = k => useChibi(k) ? svgURL(chibiAvatarSVG(k)) : avatarSVG(k);
@@ -143,6 +143,24 @@ export function initProfile(A) {
     });
   }
 
+  // ---------- v1.8.0: GIA ĐÌNH CỦA BẠN (trong hồ sơ Tôi) + KỶ NIỆM CÓ <tên> (trong trang nhỏ của từng người) ----------
+  const escA = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  async function facesOf(ps) { const m = new Map(); for (const p of ps) if (p.avatar) { const u = await avatarURL(p); if (u) m.set(p.id, u); } return m; }
+  async function sceneHTML(me) { const ps = sortPeople(A.people ? A.people() : [me]); return familySceneHTML(ps, await facesOf(ps), { me }); }
+  function bdayTxt(p) {
+    if (!p.birth) return ''; if (p.birthApprox) return `sinh năm ${p.birth.slice(0, 4)}`;
+    const a = ageParts(p.birth); return a.today ? '🎂 hôm nay sinh nhật' : a.until <= 30 ? `🎂 còn ${a.until} ngày sinh nhật` : `sinh ${p.birth.slice(8, 10)}/${p.birth.slice(5, 7)}/${p.birth.slice(0, 4)}`;
+  }
+  function famHTML() {
+    const rel = sortPeople((A.people ? A.people() : []).filter(p => !isMe(p)));
+    return `<section class="hs-fam"><h2>👨‍👩‍👧 Gia đình của bạn</h2>${rel.length ? `<div class="fm-l">${rel.map((p, i) => `<button class="fm-r" data-a="rel" data-id="${p.id}" style="--c:${p.color || '#ff8fbf'};--d:${Math.min(i, 8) * 40}ms"><img src="${avatarNow(p)}" alt=""><span><b>${escA(p.name)}</b><small>${escA([roleName(p), bdayTxt(p)].filter(Boolean).join(' · '))}</small></span>${icon('chevronRight', 18, 2.2)}</button>`).join('')}</div>` : '<p class="fm-e">Chưa có người thân nào. Thêm vợ / chồng, con, bố mẹ… để gắn họ vào kỷ niệm.</p>'}
+      <button class="fm-add" data-a="addrel">${icon('plus', 17, 2.4)}<span>Thêm người thân</span></button></section>`;
+  }
+  function memHTML(k) {
+    const evs = (A.eventsWith?.(k.id) || []), nm = isMe(k) ? 'bạn' : k.name;
+    return `<section class="hs-mem"><h2>📸 Kỷ niệm có ${escA(nm)} <small>${evs.length ? evs.length + ' sự kiện' : ''}</small></h2>${evs.length ? `<div class="mm-g">${evs.slice(0, 40).map(e => `<button class="mm-e" data-a="ev" data-key="${escA(e.key)}"><i data-mid="${e.stack[0]?.id || ''}"></i><b>${escA(e.title)}</b><small>${escA(A.dmy ? A.dmy(e.ts0) : '')}</small></button>`).join('')}</div>${evs.length > 40 ? `<p class="hint">và ${evs.length - 40} sự kiện nữa trên hành trình</p>` : ''}` : `<p class="fm-e">Chưa có kỷ niệm nào gắn ${escA(nm)}. Mở một sự kiện → ⋯ → “Ai có mặt?” để gắn.</p>`}</section>`;
+  }
+  function fillThumbs() { HI.querySelectorAll('.mm-e i[data-mid]').forEach(x => { if (x.dataset.mid) A.thumbURL?.(x.dataset.mid).then(u => { if (u) x.style.backgroundImage = `url('${u}')`; }); }); }
   // ---------- trang hồ sơ ----------
   const HS = $('#hs'), HI = HS.querySelector('.hs-in');
   function ageParts(birth, now = new Date()) {
@@ -158,15 +176,16 @@ export function initProfile(A) {
   const g3 = (kid, a, b, c) => kid.gender === 'm' ? a : kid.gender === 'f' ? b : c;
   const birthTimeTxt = t => { const [h, m] = t.split(':').map(Number); return `${h}:${String(m).padStart(2, '0')} ${h < 11 ? 'sáng' : h < 13 ? 'trưa' : h < 18 ? 'chiều' : 'tối'}`; };
   const birthStats = k => [k.weight ? `${String(k.weight).replace('.', ',')} kg` : '', k.length ? `${String(k.length).replace('.', ',')} cm` : '', k.place ? k.place : ''].filter(Boolean);
-  async function openProfile(kid) {
+  async function openProfile(kid, opt = {}) {
+    HS._back = opt.back || null; HS.classList.toggle('sub', !!HS._back);
     if (kid && !isChild(kid) && kid.role) return openAdult(kid);
-    if (!kid?.birth) return; document.querySelector('.confetti')?.remove();
+    if (!kid?.birth) return openAdult(kid); document.querySelector('.confetti')?.remove();
     const nh = await A.metaGet?.('nhac:' + kid.id);
     const P = profileOf(kid.birth), age = ageParts(kid.birth), z = P.zodiac, col = kid.color || '#ff8fbf', av = await avatarURL(kid);
     HS.style.setProperty('--kc', col); HS.style.setProperty('--kc2', mix(col, '#ffffff', .45));
     const lun = `Ngày ${P.lunar.d} tháng ${LUNAR_MONTH(P.lunar.m)}${P.lunar.leap ? ' (nhuận)' : ''} năm ${P.canChi}`;
     HI.innerHTML = `
-      <div class="hs-hero"><div class="hs-av"><img src="${av}" alt=""><i></i></div>
+      <div class="hs-hero"><button class="hs-av" data-a="avsel" aria-label="Đổi ảnh đại diện"><img src="${av}" alt=""><i></i></button>
         <h1>${esc(kid.name)}</h1>${kid.fullName ? `<div class="hs-fn">${esc(kid.fullName)}</div>` : ''}<p>${g3(kid, 'Chàng trai nhỏ', 'Công chúa nhỏ', 'Em bé')} · sinh ${esc(fmtLong(new Date(kid.birth + 'T12:00:00').getTime()))}${kid.birthTime ? ` lúc ${esc(birthTimeTxt(kid.birthTime))}` : ''}</p>
         ${birthStats(kid).length ? `<div class="hs-bs">${birthStats(kid).map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
         ${age.today ? `<div class="hs-bday">${icon('cake', 18, 2)}<b>Chúc mừng sinh nhật ${esc(kid.name)}!</b></div>` : ''}
@@ -183,20 +202,22 @@ export function initProfile(A) {
         <section class="t big"><h3>${icon('sparkle', 18)}Tính cách đáng yêu</h3><div class="chips">${z.chip.map(c => `<span class="chip">${c}</span>`).join('')}</div>
           <p class="pa">${esc(z.ta)}</p><p class="pa">${esc(P.giap)} Mệnh ${P.nap.hanh} thường ${MENH_TA[P.nap.hanh]}.</p><p class="note">Mang tính tham khảo cho vui</p></section>
       </div>
+      ${A.family?.() ? memHTML(kid) : ''}
       <div class="hs-acts"><button class="primary" data-a="img">${icon('download', 18, 2)}<span>Lưu thẻ hồ sơ thành ảnh</span></button></div>`;
-    HS.classList.add('open'); HS.setAttribute('aria-hidden', 'false'); document.body.classList.add('hsopen'); HS.querySelector('.hs-sc').scrollTop = 0;
+    fillThumbs(); HS.classList.add('open'); HS.setAttribute('aria-hidden', 'false'); document.body.classList.add('hsopen'); HS.querySelector('.hs-sc').scrollTop = 0;
     HS._kid = kid; HS._p = P; HS._age = age; HS._adult = false;
     if (age.today) setTimeout(() => confetti(col), 500);
   }
   HS.querySelector('.hs-more').onclick = e => { const k = HS._kid; if (!k) return; if (HS._adult) { A.contextMenu({ at: e.currentTarget, title: esc(isMe(k) ? 'Hồ sơ của bạn' : k.name), items: [
     { icon: 'edit', label: 'Sửa thông tin', act: () => { closeProfile(); A.editKid(k); } },
     { icon: 'smile', label: 'Đổi nhân vật chibi', act: () => openChibi(A.rawKid(k.id)) },
-    { icon: 'image', label: 'Dùng ảnh làm avatar', act: () => openAvatar(A.rawKid(k.id), async kk => { await A.saveKid(kk); openProfile(A.dispKid(kk.id)); }) },
+    { icon: 'image', label: 'Dùng ảnh thật làm avatar', act: () => { const raw = A.rawKid(k.id); openAvatar({ ...raw, chibi: null, role: null }, async kk => { raw.avatar = kk.avatar; raw.avStyle = kk.avStyle; await A.saveKid(raw); openProfile(A.dispKid(raw.id), { back: HS._back }); }); } },
+    !isMe(k) && k.birth && { icon: 'bell', label: 'Nhắc sinh nhật hằng năm', act: () => A.nhac(k) },
     { icon: 'download', label: 'Lưu thẻ Đọc vị thành ảnh', act: () => saveAdultCard(k) },
     { sep: 1 }, { icon: 'trash', label: isMe(k) ? 'Xoá hồ sơ của bạn…' : `Xoá ${esc(k.name)}…`, danger: true, act: () => A.removeKid(k) }] }); return; }
     A.contextMenu({ at: e.currentTarget, title: esc(k.name), items: [
     { icon: 'edit', label: 'Sửa tên, ngày sinh, giới tính, màu', act: () => { closeProfile(); A.editKid(k); } },
-    { icon: 'smile', label: 'Đổi avatar', act: () => HS.querySelector('[data-a=av]').click() },
+    { icon: 'smile', label: 'Đổi avatar (chibi hoặc ảnh thật)', act: () => HS.querySelector('[data-a=avsel]')?.click() },
     { icon: 'image', label: 'Đổi hình nền', act: () => { closeProfile(); A.openBgSettings(); } },
     { icon: 'bell', label: 'Nhắc sinh nhật hằng năm', act: () => A.nhac(k) },
     { sep: 1 },
@@ -204,14 +225,14 @@ export function initProfile(A) {
     { sep: 1 },
     { icon: 'trash', label: `Xoá ${esc(k.name)}…`, danger: true, act: () => A.removeKid(k) }] }); };
   function closeProfile() { document.querySelector('.confetti')?.remove(); HS.classList.remove('open'); HS.setAttribute('aria-hidden', 'true'); document.body.classList.remove('hsopen'); }
-  HS.querySelector('.hs-back').onclick = closeProfile;
+  HS.querySelector('.hs-back').onclick = () => { const b = HS._back; if (b && A.rawKid(b)) { openProfile(A.dispKid(b)); HS.querySelector('.hs-sc').scrollTop = 0; } else closeProfile(); };
   HS.addEventListener('click', async e => {
     const b = e.target.closest('[data-a]'); if (!b) return; const k = HS._kid;
     if (b.dataset.a === 'edit') { closeProfile(); A.editKid(k); }
     else if (b.dataset.a === 'chibi') openChibi(A.rawKid(k.id));
     else if (b.dataset.a === 'avsel') { const raw = A.rawKid(k.id); A.contextMenu({ at: b, title: 'Ảnh đại diện', items: [
       { icon: 'smile', label: 'Nhân vật chibi', act: () => openChibi(raw) },
-      { icon: 'image', label: 'Ảnh thật (từ máy hoặc ảnh trong app)', act: () => openAvatar({ ...raw, chibi: null, role: null }, async kk => { raw.avatar = kk.avatar; raw.avStyle = kk.avStyle; await A.saveKid(raw); openProfile(A.dispKid(raw.id)); }) }] }); }
+      { icon: 'image', label: 'Ảnh thật (từ máy hoặc ảnh trong app)', act: () => openAvatar({ ...raw, chibi: null, role: null }, async kk => { raw.avatar = kk.avatar; raw.avStyle = kk.avStyle; await A.saveKid(raw); openProfile(A.dispKid(raw.id), { back: HS._back }); }) }] }); }
     else if (b.dataset.a === 'aimg') saveAdultCard(k);
     else if (b.dataset.a === 'flip') { const c = b.closest('.fc'); c.classList.toggle('on'); haptic(8); }
     else if (b.dataset.a === 'job') openJob(A.rawKid(k.id), b.dataset.i != null ? +b.dataset.i : null);
@@ -221,6 +242,9 @@ export function initProfile(A) {
     else if (b.dataset.a === 'bg') { closeProfile(); A.openBgSettings(); }
     else if (b.dataset.a === 'rm') A.removeKid(k);
     else if (b.dataset.a === 'nhac') A.nhac(k);
+    else if (b.dataset.a === 'rel') { const p = A.dispKid(b.dataset.id); if (p) { haptic(6); openProfile(p, { back: k.id }); } }
+    else if (b.dataset.a === 'addrel') { closeProfile(); A.addRel?.(); }
+    else if (b.dataset.a === 'ev') { closeProfile(); A.openEvent?.(b.dataset.key); }
   });
   addEventListener('keydown', e => { if (e.key === 'Escape' && HS.classList.contains('open') && !document.querySelector('.modal.open')) { e.stopImmediatePropagation(); closeProfile(); } }, true);
   function confetti(col) {
@@ -238,7 +262,7 @@ export function initProfile(A) {
   async function openAdult(kid) {
     document.querySelector('.confetti')?.remove(); const R = readingOf(kid), col = kid.color || '#ff8fbf', me = isMe(kid), job = curJob(kid);
     HS.style.setProperty('--kc', col); HS.style.setProperty('--kc2', mix(col, '#ffffff', .45)); HS._adult = true; HS._kid = kid;
-    const hero = kid.avatar ? `<button class="hs-av" data-a="avsel" aria-label="Đổi ảnh đại diện"><img src="${await avatarURL(kid)}" alt=""><i></i></button>` : `<button class="hs-cb" data-a="avsel" aria-label="Đổi ảnh đại diện">${chibiSVG(kid, { w: 150 })}</button>`;
+    const hero = me && A.family?.() ? `<button class="hs-scene" data-a="avsel" aria-label="Đổi ảnh đại diện của bạn">${await sceneHTML(kid)}</button>` : kid.avatar ? `<button class="hs-av" data-a="avsel" aria-label="Đổi ảnh đại diện"><img src="${await avatarURL(kid)}" alt=""><i></i></button>` : `<button class="hs-cb" data-a="avsel" aria-label="Đổi ảnh đại diện">${chibiSVG(kid, { w: 150 })}</button>`;
     const born = kid.birth ? (kid.birthApprox ? `sinh năm ${kid.birth.slice(0, 4)}` : `sinh ${fmtLong(new Date(kid.birth + 'T12:00:00').getTime())}`) : '';
     const L = R?.P?.lunar, lun = L ? `Âm lịch ${L.d}/${L.m}${L.leap ? ' nhuận' : ''} · ${R.canChi}` : R ? `Năm ${R.canChi}` : '';
     const fc = (cls, front, back) => `<section class="fc ${cls}" data-a="flip"><div class="fc-in"><div class="fc-f">${front}<small class="fc-h">chạm để lật ${icon('chevronRight', 12, 2.4)}</small></div><div class="fc-b">${back}</div></div></section>`;
@@ -269,15 +293,16 @@ export function initProfile(A) {
     HI.innerHTML = `<div class="hs-hero">${hero}<h1>${esc(me ? kid.name : kid.name)}</h1>${kid.fullName ? `<div class="hs-fn">${esc(kid.fullName)}</div>` : ''}
         <p>${esc([me ? 'Hồ sơ của bạn' : roleName(kid), born].filter(Boolean).join(' · '))}</p>${lun ? `<p class="hs-lun">${esc(lun)}${job ? ` · ${esc(job.job)}` : ''}</p>` : ''}
         <div class="hs-tools"><button data-a="edit">${icon('edit', 18)}<span>Sửa thông tin</span></button><button data-a="avsel">${icon('smile', 18)}<span>Đổi ảnh đại diện</span></button></div></div>
-      <h2 class="hs-dv">✨ Đọc vị bản thân</h2>
+      ${me && A.family?.() ? famHTML() : ''}${!me && A.family?.() ? memHTML(kid) : ''}
+      <h2 class="hs-dv">✨ ${me ? 'Đọc vị bản thân' : 'Đọc vị cho vui'}</h2>
       <div class="hs-grid adult">${cards.join('')}</div><p class="hs-note">Mang tính tham khảo cho vui · không bàn chuyện vận hạn, tương lai</p>
       <div class="hs-acts"><button class="primary" data-a="aimg">${icon('download', 18, 2)}<span>Lưu thẻ Đọc vị thành ảnh</span></button></div>`;
-    HS.classList.add('open'); HS.setAttribute('aria-hidden', 'false'); document.body.classList.add('hsopen'); HS.querySelector('.hs-sc').scrollTop = 0;
+    fillThumbs(); HS.classList.add('open'); if (me && A.family?.()) A.sfx?.('boing', 650); HS.setAttribute('aria-hidden', 'false'); document.body.classList.add('hsopen'); HS.querySelector('.hs-sc').scrollTop = 0;
   }
   // chọn nhân vật chibi
   const MC = $('#mChibi'); let CE = null, CK = null;
   function openChibi(k, done) { CK = k; MC.querySelector('.cbn').textContent = isMe(k) ? 'bạn' : k.name; CE = mountChibiEditor($('#ceBox'), k); MC._done = done; A.openModal(MC); }
-  MC.querySelector('[data-a=cbok]').onclick = async () => { const k = CK; if (!k) return; k.chibi = CE.get(); k.avatar = 0; A.closeModal(MC); haptic(12); if (MC._done) MC._done(k); else { await A.saveKid(k); if (HS.classList.contains('open')) openProfile(A.dispKid(k.id)); } };
+  MC.querySelector('[data-a=cbok]').onclick = async () => { const k = CK; if (!k) return; k.chibi = CE.get(); k.avatar = 0; A.closeModal(MC); haptic(12); if (MC._done) MC._done(k); else { await A.saveKid(k); if (HS.classList.contains('open')) openProfile(A.dispKid(HS._kid?.id === k.id || !HS._back ? k.id : HS._kid.id), { back: HS._back }); } };
   // công việc theo thời gian: { job, at, from, to }
   const MJ = $('#mJob'); let JK = null, JI = null;
   const JOBS = ['Học sinh', 'Sinh viên', 'Nhân viên văn phòng', 'Kinh doanh', 'Kỹ sư', 'Giáo viên', 'Bác sĩ', 'Nội trợ', 'Nghỉ hưu', 'Tự do'];

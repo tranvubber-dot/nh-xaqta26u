@@ -1705,6 +1705,14 @@ $('#kidMenu').hidden = true;
 let kidEditing = null;
 let kidDraft = null;
 const ROLE_G = { bo: 'm', ong: 'm', anh: 'm', chong: 'm', ma: 'f', ba: 'f', chi: 'f', vo: 'f' };
+const REL = [{ v: 'vc', t: 'Vợ/Chồng', sub: [['vo', 'Vợ'], ['chong', 'Chồng'], ['ny', 'Người yêu']] }, { v: 'ct', t: 'Con trai' }, { v: 'cg', t: 'Con gái' }, { v: 'bo', t: 'Bố' }, { v: 'ma', t: 'Mẹ' },
+  { v: 'ace', t: 'Anh/Chị/Em', sub: [['anh', 'Anh'], ['chi', 'Chị'], ['em', 'Em']] }, { v: 'ob', t: 'Ông/Bà', sub: [['ong', 'Ông'], ['ba', 'Bà']] }, { v: 'khac', t: 'Khác', sub: [['chau', 'Cháu'], ['ban', 'Bạn thân'], ['khac', 'Người thân']] }];
+const relOf = k => { const r = roleOf(k); return r === 'vo' || r === 'chong' || r === 'ny' ? 'vc' : r === 'con' ? (k.gender === 'f' ? 'cg' : 'ct') : r === 'bo' || r === 'ma' ? r : r === 'anh' || r === 'chi' || r === 'em' ? 'ace' : r === 'ong' || r === 'ba' ? 'ob' : r === 'me' ? 'me' : 'khac'; };
+function pickRel(v) {
+  if (!kidDraft) return; const meG = ME()?.gender;
+  if (v === 'ct' || v === 'cg') { const g = v === 'ct' ? 'm' : 'f'; kidDraft.role = 'con'; kidDraft.gender = g; kidDraft._autoG = false; if (KID_COLORS.includes(kidDraft.color)) kidDraft.color = defaultColor(g, S.kids.filter(k => k.id !== kidDraft.id).map(k => k.color)); haptic(6); kidRoleUi(); kidSheetUi(); return; }
+  const first = { vc: meG === 'f' ? 'chong' : 'vo', ace: 'em', ob: 'ong', khac: 'khac' }[v] || v; setKidRole(first);
+}
 function kidSheetUi() {
   const k = kidDraft; $$('#kidG button').forEach(b => b.classList.toggle('on', b.dataset.v === k.gender));
   $('#kidC').innerHTML = KID_COLORS.map(c => `<i data-c="${c}" style="background:${c}" class="${c === k.color ? 'on' : ''}"></i>`).join('');
@@ -1717,7 +1725,12 @@ function kidRoleUi() {
   const meTaken = S.kids.some(x => isMe(x) && x.id !== k.id), editMe = kidEditing && isMe(kidEditing);
   $('#kidFst').hidden = !first; $('#kidRoleRow').hidden = first || editMe;
   $$('#kidFst [data-r]').forEach(b => b.classList.toggle('on', b.dataset.r === r));
-  $('#kidRole').innerHTML = ROLES.filter(x => x.v !== 'me' || (!meTaken && !kidEditing)).map(x => `<button type="button" data-r="${x.v}" class="${x.v === r ? 'on' : ''}">${x.t}</button>`).join('');
+  { // v1.8.0: quan hệ chọn nhanh — Vợ/Chồng, Con trai, Con gái, Bố, Mẹ, Anh/Chị/Em, Ông/Bà, Khác (nhóm có lựa chọn phụ)
+    const cur = relOf(k), sub = REL.find(x => x.v === cur)?.sub;
+    $('#kidRole').innerHTML = REL.map(x => `<button type="button" data-rel="${x.v}" class="${x.v === cur ? 'on' : ''}">${x.t}</button>`).join('') + (!meTaken && !kidEditing && !ME() ? `<button type="button" data-r="me" class="${r === 'me' ? 'on' : ''}">Tôi</button>` : '');
+    let r2 = $('#kidRole2'); if (!r2) { $('#kidRole').insertAdjacentHTML('afterend', '<div class="rchips sub" id="kidRole2"></div>'); r2 = $('#kidRole2'); r2.onclick = e => { const b = e.target.closest('[data-r]'); if (b) setKidRole(b.dataset.r); }; }
+    r2.hidden = !sub; r2.innerHTML = sub ? sub.map(([v, t]) => `<button type="button" data-r="${v}" class="${v === r ? 'on' : ''}">${t}</button>`).join('') : '';
+  }
   $('#kidInL').textContent = me ? 'Tên của bạn' : child ? 'Tên ở nhà của bé' : 'Tên gọi';
   $('#kidIn').placeholder = me ? 'Ví dụ: Vũ' : child ? 'Ví dụ: Bin' : `Ví dụ: ${roleName(k)}`;
   $('#kidBdL').innerHTML = me ? 'Ngày sinh của bạn' : child ? 'Ngày sinh' : 'Ngày sinh <small class="opt">tuỳ chọn</small>';
@@ -1725,15 +1738,15 @@ function kidRoleUi() {
   const since = !me && !child && r !== 'em';
   $('#kidSince').hidden = !since; $('#kidWedF').hidden = !partner;
   $('#kidSiL').textContent = partner || r === 'ban' || r === 'khac' ? 'Ngày quen nhau' : 'Ngày bước vào đời bạn';
-  $('#kidSiH').textContent = isElder(k) ? 'Để trống thì app coi như người này có mặt từ ngày bạn chào đời.' : partner ? 'Dùng cho chương “Tình yêu & cưới” và lịch kỷ niệm ngày cưới.' : 'Từ ngày này người ấy có dải sáng riêng trên hành trình của bạn.';
+  $('#kidSiH').textContent = isElder(k) ? 'Để trống thì app coi như người này có mặt từ ngày bạn chào đời.' : partner ? 'Dùng cho chương “Tình yêu & cưới” và lịch kỷ niệm ngày cưới.' : 'Dùng cho lịch kỷ niệm của gia đình.';
   $('#kidAgeF').hidden = me || child;
   const gb = $$('#kidG button'); gb[0].textContent = child ? 'Bé trai' : 'Nam'; gb[1].textContent = child ? 'Bé gái' : 'Nữ';
   $('#kidCL').textContent = me ? 'Màu của bạn' : child ? 'Màu của bé' : 'Màu riêng';
   const nm = kidEditing ? (isMe(kidEditing) ? 'bạn' : cap(kidEditing.name)) : '';
-  $('#kidTitle').textContent = first ? 'Chào bạn! 👋' : kidEditing ? (isMe(kidEditing) ? 'Hồ sơ của bạn' : `Sửa thông tin ${nm}`) : me ? 'Hồ sơ của bạn' : child ? 'Thêm một bé' : 'Thêm người thân';
+  $('#kidTitle').textContent = first ? 'Chào bạn! 👋' : kidEditing ? (isMe(kidEditing) ? 'Hồ sơ của bạn' : `Sửa thông tin ${nm}`) : me ? 'Hồ sơ của bạn' : 'Thêm người thân';
   $('#kidLead').textContent = first ? (me ? 'Hành Trình Của Bạn lưu lại kỷ niệm cả cuộc đời — tuổi thơ, tuổi trẻ, gia đình, con cái — để sau này xem lại. Bắt đầu bằng hồ sơ của chính bạn, người thân thêm sau.' : 'Cùng tạo dòng thời gian kỷ niệm cho con nhé. Ngày sinh giúp app tính con bao nhiêu tuổi ở mỗi tấm ảnh.')
-    : kidEditing ? (me ? 'Ngày sinh của bạn dùng để chia đời bạn thành các chương.' : child ? 'Đổi tên hoặc ngày sinh — tuổi trên mọi tấm ảnh sẽ tự tính lại.' : 'Người thân có dải sáng riêng trên hành trình của bạn, từ ngày bước vào đời bạn.')
-    : me ? 'Từ giờ mọi kỷ niệm xếp vào hành trình cuộc đời bạn, chia thành từng chương. Các bé đã có thành người thân vai trò Con — không mất gì.' : child ? 'Mỗi bé có dòng thời gian riêng, kèm tuổi tháng và cột mốc.' : 'Vợ / chồng, bố mẹ, anh chị em… — ảnh gắn người này hiện trên dải sáng riêng.';
+    : kidEditing ? (me ? 'Ngày sinh của bạn dùng để chia đời bạn thành các chương.' : child ? 'Đổi tên hoặc ngày sinh — tuổi trên mọi tấm ảnh sẽ tự tính lại.' : 'Người thân được gắn vào các kỷ niệm trên hành trình của bạn.')
+    : me ? 'Từ giờ mọi kỷ niệm xếp vào hành trình cuộc đời bạn, chia thành từng chương. Các bé đã có thành người thân vai trò Con — không mất gì.' : child ? 'Con có tuổi tháng và cột mốc riêng trên các kỷ niệm có con. Gắn con vào ảnh khi thêm ảnh hoặc trong trang sự kiện.' : 'Vợ / chồng, bố mẹ, anh chị em… — gắn người này vào kỷ niệm khi thêm ảnh hoặc trong trang sự kiện (⋯ → Ai có mặt?).';
   $('#kidOk').textContent = kidEditing ? 'Lưu' : first ? 'Bắt đầu ✨' : 'Thêm';
   $('#kidDel').textContent = me ? 'Xoá hồ sơ của bạn' : child ? 'Xoá bé này' : 'Xoá người này';
 }
@@ -1784,7 +1797,7 @@ function setKidRole(r) {
   if (autoG) { kidDraft.gender = ROLE_G[r] || (kidEditing?.gender ?? null); kidDraft._autoG = !!ROLE_G[r]; if (KID_COLORS.includes(kidDraft.color)) kidDraft.color = defaultColor(kidDraft.gender, S.kids.filter(k => k.id !== kidDraft.id).map(k => k.color)); }
   haptic(6); kidRoleUi(); kidSheetUi();
 }
-$('#kidRole').onclick = e => { const b = e.target.closest('[data-r]'); if (b) setKidRole(b.dataset.r); };
+$('#kidRole').onclick = e => { const rb = e.target.closest('[data-rel]'); if (rb) { pickRel(rb.dataset.rel); return; } const b = e.target.closest('[data-r]'); if (b) setKidRole(b.dataset.r); };
 $('#kidFst').onclick = e => { const b = e.target.closest('[data-r]'); if (!b) return; if (b.dataset.r === 'me' && !kidEditing) { createMe(!S.kids.length); return; } setKidRole(b.dataset.r); };
 $('#kidCal').onclick = e => { const b = e.target.closest('[data-v]'); if (b) setCal(b.dataset.v); };
 ['kidLd', 'kidLm', 'kidLy', 'kidLl'].forEach(id => $('#' + id).addEventListener(id === 'kidLy' ? 'input' : 'change', () => kidBdHint()));
@@ -1802,7 +1815,7 @@ $('#kidOk').onclick = async () => {
   if (child && kg && num(kg, .3, 9) == null) { toast('Cân nặng lúc sinh tính bằng kg, ví dụ 3,2'); $('#kidBx').open = true; $('#kidKg').focus(); return; }
   if (child && cm && num(cm, 20, 70) == null) { toast('Chiều dài lúc sinh tính bằng cm, ví dụ 50'); $('#kidBx').open = true; $('#kidCm').focus(); return; }
   const since = !me && !child && roleOf(k0) !== 'em' ? ($('#kidSi').value || null) : null, wed = partner ? ($('#kidWed').value || null) : null;
-  const ex = { role: roleOf(k0), gender: k0.gender || null, color: k0.color, avatar: k0.avatar || 0, avStyle: k0.avStyle || 0,
+  const ex = { role: roleOf(k0), gender: k0.gender || null, color: k0.color, avatar: k0.avatar || 0, avStyle: k0.avStyle || 0, chibi: k0.chibi || null,
     birthLunar: CAL.mode === 'a' && birth ? { d: +$('#kidLd').value, m: +$('#kidLm').value, y: +$('#kidLy').value, leap: $('#kidLl').checked } : null,
     since, wed, showAge: !me && !child ? $('#kidAge').checked : false, birthApprox: keepApx ? kidEditing.birthApprox : null,
     fullName: $('#kidFn').value.trim().replace(/\s+/g, ' ') || null, birthTime: child ? $('#kidTm').value || null : null, place: child ? $('#kidPl').value.trim() || null : null, weight: child ? num(kg, .3, 9) : null, length: child ? num(cm, 20, 70) : null };
@@ -1841,7 +1854,11 @@ $('#kidIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kidBd'
 $('#kidIn').addEventListener('input', () => kidDraft && kidSheetUi());
 $('#kidG').onclick = e => { const b = e.target.closest('[data-v]'); if (!b || !kidDraft) return; const was = kidDraft.gender; kidDraft.gender = b.dataset.v; kidDraft._autoG = false; if (!was || KID_COLORS.indexOf(kidDraft.color) >= 0) kidDraft.color = defaultColor(kidDraft.gender, S.kids.filter(k => k.id !== kidDraft.id).map(k => k.color)); haptic(6); kidSheetUi(); };
 $('#kidC').onclick = e => { const c = e.target.dataset.c; if (!c || !kidDraft) return; kidDraft.color = c; haptic(5); kidSheetUi(); };
-$('#kidAvB').onclick = () => { if (!kidDraft) return; const m = $('#mKid'); P.openAvatar({ ...kidDraft, name: cap($('#kidIn').value) || 'bé' }, k => { Object.assign(kidDraft, { avatar: k.avatar, avStyle: k.avStyle }); P.warm([kidDraft]).then(kidSheetUi); setTimeout(() => openModal(m), 50); }); };
+$('#kidAvB').onclick = e => { if (!kidDraft) return; const m = $('#mKid'), nm = cap($('#kidIn').value) || roleName(kidDraft);
+  contextMenu({ at: e.currentTarget, title: 'Ảnh đại diện', items: [
+    { icon: 'smile', label: 'Nhân vật chibi <small class="cm-n">tóc, da, áo, kính…</small>', act: () => P.openChibi({ ...kidDraft, name: nm }, kk => { kidDraft.chibi = kk.chibi; kidDraft.avatar = 0; P.warm([kidDraft]).then(kidSheetUi); setTimeout(() => openModal(m), 50); }) },
+    { icon: 'image', label: 'Ảnh thật <small class="cm-n">từ máy hoặc ảnh trong app</small>', act: () => P.openAvatar({ ...kidDraft, name: nm, chibi: null, role: null }, k => { Object.assign(kidDraft, { avatar: k.avatar, avStyle: k.avStyle }); P.warm([kidDraft]).then(kidSheetUi); setTimeout(() => openModal(m), 50); }) }] }); };
+$('#kidAvB')._old = () => { if (!kidDraft) return; const m = $('#mKid'); P.openAvatar({ ...kidDraft, name: cap($('#kidIn').value) || 'bé' }, k => { Object.assign(kidDraft, { avatar: k.avatar, avStyle: k.avStyle }); P.warm([kidDraft]).then(kidSheetUi); setTimeout(() => openModal(m), 50); }); };
 async function removeKid(k) {
   const me = ME();
   if (me && !isMe(k)) { // v1.8.0: ảnh thuộc hành trình của bạn — xoá người thân chỉ bỏ gắn người đó, ảnh vẫn giữ nguyên
@@ -2721,7 +2738,7 @@ const LICH = initLich({ people: () => S.kids.map(dispKid), metaGet, metaSet, pro
 const nhacFor = kids => N.open((kids || [S.kid]).filter(Boolean).map(dispKid));
 
 // ---------- Hồ sơ bé, avatar ----------
-const P = initProfile({ people: () => S.kids.map(dispKid), nhac: k => nhacFor([S.kids.find(x => x.id === k.id)]), metaGet, removeKid: async k => { const raw = S.kids.find(x => x.id === k.id); if (!raw) return; kidEditing = raw; $('#kidDel').click(); }, openBgSettings: () => openBgSettings(), contextMenu, dbGet, dbPut, allMoments: () => S.all || [], kidsOf, openModal, closeModal, toast, WD, noAccent, TEST, shareOrDownload,
+const P = initProfile({ people: () => S.kids.map(dispKid), family: () => !!S.family, dmy, eventsWith: id => (TL.events || []).filter(e => e.kids?.includes(id)), openEvent: key => { setMode('tl'); TL.openEvent(key); }, thumbURL: id => TL.thumbURL(id), addRel: () => openKid(null), sfx: (n, d) => window.SFX?.play(n, d), nhac: k => nhacFor([S.kids.find(x => x.id === k.id)]), metaGet, removeKid: async k => { const raw = S.kids.find(x => x.id === k.id); if (!raw) return; kidEditing = raw; $('#kidDel').click(); }, openBgSettings: () => openBgSettings(), contextMenu, dbGet, dbPut, allMoments: () => S.all || [], kidsOf, openModal, closeModal, toast, WD, noAccent, TEST, shareOrDownload,
   editKid: k => openKid(S.kids.find(x => x.id === k.id)), rawKid: id => S.kids.find(x => x.id === id), dispKid: id => dispKid(S.kids.find(x => x.id === id)),
   saveKid: async k => { await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); buildGalaxy(); } });
 
