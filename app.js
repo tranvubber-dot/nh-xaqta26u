@@ -2520,7 +2520,8 @@ async function startStory(o = {}) {
   if (o.chapter) { const c = o.chapter, y0 = new Date(c.ts).getFullYear(), y1 = c.end ? new Date(c.end - 864e5).getFullYear() : new Date().getFullYear(); filter = m => m.ts >= c.ts && (!c.end || m.ts < c.end); card = { kick: `Chương ${c.num}`, title: `${c.ic} ${c.title}`, sub: y1 > y0 ? `${y0} – ${y1}` : String(y0), people: [me] }; }
   else if (o.person) { const k = o.person; filter = m => kidsOf(m).includes(k.id); card = { kick: isMe(k) ? 'Kể chuyện' : 'Kể chuyện về', title: isMe(k) ? 'Những khoảnh khắc của bạn' : cap(k.name), sub: isMe(k) ? '' : roleName(k), people: [k] }; }
   else if (o.ids) { const ids = new Set(o.ids); filter = m => ids.has(m.id); card = { kick: 'Kể chuyện', title: o.title || 'Chuyến đi', sub: o.sub || '', people: (o.people || []) }; }
-  return startShow({ filter, card, birth: !filter && LIFE() && me?.birth && !me.birthApprox });
+  const bk = o.birthKid && o.birthKid.birth && !o.birthKid.birthApprox ? S.kids.find(k => k.id === o.birthKid.id) : null; // v1.8.0: sự kiện chào đời của người được gắn → đoạn mở đầu của người đó
+  return startShow({ filter, card, birth: !filter && LIFE() && me?.birth && !me.birthApprox, birthKid: bk });
 }
 async function startShow(opt = {}) {
   if (!S.kid) return;
@@ -2534,11 +2535,11 @@ async function startShow(opt = {}) {
     else if (it.kind === 'm') { SH.list.push(G.stops.find(s => s.card === it.card)); for (const b of G.books || []) if (b.card === it.card) SH.list.push({ kind: 'book', s: b.s, book: b }); }
   }
   SH.i = -1; SH.prevS = (SH.list[0]?.s ?? 0) - 1; SH.camS = FL.s - 10; FL.camS = SH.camS;
-  if (opt.card) { await startMusic(); await lifeCard(opt.card); if (S.mode === 'show') showNext(); return; }
-  if (LIFE() && !opt.birth) { await startMusic(); await lifeCard(); if (S.mode === 'show') showNext(); return; }
-  if (!opt.birth && (S.family || !S.kid.birth || !isChild(S.kid))) { await startMusic(); showNext(); return; }
+  if (opt.card && !opt.birthKid) { await startMusic(); await lifeCard(opt.card); if (S.mode === 'show') showNext(); return; }
+  if (LIFE() && !opt.birth && !opt.birthKid) { await startMusic(); await lifeCard(); if (S.mode === 'show') showNext(); return; }
+  if (!opt.birth && !opt.birthKid && (S.family || !S.kid.birth || !isChild(S.kid))) { await startMusic(); showNext(); return; }
   // đoạn mở đầu ngày sinh (chạm để bỏ qua) rồi mới bay vào dải ngân hà
-  const k = dispKid(S.kid), b0 = dayStart(parseYmd(k.birth)), mine = S.moments.slice().sort((a, b) => a.ts - b.ts);
+  const bk = opt.birthKid || S.kid, k = dispKid(bk), b0 = dayStart(parseYmd(k.birth)), mine = S.moments.filter(m => !opt.birthKid || kidsOf(m).includes(bk.id) || (m.ts >= b0 && m.ts < b0 + 864e5)).sort((a, b) => a.ts - b.ts);
   const pick = (arr, n) => arr.length <= n ? arr : Array.from({ length: n }, (_, i) => arr[Math.round(i * (arr.length - 1) / (n - 1))]);
   const urls = async arr => (await Promise.all(arr.map(m => dbGet('blobs', 't_' + m.id)))).filter(Boolean).map(b => { const u = URL.createObjectURL(b); SH.introUrls.push(u); return u; });
   SH.introUrls = []; let musicOn = false; const run = SH.runId;

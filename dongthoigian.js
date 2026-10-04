@@ -1305,6 +1305,7 @@ export function initTimeline(A) {
   const EVS = $('#evs'), EST = EVS.querySelector('.evs-st'); const ES = { on: false, tok: 0, urls: [] };
   const sleepT = (ms, tok) => new Promise(r => setTimeout(() => r(ES.tok === tok), ms));
   async function playEvent(e) {
+    if (e.mile?.k === 'birth' && e.mile.kid && A.story && A.family() && kidById(e.mile.kid)?.birth) { closeEvent?.(); A.story({ ids: e.ms.map(m => m.id), title: e.title, sub: spanTxt(e.ms), people: e.kids.map(kidById).filter(Boolean), birthKid: kidById(e.mile.kid) }); return; } // ngày chào đời của người được gắn → đoạn mở đầu chào đời
     if (ES.on) return; const tok = ++ES.tok; ES.on = true; ES.e = e;
     EVS.classList.add('open'); EVS.setAttribute('aria-hidden', 'false'); document.body.classList.add('evshow'); EST.innerHTML = '';
     A.music?.(true); haptic(8);
