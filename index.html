@@ -606,7 +606,7 @@ body[data-theme="dawn"] #evp .evp-bg > i { background: linear-gradient(180deg, r
 #evp .evp-sc::-webkit-scrollbar { display: none; }
 #evp.open, #evp.closing { pointer-events: auto; } #evp.closing { pointer-events: none; }
 #evp.open .evp-bg, #evp.open .evp-sc { opacity: 1; } #evp.closing .evp-sc { opacity: 0; transition: opacity .25s; }
-.evp-head { position: relative; height: clamp(240px, 36vh, 360px); display: flex; align-items: flex-end; }
+.evp-head { position: relative; min-height: clamp(240px, 36vh, 360px); padding-top: calc(var(--safe-t, 0px) + 74px); box-sizing: border-box; display: flex; align-items: flex-end; } /* tiêu đề dài + nhiều chip không trồi lên dưới nút ‹ ⋯ */
 .evp-hx { width: 100%; max-width: 980px; margin: 0 auto; padding: 0 20px 8px; color: #fff; will-change: transform, opacity; }
 body[data-theme="dawn"] .evp-hx { color: #3d1b35; }
 .evp-dt { font-size: 14px; font-weight: 700; opacity: .85; text-shadow: 0 1px 8px rgba(0,0,0,.35); }

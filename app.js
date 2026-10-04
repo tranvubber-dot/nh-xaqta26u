@@ -1631,7 +1631,8 @@ async function exportMemoir(ch = null) {
 // v1.8.0: 👨‍👩‍👧 album chung cả nhà (Drive + Google Picker)
 let ALB = null; const album = () => ALB ||= initAlbum({ get drive() { return DRV; }, apiKey: CFG.GOOGLE_API_KEY || '', appId: CFG.GOOGLE_APP_ID || '', prompt: prompt2, toast, ymd, blob: id => dbGet('blobs', 'o_' + id), importFiles: files => importFilesQuiet(files), closeAll: () => document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')) });
 // v1.8.1: 🗺 thẻ nơi chốn + 📍 lưu nơi đang ở
-let PLC = null; const placeCard = (e, o) => (PLC ||= initPlaceCard({ thumbURL: id => TL.thumbURL(id), blob: id => dbGet('blobs', 'o_' + id), thumbBlob: id => dbGet('blobs', 't_' + id), person: id => dispKid(S.kids.find(k => k.id === id)), avatarURL: p => P.avatarURL(S.kids.find(k => k.id === p.id) || p), metaGet, metaSet, noAccent, MOBILE, TEST, shareOrDownload, openModal: m => openModal(m), toast, onSaved: f => { if (TEST) T.lastPlaceCard = f; } })).open(e, o);
+let PLC = null; const placeCard = (e, o) => (PLC ||= plcInit(initPlaceCard({ thumbURL: id => TL.thumbURL(id), blob: id => dbGet('blobs', 'o_' + id), thumbBlob: id => dbGet('blobs', 't_' + id), person: id => dispKid(S.kids.find(k => k.id === id)), avatarURL: p => P.avatarURL(S.kids.find(k => k.id === p.id) || p), metaGet, metaSet, noAccent, MOBILE, TEST, shareOrDownload, openModal: m => openModal(m), toast, onSaved: f => { if (TEST) T.lastPlaceCard = f; } }))).open(e, o);
+const plcInit = p => { initSheets(m => closeModal(m)); return p; }; // bảng Tem tạo sau lúc khởi động → gắn thêm hàng kéo + ✕
 async function saveHere(files) {
   if (!files?.length) return; toast('📍 Đang lấy vị trí của bạn…', 2500);
   const pos = await new Promise(res => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => res(p.coords), () => res(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }) : res(null));
@@ -2228,7 +2229,7 @@ function refreshAddBtn() {
   { const days = new Set(ADD.rows.filter(r => r.ready && !r.bad).map(r => ymd(r.ts))), box = $('#addGrpBox'); box.hidden = days.size < 2 && !$('#addGrp').value; const ts = ADD.rows.filter(r => r.ready && !r.bad).map(r => r.ts).sort((a, b) => a - b); box.querySelector('.addgrp-s').textContent = ts.length && days.size > 1 ? `${ts.length} ảnh · ${days.size} ngày · ${dmy(ts[0]).slice(0, 5)} – ${dmy(ts[ts.length - 1])}` : ''; }
   const b = $('#addSave'), n = ADD.rows.filter(r => !r.dup).length || (ADD.rows.some(r => r.dup) ? 1 : 0);
   b.disabled = !n || ADD.pending > 0 || ADD.busy;
-  b.textContent = ADD.busy ? 'Đang lưu…' : ADD.pending ? `Đang đọc ${ADD.pending} tệp…` : n ? `Lưu ${n} khoảnh khắc vào dòng thời gian` : 'Lưu vào dòng thời gian';
+  b.textContent = ADD.busy ? 'Đang lưu…' : ADD.pending ? `Đang đọc ${ADD.pending} tệp…` : n ? `Lưu ${n} khoảnh khắc` : 'Lưu';
 }
 // sau khi đọc xong cả đợt: tự căn ngày rồi xếp sẵn theo nhóm ngày (không hỏi gì)
 // ?test: bảng "Chi tiết tệp" để soi tệp iPhone đưa vào (tên, loại, cỡ, lastModified, các thẻ ngày đọc được)
