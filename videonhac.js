@@ -70,3 +70,29 @@ export async function userMusic(blob, dur, { sr = 48000 } = {}) {
   g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(.9, LEAD + .4); g.gain.setValueAtTime(.9, total - 2.2); g.gain.linearRampToValueAtTime(0, total - .15); s.start(LEAD);
   return { buffer: normalize(await ac.startRendering()), bpm: bpm || 100, offset: LEAD + offset, clear: best > 1e-4 };
 }
+
+// TIẾNG GỐC của clip: trộn nhỏ DƯỚI nhạc nền. clips = [{ buffer: AudioBuffer (đúng đoạn clip phát), at: giây trên video, len }]
+// nhạc hạ nhẹ (×0,72) trong lúc clip có tiếng; tiếng clip để nhỏ hơn nhạc (RMS ≈ 55% nhạc × level), vào/ra mềm 0,25 s.
+export async function mixClipAudio(music, clips, { level = 1, sr = music.sampleRate } = {}) {
+  const ok = clips.filter(c => c?.buffer && c.len > .2); if (!ok.length) return music;
+  const ac = new OfflineAudioContext(2, music.length, sr), ms = ac.createBufferSource(), mg = ac.createGain(); ms.buffer = music; ms.connect(mg); mg.connect(ac.destination);
+  mg.gain.setValueAtTime(1, 0);
+  const F = .25, end = music.length / sr;
+  for (const c of ok.sort((a, b) => a.at - b.at)) {
+    const a = Math.max(0, c.at), b = Math.min(end - .05, c.at + c.len); if (b - a < .2) continue;
+    // nhạc lùi xuống nhẹ
+    mg.gain.setValueAtTime(1, a); mg.gain.linearRampToValueAtTime(.72, a + F); mg.gain.setValueAtTime(.72, Math.max(a + F, b - F)); mg.gain.linearRampToValueAtTime(1, b);
+    // tiếng clip để NHỎ HƠN nhạc: RMS đích = 55% RMS nhạc tại đoạn đó (×level), không để đỉnh quá 0,5
+    const rmsOf = (buf, t0, t1) => { const d = buf.getChannelData(0), r = buf.sampleRate, i0 = Math.max(0, Math.floor(t0 * r)), i1 = Math.min(d.length, Math.floor(t1 * r)), st = Math.max(1, Math.floor((i1 - i0) / 20000)); let q = 0, n = 0, pk = 0; for (let i = i0; i < i1; i += st) { const v = d[i]; q += v * v; n++; if (Math.abs(v) > pk) pk = Math.abs(v); } return [n ? Math.sqrt(q / n) : 0, pk]; };
+    const [mr] = rmsOf(music, a, b), [cr, cp] = rmsOf(c.buffer, 0, c.buffer.duration);
+    const vol = cr > 1e-4 ? Math.min(.5 / Math.max(cp, 1e-3), Math.max(.03, .55 * mr) * level / cr, 8) : 0; if (!vol) continue;
+    const s = ac.createBufferSource(), g = ac.createGain(); s.buffer = c.buffer; s.connect(g); g.connect(ac.destination);
+    g.gain.setValueAtTime(0, a); g.gain.linearRampToValueAtTime(vol, a + F); g.gain.setValueAtTime(vol, Math.max(a + F, b - F)); g.gain.linearRampToValueAtTime(0, b);
+    s.start(a, 0, b - a + .02);
+  }
+  ms.start(0);
+  const out = await ac.startRendering();
+  // chặn vỡ tiếng: chỉ hạ khi đỉnh vượt 0,95 (không kéo to lên)
+  let m = 0; for (let ch = 0; ch < out.numberOfChannels; ch++) { const d = out.getChannelData(ch); for (let i = 0; i < d.length; i++) { const v = d[i] < 0 ? -d[i] : d[i]; if (v > m) m = v; } }
+  return m > .95 ? normalize(out, .93) : out;
+}

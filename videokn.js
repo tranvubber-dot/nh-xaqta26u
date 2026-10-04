@@ -1,7 +1,7 @@
 // Hành Trình Của Bạn — 🎬 VIDEO KỶ NIỆM: dựng MP4 ngay trong máy, không gửi đi đâu.
 // Một canvas WebGL2 + hàm thuần drawAt(t) dùng chung cho xem trước và xuất (tất định: cùng t ra cùng khung hình).
 // Mã hoá H.264 + AAC, ghép MP4 bằng mediabunny (MPL-2.0, lib/). Chuyển cảnh viết lại theo ý tưởng gl-transitions (MIT).
-import { renderMusic, userMusic, LEAD, mulberry32 } from './videonhac.js';
+import { renderMusic, userMusic, mixClipAudio, LEAD, mulberry32 } from './videonhac.js';
 
 const VS = `#version 300 es
 in vec2 p; out vec2 vUv; void main(){ vUv = p * .5 + .5; gl_Position = vec4(p, 0., 1.); }`;
@@ -252,7 +252,7 @@ export function makeAssets({ getBlob, getThumb, avatars, MB, maxSide = 2048 }) {
   async function clip(it, s, [a, b], live) {
     if (!MB) return null; const blob = await getBlob(it); if (!blob) return null;
     const input = new MB.Input({ source: new MB.BlobSource(blob), formats: MB.ALL_FORMATS }), track = await input.getPrimaryVideoTrack(); if (!track || !(await track.canDecode())) return null;
-    const vd = await track.computeDuration?.() || it.dur || 4, len = b - a, st = Math.max(0, Math.min(vd - len, vd / 2 - len / 2)), w = Math.min(1080, track.displayWidth || 1080), sink = new MB.CanvasSink(track, { width: Math.round(w / 2) * 2, poolSize: 2 });
+    const vd = await track.computeDuration?.() || it.dur || 4, len = b - a, st = clipStart(vd, len), w = Math.min(1080, track.displayWidth || 1080), sink = new MB.CanvasSink(track, { width: Math.round(w / 2) * 2, poolSize: 2 });
     let iter = null, last = null, lastT = -1;
     return { async frame(t) { const vt = Math.min(vd - .05, st + Math.max(0, t - a));
         if (live) { if (Math.abs(vt - lastT) > .03) { lastT = vt; sink.getCanvas(vt).then(r => { if (r) last = r.canvas; }); } return last; }
@@ -261,6 +261,39 @@ export function makeAssets({ getBlob, getThumb, avatars, MB, maxSide = 2048 }) {
       close() { iter?.return?.(); input.dispose?.(); } };
   }
   return { image, clip, avatars };
+}
+
+// đoạn clip được dùng: lấy quãng giữa video (cùng một công thức cho hình và tiếng gốc)
+export const clipStart = (vd, len) => Math.max(0, Math.min(vd - len, vd / 2 - len / 2));
+// khoảng thời gian cảnh hiện trên video (tính cả nửa chuyển cảnh hai đầu) — khớp span() của người dựng
+export function sceneSpan(SB, s) { const i = SB.scenes.indexOf(s), pv = SB.scenes[i - 1]; return [s.t0 - (pv?.trans ? pv.trans.len / 2 : 0), s.t1 + (s.trans ? s.trans.len / 2 : 0)]; }
+// TIẾNG GỐC của một clip: giải mã đúng đoạn [st, st+len] bằng mediabunny; máy không giải mã được thì thử decodeAudioData (tệp ≤ 80 MB)
+export async function clipAudio(blob, len, { MB, dur } = {}) {
+  if (!blob) return null; let vd = dur || 0;
+  if (MB) { try {
+    const input = new MB.Input({ source: new MB.BlobSource(blob), formats: MB.ALL_FORMATS });
+    try {
+      const vt = await input.getPrimaryVideoTrack(); vd = (await vt?.computeDuration?.()) || vd || (await input.computeDuration());
+      const at = await input.getPrimaryAudioTrack(); if (!at) return null;
+      if (await at.canDecode()) {
+        const st = clipStart(vd, len), sink = new MB.AudioBufferSink(at); let out = null;
+        for await (const { buffer, timestamp } of sink.buffers(st, st + len)) {
+          if (!out) out = new AudioBuffer({ length: Math.max(1, Math.ceil(len * buffer.sampleRate)), sampleRate: buffer.sampleRate, numberOfChannels: Math.min(2, buffer.numberOfChannels) });
+          const off = Math.round((timestamp - st) * buffer.sampleRate), from = Math.max(0, -off), n = Math.min(buffer.length - from, out.length - Math.max(0, off)); if (n <= 0) continue;
+          for (let c = 0; c < out.numberOfChannels; c++) out.copyToChannel(buffer.getChannelData(Math.min(c, buffer.numberOfChannels - 1)).subarray(from, from + n), c, Math.max(0, off));
+        }
+        if (out) return out;
+      }
+    } finally { input.dispose?.(); }
+  } catch (e) { console.warn('tiếng gốc (mediabunny)', e); } }
+  if (blob.size > 80e6) return null;
+  try {
+    const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext, dc = new AC(2, 48000, 48000), src = await dc.decodeAudioData(await blob.arrayBuffer());
+    vd = vd || src.duration; const st = clipStart(vd, len), sr = src.sampleRate, a = Math.floor(st * sr), n = Math.min(src.length - a, Math.ceil(len * sr)); if (n <= 0) return null;
+    const out = new AudioBuffer({ length: n, sampleRate: sr, numberOfChannels: Math.min(2, src.numberOfChannels) });
+    for (let c = 0; c < out.numberOfChannels; c++) out.copyToChannel(src.getChannelData(c).subarray(a, a + n), c);
+    return out;
+  } catch (e) { return null; }
 }
 
 // ---------- xuất MP4 ----------
@@ -307,4 +340,4 @@ export async function recordFallback({ canvas, renderer, SB, audio, onProg, sign
   rec.stop(); await new Promise(r => rec.onstop = r); ac.close(); const type = (rec.mimeType || 'video/mp4').split(';')[0];
   return { file: new File(chunks, 'video-ky-niem.' + (type.includes('webm') ? 'webm' : 'mp4'), { type }) };
 }
-export { renderMusic, userMusic, spring, ease };
+export { renderMusic, userMusic, mixClipAudio, spring, ease };

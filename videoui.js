@@ -1,8 +1,8 @@
 // Hành Trình Của Bạn — giao diện 🎬 VIDEO KỶ NIỆM: chọn mẫu, khung, độ dài, nhạc, ảnh → xem trước → dựng MP4 → lưu máy / Drive / dòng thời gian.
 import { icon, haptic, contextMenu } from './ui.js';
-import { TEMPLATES, LENGTHS, scoreThumb, pickMoments, storyboard, createEngine, createRenderer, makeAssets, exportMp4, recordFallback } from './videokn.js';
+import { TEMPLATES, LENGTHS, scoreThumb, pickMoments, storyboard, createEngine, createRenderer, makeAssets, exportMp4, recordFallback, sceneSpan, clipAudio } from './videokn.js';
 import { mapIntro } from './bando.js';
-import { renderMusic, userMusic, STYLES } from './videonhac.js';
+import { renderMusic, userMusic, mixClipAudio, STYLES } from './videonhac.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const MUSICS = [['auto', 'Theo mẫu'], ['hopnhac', 'Hộp nhạc'], ['vui', 'Vui nhộn'], ['dienanh', 'Điện ảnh'], ['file', 'Bài của bạn…']];
@@ -15,18 +15,20 @@ export function initVideoUI(A) {
     <div class="vk-row"><b>Mẫu</b><div class="vk-ch" data-k="tpl">${Object.entries(TEMPLATES).map(([k, t]) => `<button type="button" data-v="${k}">${{ dienanh: '🎞️', nhanh: '⚡', hoainiem: '📷', bando: '🗺️' }[k]} ${t.t}</button>`).join('')}</div></div>
     <div class="vk-row two"><div><b>Khung</b><div class="vk-ch" data-k="ratio"><button type="button" data-v="9:16">9:16 dọc</button><button type="button" data-v="16:9">16:9 ngang</button></div></div><div><b>Độ dài</b><div class="vk-ch" data-k="dur">${LENGTHS.map(l => `<button type="button" data-v="${l}">${l}s</button>`).join('')}</div></div></div>
     <div class="vk-row"><b>Nhạc</b><div class="vk-ch" data-k="music">${MUSICS.map(([k, t]) => `<button type="button" data-v="${k}">${t}</button>`).join('')}</div><input type="file" id="vkMf" accept="audio/*" hidden></div>
+    <div class="vk-row vk-orig" hidden><b>Tiếng gốc của clip <small>· nghe nhỏ dưới nhạc nền</small></b><div class="vk-ch" data-k="orig"><button type="button" data-v="0">🔇 Tắt</button><button type="button" data-v="1">🔉 Giữ nhỏ</button><button type="button" data-v="2">🔊 Rõ hơn</button></div></div>
     <div class="vk-row"><b>Ảnh trong video <small class="vk-n"></small></b><div class="vk-ph"></div></div>
     <div class="vk-prog" hidden><div class="vk-bar"><i></i></div><p class="vk-pt"></p><p class="hint">Giữ màn hình mở và ở lại trong app trong lúc tạo video nhé.</p></div>
     <div class="vk-done" hidden><p class="vk-dt"></p><div class="vk-acts"><button class="primary" data-d="save">${icon('download', 17, 2)}<span>Lưu vào máy</span></button><button data-d="drive" hidden>${icon('cloud', 17, 2)}<span>Lưu lên Drive</span></button><button data-d="tl">${icon('timeline', 17, 2)}<span>Gắn vào dòng thời gian</span></button></div></div>
     <div class="foot"><button data-close>Đóng</button><button class="primary" id="vkGo">${icon('video', 17, 2)}<span>Tạo video</span></button></div>
   </div></div>`);
   const M = document.getElementById('mVid'), OUT = M.querySelector('.vk-out'); let CV = M.querySelector('.vk-cv');
-  const V = { o: null, ms: [], picked: [], tpl: 'dienanh', ratio: '9:16', dur: 30, music: 'auto', userBlob: null, eng: null, SB: null, R: null, mus: null, ac: null, src: null, raf: 0, file: null, abort: null, dirty: true, scores: new Map() };
+  const V = { o: null, ms: [], picked: [], tpl: 'dienanh', ratio: '9:16', dur: 30, music: 'auto', orig: '0', clipAud: new Map(), userBlob: null, eng: null, SB: null, R: null, mus: null, ac: null, src: null, raf: 0, file: null, abort: null, dirty: true, scores: new Map() };
   const busy = (on, t) => { M.querySelector('.vk-busy').hidden = !on; if (t) M.querySelector('.vk-busy b').textContent = t; };
   const ui = () => {
     M.classList.toggle('wide', V.ratio === '16:9');
     for (const g of M.querySelectorAll('.vk-ch')) g.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(V[g.dataset.k]) === b.dataset.v));
     M.querySelector('[data-k=tpl] [data-v=bando]').disabled = !V.geo || !navigator.onLine;
+    M.querySelector('.vk-orig').hidden = !V.picked.some(m => m.type === 'video');
     M.querySelector('.vk-n').textContent = `· ${V.picked.length} / ${V.ms.length} · chạm ảnh để đổi thứ tự hoặc bỏ`;
     M.querySelector('.vk-ph').innerHTML = V.picked.map((m, i) => `<button data-i="${i}" class="${m.type === 'video' ? 'v' : ''}"><img data-mid="${m.id}" alt=""><span>${i + 1}</span></button>`).join('') + (V.ms.length > V.picked.length ? `<button class="add" data-add="1">${icon('plus', 20, 2.4)}</button>` : '');
     M.querySelectorAll('.vk-ph img').forEach(im => A.thumbURL(im.dataset.mid).then(u => { if (u) im.src = u; }));
@@ -70,6 +72,11 @@ export function initVideoUI(A) {
     const MB = await import('./lib/mediabunny.min.mjs');
     const assets = makeAssets({ getBlob: it => A.blob('o_' + it.id), getThumb: it => A.thumbBlob(it.id), avatars: await A.avatarImgs(V.o.people || []), MB });
     if (V.tpl === 'bando' && V.geo) { try { busy(true, 'Đang tải bản đồ cho đoạn mở đầu…'); V.mapF?.dispose?.(); V.mapF = assets.saban = await mapIntro({ route: V.route.length ? V.route : [V.geo], W, H, theme: A.theme?.() || 'dawn' }); } catch (e) { console.warn('bản đồ', e); } }
+    // tiếng gốc của các clip video (nếu bạn chọn giữ): lấy đúng đoạn clip hiện trên video, trộn nhỏ dưới nhạc
+    if (V.orig !== '0') { const cs = SB.scenes.filter(s => s.kind === 'clip'); if (cs.length) { busy(true, 'Đang lấy tiếng gốc của clip…');
+      const list = []; for (const s of cs) { const [a, b] = sceneSpan(SB, s), key = s.item.id + '|' + (b - a).toFixed(3); if (!V.clipAud.has(key)) V.clipAud.set(key, await clipAudio(await A.blob('o_' + s.item.id), b - a, { MB, dur: s.item.dur }).catch(() => null)); list.push({ buffer: V.clipAud.get(key), at: a, len: b - a }); }
+      if (list.some(c => c.buffer)) mus = { ...mus, buffer: await mixClipAudio(mus.buffer, list, { level: V.orig === '2' ? 1.6 : 1 }) };
+      else if (live) A.toast('Clip này không có tiếng gốc', 1800); } }
     V.SB = SB; V.mus = mus; V.R?.dispose?.(); V.R = createRenderer(V.eng, SB, assets); V.dirty = false; busy(false);
     await V.R.prepare(0, live); await V.R.drawAt(.6, 18);
   }
@@ -110,7 +117,7 @@ export function initVideoUI(A) {
   new MutationObserver(() => { if (!M.classList.contains('open')) { stopPreview(); V.abort?.abort(); } }).observe(M, { attributes: true });
   return {
     async open(o) {
-      V.o = o; V.ms = o.ms.slice().sort((a, b) => a.ts - b.ts); V.file = null; V.dirty = true; V.music = 'auto'; V.userBlob = null;
+      V.o = o; V.ms = o.ms.slice().sort((a, b) => a.ts - b.ts); V.file = null; V.dirty = true; V.music = 'auto'; V.userBlob = null; V.clipAud = new Map();
       const g = V.ms.map(m => m.place || m.gps).filter(Boolean); V.geo = g[0] || null;
       const byDay = new Map(); for (const m of V.ms) { const p = m.place || m.gps; if (p && !byDay.has(A.ymd(m.ts))) byDay.set(A.ymd(m.ts), p); } V.route = [...byDay.values()];
       V.tpl = o.tpl || (V.ms.length > 20 ? 'nhanh' : 'dienanh'); V.ratio = '9:16'; V.dur = V.ms.length < 10 ? 30 : V.ms.length < 30 ? 60 : 90;
