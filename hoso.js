@@ -250,7 +250,7 @@ export function initProfile(A) {
   function confetti(col) {
     if (REDUCED) return; const box = document.createElement('div'); box.className = 'confetti'; const cols = [col, '#ffd27f', '#ff8fbf', '#9fe1cb', '#c3a6ff', '#ffffff'];
     for (let i = 0; i < 90; i++) { const p = document.createElement('i'); const x = (Math.random() - .5) * 120, r = Math.random() * 720 - 360; p.style.cssText = `left:${50 + (Math.random() - .5) * 30}%;background:${cols[i % cols.length]};--x:${x}vw;--r:${r}deg;--d:${1.6 + Math.random() * 1.6}s;--w:${6 + Math.random() * 7}px;animation-delay:${Math.random() * .25}s`; box.appendChild(p); }
-    document.body.appendChild(box); haptic(30); setTimeout(() => box.remove(), 3800);
+    document.body.appendChild(box); haptic(30); A.sfx?.('melody'); setTimeout(() => box.remove(), 3800);
   }
   // ---------- ĐỌC VỊ BẢN THÂN (người lớn): cung hoàng đạo, con giáp + mệnh, thần số học, nghề, hợp nhau ----------
   function readingOf(k) {

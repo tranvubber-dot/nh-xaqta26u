@@ -13,6 +13,7 @@ import { ROLES, roleOf, isMe, isChild, isPartner, isElder, roleName, showsAge, f
 import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 import { initOnboarding } from './lamquen.js';
 import { chibiSVG, chibiWaveSVG } from './chibi.js';
+import { initSfx } from './sfx.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
@@ -1592,11 +1593,15 @@ function updateScrubKnob() {
 // ---------- Hộp thoại, thông báo ----------
 let toastT = 0;
 function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms); }
-function openModal(m) { m.classList.add('open'); haptic(5); }
-function closeModal(m) { if (m.id === 'mKid' && !S.kids.length) return; if (m.id === 'mAdd' && ADD.busy) return; m.classList.remove('open'); if (m.id === 'mAdd') resetAdd(); if (m.id === 'mAsk') askDone?.(false); }
+// v1.8.0: âm thanh hiệu ứng (sfx.js) — không phát khi đang chiếu có nhạc hoặc đang dựng / xem video
+window.SFX = initSfx({ block: () => { try { return document.body.classList.contains('showing') || !!document.querySelector('#mVid.open, #vkFs.on') || !!INTRO?.active; } catch (e) { return false; } } });
+function openModal(m) { const was = m.classList.contains('open'); m.classList.add('open'); haptic(5); if (!was) SFX.play('pop'); }
+function closeModal(m) { if (m.id === 'mKid' && !S.kids.length) return; if (m.id === 'mAdd' && ADD.busy) return; if (m.classList.contains('open')) SFX.play('whoosh'); m.classList.remove('open'); if (m.id === 'mAdd') resetAdd(); if (m.id === 'mAsk') askDone?.(false); }
 // nút [data-close] và chạm nền tối: uỷ quyền ở document để cả các hộp tạo sau (dòng thời gian, hồ sơ, giọng kể, lịch, video…) đều đóng được
 document.addEventListener('pointerdown', e => { const m = e.target.classList?.contains('modal') ? e.target : null; if (m) m.dataset.down = 1; }, true);
 document.addEventListener('click', e => { const b = e.target.closest?.('.modal [data-close]'); if (b) { closeModal(b.closest('.modal')); return; } const m = e.target.classList?.contains('modal') ? e.target : null; if (m && m.dataset.down) closeModal(m); document.querySelectorAll('.modal[data-down]').forEach(x => delete x.dataset.down); });
+document.addEventListener('click', e => { const t = e.target; if (t.closest?.('.vk-ch button, .rchips button, .seg button, .kidsel button, .mp-flt button, .gp-sug button, .ce-h button, .ce-a button, .ce-s i, .swr i')) SFX.play('tick'); }, true);
+document.addEventListener('change', e => { if (e.target.matches?.('input[type=checkbox]')) SFX.play('tick'); }, true);
 let askDone = null;
 // hộp nhập một dòng chữ (đổi tên…): trả về chuỗi hoặc null nếu huỷ
 function prompt2(title, val = '', max = 60, type = 'text') {
@@ -1661,7 +1666,7 @@ async function afterDataChange() { await loadAll(); buildGalaxy(); buildScrub();
 async function trashMoments(list, label) {
   if (!list.length) return; const now = Date.now();
   for (const m of list) { m.deleted = now; await dbPut('moments', m); }
-  await afterDataChange(); haptic(15);
+  await afterDataChange(); haptic(15); SFX.play('plop');
   undoToast(label || `Đã chuyển ${list.length} ảnh/video vào thùng rác`, () => restoreMoments(list));
 }
 async function restoreMoments(list) { for (const m of list) { delete m.deleted; delete m.trashKid; await dbPut('moments', m); } await afterDataChange(); toast(`Đã khôi phục ${list.length} ảnh/video`, 1800); }
@@ -1823,7 +1828,7 @@ $('#kidOk').onclick = async () => {
     Object.assign(kidEditing, { name, birth }, ex); await dbPut('kids', kidEditing); await P.warm([kidEditing]);
     $('#mKid').classList.remove('open');
     if (S.family) { if (LIFE()) S.kid = ME(); await loadAll(); buildGalaxy(); buildScrub(); await TL.reload(); renderKidBtn(); updateNow(); } else await selectKid(kidEditing.id, false);
-    toast('Đã lưu thông tin ' + (me ? 'của bạn' : name));
+    toast('Đã lưu thông tin ' + (me ? 'của bạn' : name)); SFX.play('ting');
   } else {
     const k = { id: k0.id, name, birth, created: Date.now(), ...ex }; await dbPut('kids', k); S.kids.push(k); await P.warm([k]);
     $('#mKid').classList.remove('open'); leaveIntro(true);
@@ -2246,7 +2251,8 @@ async function saveAdd() {
   if (TL.suggestGroup(ids)) { updateNow(); setTimeout(() => maybeRemindBackup(ids.length), 8500); return; }
   const e1 = evs.length === 1 ? evs[0] : null, named = e1 && (TL.meta?.titles?.[e1.key] || e1.group);
   if (e1 && !named) undoToast(`Đã thêm ${ids.length} ảnh vào ngày ${dmy(e1.ts0).slice(0, 5)} · Đặt tên?`, async () => { const t = await prompt2(`Đặt tên cho ngày ${dmy(e1.ts0)}`, '', 60); if (t?.trim()) { await TL.setTitle(e1.key, t.trim()); toast('Đã đặt tên “' + t.trim() + '”', 1600); } }, 6500, { label: 'Đặt tên', icon: 'edit' });
-  else toast(evs.length === 1 ? `Đã thêm ${ids.length} ảnh vào “${evs[0].title}”` : evs.length > 1 ? `Đã thêm ${ids.length} ảnh vào ${evs.length} ngày` : `Đã thêm ${ids.length} khoảnh khắc vào dải của ${own}`, 2800);
+  SFX.play('ting', 120);
+  if (!(e1 && !named)) toast(evs.length === 1 ? `Đã thêm ${ids.length} ảnh vào “${evs[0].title}”` : evs.length > 1 ? `Đã thêm ${ids.length} ảnh vào ${evs.length} ngày` : `Đã thêm ${ids.length} khoảnh khắc vào dải của ${own}`, 2800);
   updateNow(); setTimeout(() => maybeRemindBackup(ids.length), e1 && !named ? 7000 : 0);
 }
 
@@ -2299,7 +2305,7 @@ async function renderSettings() {
   $$('#segMusic button').forEach(b => b.classList.toggle('on', b.dataset.v === S.music));
   $('#musicHint').textContent = S.music === 'builtin' ? 'Giai điệu hộp nhạc dịu êm do app tự chơi — không lo bản quyền.' : S.music === 'file' ? `Đang dùng: ${S.musicName || 'bài của bạn'} · bấm “Bài của bạn” lần nữa để đổi bài.` : 'Trình chiếu không có nhạc.';
   $('#verTxt').textContent = 'Hành Trình Của Bạn · v' + VERSION;
-  renderGem(); renderBgUi(); $('#setBig').checked = document.documentElement.classList.contains('big'); $('#setOtd').checked = !(await metaGet('otdOff'));
+  renderGem(); renderBgUi(); $('#setBig').checked = document.documentElement.classList.contains('big'); $('#setOtd').checked = !(await metaGet('otdOff')); { const st = SFX.state(); $('#setSfx').checked = st.on; $('#setSfxV').value = Math.round(st.vol * 100); $('#setSfxV').disabled = !st.on; }
   try {
     const e = await navigator.storage?.estimate?.(), p = await navigator.storage?.persisted?.();
     $('#storeInfo').textContent = e ? `Đang dùng ${fmtSize(e.usage || 0)} trong máy${p ? ' · đã bật lưu bền vững ✓' : ''}.` : '';
@@ -2307,6 +2313,10 @@ async function renderSettings() {
 }
 $('#bSet').onclick = () => { renderSettings(); openModal($('#mSet')); };
 $('#setOtd').onchange = async e => { await metaSet('otdOff', !e.target.checked); await TL.reload(); };
+// âm thanh hiệu ứng: bật/tắt + âm lượng (đồng bộ qua meta sy:sfx)
+$('#setSfx').onchange = async e => { SFX.setOn(e.target.checked); $('#setSfxV').disabled = !e.target.checked; await metaSet('sy:sfx', SFX.state()); if (e.target.checked) SFX.play('ting'); };
+$('#setSfxV').oninput = e => { SFX.setVol(e.target.value / 100); }; $('#setSfxV').onchange = async () => { await metaSet('sy:sfx', SFX.state()); SFX.play('pop'); };
+async function loadSfx() { const v = await metaGet('sy:sfx'); if (v) { SFX.setOn(v.on !== false); if (v.vol != null) SFX.setVol(v.vol); } }
 // CHẾ ĐỘ CHỮ TO (người lớn tuổi): lưu trong máy này (localStorage) để áp ngay từ lúc mở app
 $('#setBig').onchange = e => { setBig(e.target.checked); toast(e.target.checked ? 'Đã bật chữ to' : 'Đã về cỡ chữ thường', 1600); };
 function setBig(on) { document.documentElement.classList.toggle('big', on); try { localStorage.setItem('bigText', on ? '1' : ''); } catch (er) { } setTimeout(() => TL.render(), 50); }
@@ -2735,6 +2745,7 @@ DRV = initDrive({ clientId: GOOGLE_CLIENT_ID || (TEST && Q.has('mock') ? 'mock-c
     PLACES.v = DATAVER; PLACES.map = map; return map;
   },
   onRemoteApplied: async () => {
+    await loadSfx();
     S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0)); S.groups = (await metaGet('groups')) || []; S.chCfg = (await metaGet('chapters')) || {}; await loadHidden();
     if (!S.kids.length) return; await P.warm(S.kids);
     if ($('#mKid').classList.contains('open') && !kidEditing) { $('#mKid').classList.remove('open'); document.body.classList.remove('intro'); leaveIntro(true); }
@@ -3026,7 +3037,7 @@ async function boot() {
     if (TEST && Q.has('mock')) { const mk = await import('./drive-mock.js'); T.MOCK = mk.install(); T.mockDrive = mk; }
     S.drvBoot = await DRV.boot();
     if (DRV.signedIn && !(await dbAll('kids')).length) { await DRV.sync('boot'); } // máy mới / kho trống mà đã đăng nhập: kéo dữ liệu về trước
-    S.groups = (await metaGet('groups')) || []; S.chCfg = (await metaGet('chapters')) || {}; await loadHidden();
+    S.groups = (await metaGet('groups')) || []; S.chCfg = (await metaGet('chapters')) || {}; await loadHidden(); await loadSfx();
     S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0));
   } catch (e) { console.error(e); toast('Trình duyệt chặn bộ nhớ — bạn mở bằng Safari/Chrome thường (không ở chế độ ẩn danh) nhé', 8000); }
   setTheme(theme, false);

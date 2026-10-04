@@ -1067,7 +1067,7 @@ Yêu cầu: tiếng Việt có dấu, dễ thương, tích cực, hợp tuổi b
   }
   function flip(dir) {
     if (!V.d || V.busy) return;
-    const to = V.idx + dir; if (to < 0 || to >= nSpreads()) return;
+    const to = V.idx + dir; if (to < 0 || to >= nSpreads()) return; window.SFX?.play('page');
     const { pw, ph } = dims(), N = V.d.pages.length, dur = matchMedia('(prefers-reduced-motion: reduce)').matches ? 10 : 850;
     V.busy = true; rustle();
     const [cL, cR] = spreadPages(V.idx), [nL, nR] = spreadPages(to);
