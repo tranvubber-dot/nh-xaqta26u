@@ -9,6 +9,8 @@ import { initNhac } from './nhac.js';
 import { birthIntro, showOutro } from './modau.js';
 import { initDrive } from './drive.js';
 import { GOOGLE_CLIENT_ID } from './config.js';
+import { ROLES, roleOf, isMe, isChild, isPartner, isElder, roleName, showsAge, findMe, sortPeople, sinceOf, anchorOf, chaptersOf, chapterAt, approxLabel, approxTs, SEASONS, PRECS } from './doi.js';
+import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 
 const VERSION = '1.5.1';
 const Q = new URLSearchParams(location.search);
@@ -43,21 +45,22 @@ const kidsOf = m => Array.isArray(m?.kidIds) && m.kidIds.length ? m.kidIds : m?.
 const cap = t => { t = String(t ?? '').trim(); return t ? t.charAt(0).toLocaleUpperCase('vi') + t.slice(1) : t; };
 const KN = () => cap(S.kid?.name);
 function ageText(kid, ts, withName = true) {
-  if (kid) kid = { ...kid, name: cap(kid.name) };
-  if (!kid || !kid.birth) return '';
-  const nm = withName ? kid.name + ' ' : '';
+  if (kid) kid = { ...kid, name: isMe(kid) ? 'Bạn' : cap(kid.name) };
+  if (!kid || !kid.birth || !showsAge(kid)) return '';
+  const nm = withName ? kid.name + ' ' : '', adult = !isChild(kid);
   const b = parseYmd(kid.birth), d0 = dayStart(ts), b0 = dayStart(b);
   if (d0 < b0) {
     const days = Math.round((b0 - d0) / 864e5);
-    if (days > 42 * 7) return `Trước khi ${kid.name} chào đời`;
+    if (days > 42 * 7) return `Trước khi ${isMe(kid) ? 'bạn' : kid.name} chào đời`;
     const w = clamp(40 - Math.floor(days / 7), 1, 42);
     return withName ? `${kid.name} trong bụng mẹ · tuần ${w}` : `Trong bụng mẹ · tuần ${w}`;
   }
-  if (d0 === b0) return withName ? `Ngày ${kid.name} chào đời` : 'Ngày đầu tiên';
+  if (d0 === b0) return withName ? `Ngày ${isMe(kid) ? 'bạn' : kid.name} chào đời` : 'Ngày đầu tiên';
   const bd = new Date(b0), dd = new Date(d0);
   let y = dd.getFullYear() - bd.getFullYear(), m = dd.getMonth() - bd.getMonth(), da = dd.getDate() - bd.getDate();
   if (da < 0) { m--; da += new Date(dd.getFullYear(), dd.getMonth(), 0).getDate(); }
   if (m < 0) { y--; m += 12; }
+  if (adult && y >= 3) return m === 0 && da === 0 ? `${nm}${withName ? 't' : 'T'}ròn ${y} tuổi` : `${nm}${y} tuổi`;
   if (y === 0 && m === 0) return `${nm}${da} ngày tuổi`;
   if (y === 0) return da && m < 3 ? `${nm}${m} tháng ${da} ngày` : `${nm}${m} tháng tuổi`;
   if (m === 0) return da === 0 ? `${nm}${withName ? 't' : 'T'}ròn ${y} tuổi` : `${nm}${y} tuổi`;
@@ -109,7 +112,7 @@ const dbDelRaw = (st, k) => dbx(st, 'readwrite', s => s.delete(k));
 let DRV = null;
 const dbGet = (st, k) => dbGetRaw(st, k).then(v => v ?? (st === 'blobs' && DRV?.signedIn && /^[ot]_/.test(k) ? DRV.fetchBlob(k) : v));
 // mọi thay đổi dữ liệu thật → hẹn đồng bộ Drive (gom 5 giây)
-const SYNCMETA = /^(ev:|bg:|groups$|drvFolders$)/; let DATAVER = 0;
+const SYNCMETA = /^(ev:|bg:|sy:)|^(groups|drvFolders|chapters|anniv)$/; let DATAVER = 0;
 const dbPut = (st, v, k) => dbPutRaw(st, v, k).then(r => { if (st !== 'blobs') DATAVER++; if (st === 'kids' || st === 'moments' || st === 'diaries' || (st === 'meta' && SYNCMETA.test(String(k)))) DRV?.markDirty(); return r; });
 const dbDel = (st, k) => dbDelRaw(st, k).then(r => { DATAVER++; if (st === 'kids' || st === 'moments' || st === 'diaries') DRV?.markDirty(); return r; });
 const dbAll = st => dbx(st, 'readonly', s => s.getAll());
@@ -767,7 +770,7 @@ const cctx = cardCanvas.getContext('2d');
 function heart(x, cx, cy, r, col) { x.save(); x.fillStyle = col; x.beginPath(); x.moveTo(cx, cy + r * .9); x.bezierCurveTo(cx - r * 1.6, cy - r * .1, cx - r * .7, cy - r * 1.3, cx, cy - r * .45); x.bezierCurveTo(cx + r * .7, cy - r * 1.3, cx + r * 1.6, cy - r * .1, cx, cy + r * .9); x.fill(); x.restore(); }
 function cardText(m) {
   const age = ageText(S.kid, m.ts);
-  return m.title ? [m.title, `${dmy(m.ts)} · ${age}`] : [dmy(m.ts), age];
+  const dd = m.approx ? approxLabel(m.approx, m.ts) : dmy(m.ts); return m.title ? [m.title, `${dd} · ${age}`] : [dd, age];
 }
 function drawCard(m, img, i) {
   const x = cctx; x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, CARD_W, CARD_H); x.scale(CARD_W / 512, CARD_W / 512);
@@ -828,9 +831,15 @@ function clearGalaxy() {
   G.group.clear(); labels.length = 0;
   G.items = []; G.cards = []; G.stops = []; G.gates = []; G.hits = []; G.star = G.portal = null;
 }
+// ngôi sao mở đầu dải: ngày chào đời (Tôi, con cháu) hoặc ngày người thân bước vào đời bạn
+function starInfo(k = S.kid) { if (!k || isMe(k) || isChild(k)) return { t: `Ngày ${whoOf(k)} chào đời`, d: k?.birth }; const a = anchorOf(k, ME()); return { t: a ? `${cap(k.name)} bước vào đời bạn` : `Hành trình cùng ${cap(k.name)}`, d: a }; }
+function gateSub(year, age) {
+  if (LIFE()) { const ch = (S.chapters || []).find(c => new Date(c.ts).getFullYear() === year); if (ch) return `${ch.ic} Chương ${ch.num} · ${ch.title}`; }
+  const k = S.kid; return k?.birth && showsAge(k) && age >= 1 ? `${WhoOf(k)} tròn ${age} tuổi` : '';
+}
 function layout() {
-  const kid = S.kid, b0 = dayStart(parseYmd(kid.birth)), by = new Date(b0).getFullYear();
-  const ms = S.moments.slice().sort((a, b) => a.ts - b.ts || (a.created || 0) - (b.created || 0));
+  const kid = S.kid, ms = S.moments.slice().sort((a, b) => a.ts - b.ts || (a.created || 0) - (b.created || 0)), anc = starInfo(kid).d;
+  const b0 = anc ? dayStart(parseYmd(anc)) : ms.length ? dayStart(ms[0].ts) : dayStart(Date.now()), by = new Date(b0).getFullYear(), birthY = kid.birth ? +kid.birth.slice(0, 4) : null;
   S.moments = ms;
   const items = []; let s = 7, k = 0, prevY = by;
   const pre = ms.filter(m => dayStart(m.ts) < b0), post = ms.filter(m => dayStart(m.ts) >= b0);
@@ -839,7 +848,7 @@ function layout() {
   items.push({ kind: 'star', s }); s += 11;
   for (const m of post) {
     const y = new Date(m.ts).getFullYear();
-    if (y !== prevY) { s += 2; items.push({ kind: 'gate', s, year: y, age: y - by }); s += 9; prevY = y; }
+    if (y !== prevY) { s += 2; items.push({ kind: 'gate', s, year: y, age: birthY ? y - birthY : 0 }); s += 9; prevY = y; }
     items.push({ kind: 'm', m, s, side: k++ % 2 ? -1 : 1 }); s += STEP;
   }
   s += 5; items.push({ kind: 'portal', s });
@@ -889,8 +898,27 @@ function buildGalaxy() {
   }
   buildBooks();
   buildSparks();
+  if (LIFE()) buildBranches();
   applyThemeMats();
   S.cur = -1; Stream.reset();
+}
+// ---------- Nhánh người thân (hành trình cả đời): mỗi người một dải sao màu riêng, chạy song song từ ngày bước vào đời bạn ----------
+function buildBranches() {
+  const me = ME(), ppl = sortPeople(S.kids).filter(k => !isMe(k)).slice(0, 12), ms = G.cards; if (!me || !ppl.length || !ms.length) return;
+  const sAt = ts => { const c = ms.find(x => x.m.ts >= ts); return c ? c.s - 3 : null; }, s0 = G.stops.find(x => x.kind === 'star')?.s ?? ms[0].s;
+  const p = new V3(), o = new V3();
+  ppl.forEach((k, i) => {
+    const anc = sinceOf(k, me), t = anc ? dayStart(parseYmd(anc)) : null; let sa = t == null ? null : t <= dayStart(parseYmd(me.birth)) ? s0 : sAt(t);
+    if (sa == null) return; const sb = G.sEnd, len = sb - sa; if (len < 4) return;
+    const n = Math.min(900, Math.max(12, Math.round(len / 1.1))), pts = new THREE.Points(ptGeo(n), ptMat({ atten: 1, shape: 0, tw: .5, opacity: .9 }));
+    const P = pts.geometry.attributes.position.array, C = pts.geometry.attributes.color.array, Z = pts.geometry.attributes.size.array, col = new THREE.Color(k.color || '#ff8fbf').convertLinearToSRGB();
+    const side = i % 2 ? -1 : 1, off = 1.5 + Math.floor(i / 2) * .75, dy = -.7 - (i % 3) * .35;
+    for (let j = 0; j < n; j++) { const sj = sa + (len * j) / (n - 1); bandPt(sj, p); outward(sj, o); const w = Math.sin(sj * .35 + i) * .25; p.addScaledVector(o, side * (off + w)); P.set([p.x, p.y + dy + Math.sin(sj * .5 + i * 2) * .15, p.z], j * 3); setCol(C, j, col); Z[j] = j < 6 ? 1.4 - j * .12 : .55 + Math.random() * .3; }
+    pts.frustumCulled = false; G.group.add(pts);
+    bandPt(sa, p); outward(sa, o); p.addScaledVector(o, side * off);
+    const lab = makeLabel([{ t: cap(k.name), size: 54, c: '#fff', dc: '#4a2a5e', glow: k.color }, { t: isChild(k) ? 'chào đời' : 'bước vào đời bạn', size: 36, c: '#ffe3f0', dc: '#7a3d63' }], 1.5);
+    lab.position.set(p.x, p.y + 2.3, p.z); G.group.add(lab);
+  });
 }
 // ---------- Quyển sách nhỏ (nhật ký truyện tranh) cạnh dải sáng ----------
 function buildBooks() {
@@ -957,7 +985,7 @@ function buildStar(it, p) {
   rays.position.z = -.4;
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.glow, color: '#ffd38a', transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false })); halo.scale.setScalar(11);
   const spin = new THREE.Group(); spin.add(rays, mesh); g.add(halo, spin);
-  const lab = makeLabel([{ t: `Ngày ${KN()} chào đời`, size: 64, c: '#fff3c4', dc: '#a8481c', glow: 'rgba(255,190,90,.95)' }, { t: dmy(parseYmd(S.kid.birth)), size: 44, w: 700, c: '#ffd0e4', dc: '#c4577f' }], 2.4);
+  const SI = starInfo(), lab = makeLabel([{ t: SI.t, size: 64, c: '#fff3c4', dc: '#a8481c', glow: 'rgba(255,190,90,.95)' }, { t: SI.d ? dmy(parseYmd(SI.d)) : '', size: 44, w: 700, c: '#ffd0e4', dc: '#c4577f' }], 2.4);
   lab.position.set(0, 5.6, 0); g.add(lab);
   { const av = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false })); av.scale.setScalar(3.2); av.position.set(0, 3.1, .2); av.renderOrder = 6; g.add(av); G.star && 0;
     const k = S.kid, col = k.color || '#ff8fbf'; const im = new Image(); im.onload = () => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); x.shadowColor = col; x.shadowBlur = 26; x.fillStyle = col; x.beginPath(); x.arc(128, 128, 108, 0, 7); x.fill(); x.shadowBlur = 0; x.save(); x.beginPath(); x.arc(128, 128, 98, 0, 7); x.clip(); x.drawImage(im, 30, 30, 196, 196); x.restore(); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; av.material.map = t; av.material.needsUpdate = true; }; im.src = P.avatarNow(k); }
@@ -973,7 +1001,7 @@ function buildGate(it, p) {
   const P = pts.geometry.attributes.position.array, C = pts.geometry.attributes.color.array, Z = pts.geometry.attributes.size.array;
   for (let i = 0; i < n; i++) { const a = i / n * 6.283; P.set([Math.cos(a) * 5.2, Math.sin(a) * 5.2, 0], i * 3); setCol(C, i, PAL_N[i % 2 ? 1 : 3]); Z[i] = .8 + Math.random() * 1.2; }
   g.add(glow, ring, pts); G.group.add(g);
-  const lab = makeLabel([{ t: String(it.year), size: 120, c: '#ffe7a8', dc: '#c25a1c', glow: 'rgba(255,180,90,.95)' }, { t: it.age >= 1 ? `${KN()} tròn ${it.age} tuổi` : `Năm ${it.year}`, size: 46, c: '#ffd0e4', dc: '#a8406e' }], 3.4);
+  const lab = makeLabel([{ t: String(it.year), size: 120, c: '#ffe7a8', dc: '#c25a1c', glow: 'rgba(255,180,90,.95)' }, { t: gateSub(it.year, it.age) || `Năm ${it.year}`, size: 46, c: '#ffd0e4', dc: '#a8406e' }], 3.4);
   lab.position.copy(p).add(new V3(0, 1.2 + 5.2 + 2.6, 0)); G.group.add(lab);
   const gate = { it, g, ring, glow, pts, lab, flash: 0, passed: false }; G.gates.push(gate); it.gate = gate;
 }
@@ -1508,7 +1536,7 @@ function updateNow() {
     $('#nowD').textContent = ms.length ? `${dmy(ms[0].ts)} – ${dmy(ms[ms.length - 1].ts)}` : `Dải ngân hà của ${KN()}`;
     $('#nowA').textContent = '🌌 Toàn cảnh';
   } else if (st.card) { $('#nowD').textContent = dmy(st.card.m.ts); $('#nowA').textContent = ageText(S.kid, st.card.m.ts); }
-  else if (st.kind === 'star') { $('#nowD').textContent = dmy(parseYmd(S.kid.birth)); $('#nowA').textContent = `⭐ Ngày ${KN()} chào đời`; }
+  else if (st.kind === 'star') { const SI = starInfo(); $('#nowD').textContent = SI.d ? dmy(parseYmd(SI.d)) : ''; $('#nowA').textContent = `⭐ ${SI.t}`; }
   else if (st.kind === 'portal') { $('#nowD').textContent = 'Khoảnh khắc tiếp theo…'; $('#nowA').textContent = '➕ Chạm vào cổng sáng để thêm'; }
 }
 const scrubRange = () => { const a = G.stops[0]?.s ?? 0, b = G.sEnd || a + 1; return [a, Math.max(b, a + 1)]; };
@@ -1519,7 +1547,7 @@ function buildScrub() {
   dots.innerHTML = cs.filter((c, i) => i % stepN === 0).map(c => `<i style="left:${(f(c.s) * 100).toFixed(2)}%"></i>`).join('');
   const tk = []; let lastX = -99;
   const add = (s, t) => { const x = f(s) * W; if (x - lastX < (MOBILE ? 38 : 44)) return; lastX = x; tk.push(`<span class="tick" style="left:${(f(s) * 100).toFixed(2)}%">${t}</span>`); };
-  if (G.star) add(G.star.it.s, '⭐ ' + new Date(parseYmd(S.kid.birth)).getFullYear());
+  if (G.star && starInfo().d) add(G.star.it.s, '⭐ ' + new Date(parseYmd(starInfo().d)).getFullYear());
   for (const g of G.gates) add(g.it.s, g.it.year);
   ticks.innerHTML = tk.join('');
 }
@@ -1568,7 +1596,11 @@ $('#askYes').onclick = () => askDone?.(true);
 
 // ---------- Bé ----------
 const avatar = n => (n || '?').trim().charAt(0).toUpperCase();
-function renderKidBtn() { const tt = $('#tbTitle'); if (tt) tt.textContent = S.family ? 'Cả nhà' : S.kid ? KN() : ''; renderKidBtn0(); }
+// v1.6.0: "Tôi" làm gốc — LIFE() = đang xem hành trình cả đời (mọi người, mọi ảnh); không có Tôi thì S.family là "Cả nhà" như cũ
+const ME = () => findMe(S.kids);
+const LIFE = () => !!S.family && !!ME();
+const whoOf = k => isMe(k) ? 'bạn' : cap(k?.name), WhoOf = k => isMe(k) ? 'Bạn' : cap(k?.name);
+function renderKidBtn() { const tt = $('#tbTitle'); if (tt) tt.textContent = LIFE() ? 'Hành trình của bạn' : S.family ? 'Cả nhà' : S.kid ? KN() : ''; renderKidBtn0(); }
 function renderKidBtn0() { $('#kidName').textContent = S.kid ? KN() : '…'; $('#kidBtn .av').textContent = S.kid ? avatar(KN()) : '✨'; }
 async function selectKid(id, intro = true) {
   S.kid = S.kids.find(k => k.id === id) || S.kids[0]; if (!S.kid) return;
@@ -1616,39 +1648,124 @@ async function openTrash() {
 const TRSEL = new Set();
 function trBtns() { const n = TRSEL.size; $('#trRestore').textContent = n ? `Khôi phục ${n} mục` : 'Khôi phục tất cả'; $('#trPurge').textContent = n ? `Xoá vĩnh viễn ${n} mục` : 'Dọn sạch thùng rác'; $('#trRestore').disabled = $('#trPurge').disabled = !S.trash.length && !n; }
 function refreshKid() {
-  const id = S.kid?.id; S.moments = (S.all || []).filter(m => kidsOf(m).includes(id));
+  S.chapters = LIFE() ? chaptersOf(ME(), S.kids, S.chCfg) : [];
+  const id = S.kid?.id; S.moments = LIFE() ? (S.all || []).filter(m => kidsOf(m).some(x => S.kids.some(k => k.id === x))) : (S.all || []).filter(m => kidsOf(m).includes(id));
   S.diaries = (S.allDiaries || []).filter(d => d.kidId === id || (d.kids || []).includes(id));
 }
 const dispKid = k => k ? { ...k, name: cap(k.name) } : null;
 async function enterFamily() {
-  if (S.kids.length < 2) return; S.family = true; await metaSet('family', true);
+  if (S.kids.length < 2 && !ME()) return; S.family = true; await metaSet('family', true);
   closeLBNow(); TL.closeViewer(); TL.closeEvent(); document.body.classList.remove('galaxy'); await P.warm(S.kids);
+  if (ME()) { S.kid = ME(); await metaSet('curKid', S.kid.id); refreshKid(); buildGalaxy(); buildScrub(); await loadBg(); }
   await TL.reload(); renderKidBtn(); setMode('tl'); haptic(10);
 }
-function renderKidMenu() {
-  const m = $('#kidMenu');
-  const AV = k => `<img src="${P.avatarNow(k)}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px ${k.color || '#ff8fbf'}">`;
-  m.innerHTML = (S.kids.length > 1 ? `<button data-act="fam" class="${S.family ? 'on' : ''}"><span style="display:flex">${S.kids.slice(0, 3).map((k, i) => `<img src="${P.avatarNow(k)}" alt="" style="width:28px;height:28px;border-radius:50%;margin-left:${i ? -10 : 0}px;box-shadow:0 0 0 2px ${k.color}">`).join('')}</span><span><b>Cả nhà</b></span><span style="margin-left:auto;font-size:12px;color:var(--muted)">${S.kids.length} bé</span></button><div style="height:1px;background:var(--line);margin:4px 6px"></div>` : '')
-    + S.kids.map(k => `<button data-id="${k.id}" class="${!S.family && k.id === S.kid?.id ? 'on' : ''}">${AV(k)}<span>${esc(cap(k.name))}</span><span style="margin-left:auto;font-size:12px;color:var(--muted)">${k.birth ? dmy(parseYmd(k.birth)) : ''}</span></button>`).join('')
-    + `<div style="height:1px;background:var(--line);margin:4px 6px"></div><button data-act="prof">${icon('star', 18)}<span>Hồ sơ của ${esc(KN() || 'bé')}</span></button><button data-act="edit">${icon('edit', 18)}<span>Sửa thông tin ${esc(KN() || 'bé')}</span></button><button data-act="add">${icon('plus', 18)}<span>Thêm bé</span></button>`;
-}
-$('#kidBtn').onclick = e => { e.stopPropagation(); const m = $('#kidMenu'); if (m.hidden) { renderKidMenu(); m.hidden = false; } else m.hidden = true; };
-$('#kidMenu').onclick = e => {
-  const b = e.target.closest('button'); if (!b) return; $('#kidMenu').hidden = true;
-  if (b.dataset.id) { if (b.dataset.id !== S.kid?.id || S.family) { leaveIntro(true); metaSet('family', false); selectKid(b.dataset.id, true); } }
-  else if (b.dataset.act === 'fam') enterFamily();
-  else if (b.dataset.act === 'prof') P.openProfile(dispKid(S.kid));
-  else if (b.dataset.act === 'edit') openKid(S.kid);
-  else if (b.dataset.act === 'add') openKid(null);
-};
-addEventListener('pointerdown', e => { if (!e.target.closest('#kidMenu,#kidBtn')) $('#kidMenu').hidden = true; });
+$('#kidBtn').onclick = e => { e.stopPropagation(); openKidMenu(e.currentTarget); };
+$('#kidMenu').hidden = true;
 let kidEditing = null;
 let kidDraft = null;
+const ROLE_G = { bo: 'm', ong: 'm', anh: 'm', chong: 'm', ma: 'f', ba: 'f', chi: 'f', vo: 'f' };
 function kidSheetUi() {
   const k = kidDraft; $$('#kidG button').forEach(b => b.classList.toggle('on', b.dataset.v === k.gender));
   $('#kidC').innerHTML = KID_COLORS.map(c => `<i data-c="${c}" style="background:${c}" class="${c === k.color ? 'on' : ''}"></i>`).join('');
-  $('#kidAvI').src = P.avatarNow({ ...k, name: cap($('#kidIn').value) }); $('.kav').style.setProperty('--kcol', k.color);
+  $('#kidAvI').src = P.avatarNow({ ...k, name: cap($('#kidIn').value) || roleName(k) }); $('.kav').style.setProperty('--kcol', k.color);
+  $('#mKid').style.setProperty('--kc', k.color);
 }
+// nhãn, ô nhập hiện / ẩn theo vai trò (Tôi, Con, bạn đời, bố mẹ…)
+function kidRoleUi() {
+  const k = kidDraft, r = roleOf(k), first = !S.kids.length, child = isChild(k), me = isMe(k), partner = isPartner(k);
+  const meTaken = S.kids.some(x => isMe(x) && x.id !== k.id), editMe = kidEditing && isMe(kidEditing);
+  $('#kidFst').hidden = !first; $('#kidRoleRow').hidden = first || editMe;
+  $$('#kidFst [data-r]').forEach(b => b.classList.toggle('on', b.dataset.r === r));
+  $('#kidRole').innerHTML = ROLES.filter(x => x.v !== 'me' || (!meTaken && !kidEditing)).map(x => `<button type="button" data-r="${x.v}" class="${x.v === r ? 'on' : ''}">${x.t}</button>`).join('');
+  $('#kidInL').textContent = me ? 'Tên của bạn' : child ? 'Tên ở nhà của bé' : 'Tên gọi';
+  $('#kidIn').placeholder = me ? 'Ví dụ: Vũ' : child ? 'Ví dụ: Bin' : `Ví dụ: ${roleName(k)}`;
+  $('#kidBdL').innerHTML = me ? 'Ngày sinh của bạn' : child ? 'Ngày sinh' : 'Ngày sinh <small class="opt">tuỳ chọn</small>';
+  $('#kidBx').hidden = !child;
+  const since = !me && !child && r !== 'em';
+  $('#kidSince').hidden = !since; $('#kidWedF').hidden = !partner;
+  $('#kidSiL').textContent = partner || r === 'ban' || r === 'khac' ? 'Ngày quen nhau' : 'Ngày bước vào đời bạn';
+  $('#kidSiH').textContent = isElder(k) ? 'Để trống thì app coi như người này có mặt từ ngày bạn chào đời.' : partner ? 'Dùng cho chương “Tình yêu & cưới” và lịch kỷ niệm ngày cưới.' : 'Từ ngày này người ấy có dải sáng riêng trên hành trình của bạn.';
+  $('#kidAgeF').hidden = me || child;
+  const gb = $$('#kidG button'); gb[0].textContent = child ? 'Bé trai' : 'Nam'; gb[1].textContent = child ? 'Bé gái' : 'Nữ';
+  $('#kidCL').textContent = me ? 'Màu của bạn' : child ? 'Màu của bé' : 'Màu riêng';
+  const nm = kidEditing ? (isMe(kidEditing) ? 'bạn' : cap(kidEditing.name)) : '';
+  $('#kidTitle').textContent = first ? 'Chào bạn! 👋' : kidEditing ? (isMe(kidEditing) ? 'Hồ sơ của bạn' : `Sửa thông tin ${nm}`) : me ? 'Hồ sơ của bạn' : child ? 'Thêm một bé' : 'Thêm người thân';
+  $('#kidLead').textContent = first ? (me ? 'Hành Trình Của Bạn lưu lại kỷ niệm cả cuộc đời — tuổi thơ, tuổi trẻ, gia đình, con cái — để sau này xem lại. Bắt đầu bằng hồ sơ của chính bạn, người thân thêm sau.' : 'Cùng tạo dòng thời gian kỷ niệm cho con nhé. Ngày sinh giúp app tính con bao nhiêu tuổi ở mỗi tấm ảnh.')
+    : kidEditing ? (me ? 'Ngày sinh của bạn dùng để chia đời bạn thành các chương.' : child ? 'Đổi tên hoặc ngày sinh — tuổi trên mọi tấm ảnh sẽ tự tính lại.' : 'Người thân có dải sáng riêng trên hành trình của bạn, từ ngày bước vào đời bạn.')
+    : me ? 'Từ giờ mọi kỷ niệm xếp vào hành trình cuộc đời bạn, chia thành từng chương. Các bé đã có thành người thân vai trò Con — không mất gì.' : child ? 'Mỗi bé có dòng thời gian riêng, kèm tuổi tháng và cột mốc.' : 'Vợ / chồng, bố mẹ, anh chị em… — ảnh gắn người này hiện trên dải sáng riêng.';
+  $('#kidOk').textContent = kidEditing ? 'Lưu' : first ? 'Bắt đầu ✨' : 'Thêm';
+  $('#kidDel').textContent = me ? 'Xoá hồ sơ của bạn' : child ? 'Xoá bé này' : 'Xoá người này';
+}
+// ngày sinh âm lịch ↔ dương lịch
+const CAL = { mode: 'd' };
+function lunarFill() { if ($('#kidLd').options.length) return; $('#kidLd').innerHTML = Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}">Mùng ${i + 1}</option>`).join('').replace(/Mùng (1\d|2\d|30)</g, 'Ngày $1<'); $('#kidLm').innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">Tháng ${LUNAR_MONTH(i + 1)}</option>`).join(''); }
+function lunarSolar() {
+  const d = +$('#kidLd').value, m = +$('#kidLm').value, y = +$('#kidLy').value, l = $('#kidLl').checked; if (!(y > 1880 && y < 2200)) return null;
+  const r = lunar2solar(d, m, y, l); if (!r) return null; const back = solar2lunar(r.d, r.m, r.y); if (back.d !== d || back.m !== m || !!back.leap !== l) return null;
+  return `${r.y}-${pad(r.m)}-${pad(r.d)}`;
+}
+function setCal(mode) {
+  lunarFill(); const was = CAL.mode; CAL.mode = mode; $$('#kidCal button').forEach(b => b.classList.toggle('on', b.dataset.v === mode));
+  $('#kidBd').hidden = mode === 'a'; $('#kidLun').hidden = mode !== 'a';
+  if (mode === 'a' && was !== 'a' && parseYmd($('#kidBd').value)) { const [y, m, d] = $('#kidBd').value.split('-').map(Number), L = solar2lunar(d, m, y); $('#kidLd').value = L.d; $('#kidLm').value = L.m; $('#kidLy').value = L.y; $('#kidLl').checked = L.leap; }
+  if (mode === 'd' && was === 'a') { const s = lunarSolar(); if (s) $('#kidBd').value = s; }
+  kidBdHint();
+}
+function openKid(kid, opt = {}) {
+  if (!kid && S.kids.length >= 40) { toast('App giữ tối đa 40 người cho màn hành trình gọn đẹp — bạn sửa hoặc xoá bớt nhé', 3800); return; }
+  kidEditing = kid; const first = !S.kids.length;
+  kidDraft = kid ? { ...kid } : { id: uid(), gender: null, color: null, avatar: 0, avStyle: 0, role: opt.role || (first ? 'me' : ME() ? 'vo' : 'con') };
+  if (!kid && !opt.role && ME() && S.kids.some(isPartner)) kidDraft.role = 'con';
+  if (!kidDraft.gender && ROLE_G[roleOf(kidDraft)]) { kidDraft.gender = ROLE_G[roleOf(kidDraft)]; kidDraft._autoG = true; }
+  if (!kidDraft.color) kidDraft.color = defaultColor(kidDraft.gender, S.kids.filter(k => k.id !== kidDraft.id).map(k => k.color));
+  $('#kidIn').value = kid?.name || ''; $('#kidBd').value = kid?.birth || '';
+  $('#kidSi').value = kid?.since || ''; $('#kidWed').value = kid?.wed || ''; $('#kidAge').checked = !!kid?.showAge;
+  CAL.mode = 'd'; setCal(kid?.birthLunar ? 'a' : 'd'); if (kid?.birthLunar) { const L = kid.birthLunar; $('#kidLd').value = L.d; $('#kidLm').value = L.m; $('#kidLy').value = L.y; $('#kidLl').checked = !!L.leap; kidBdHint(); }
+  $('#kidFn').value = kid?.fullName || ''; $('#kidTm').value = kid?.birthTime || ''; $('#kidPl').value = kid?.place || ''; $('#kidKg').value = kid?.weight ? String(kid.weight).replace('.', ',') : ''; $('#kidCm').value = kid?.length ? String(kid.length).replace('.', ',') : ''; $('#kidBx').open = !!(kid?.birthTime || kid?.place || kid?.weight || kid?.length);
+  $('#kidCancel').hidden = first; $('#kidDel').hidden = !kid || S.kids.length < 1; $('#kidFirst').hidden = !first; $('#kfLink').value = ''; if (first) $('#kidLead').after($('#kidFirst'));
+  kidRoleUi(); kidSheetUi();
+  openModal($('#mKid')); setTimeout(() => $('#kidIn').focus(), 350);
+}
+function setKidRole(r) {
+  if (!kidDraft || r === roleOf(kidDraft)) return; const autoG = !kidDraft.gender || kidDraft._autoG; kidDraft.role = r;
+  if (autoG) { kidDraft.gender = ROLE_G[r] || (kidEditing?.gender ?? null); kidDraft._autoG = !!ROLE_G[r]; if (KID_COLORS.includes(kidDraft.color)) kidDraft.color = defaultColor(kidDraft.gender, S.kids.filter(k => k.id !== kidDraft.id).map(k => k.color)); }
+  haptic(6); kidRoleUi(); kidSheetUi();
+}
+$('#kidRole').onclick = e => { const b = e.target.closest('[data-r]'); if (b) setKidRole(b.dataset.r); };
+$('#kidFst').onclick = e => { const b = e.target.closest('[data-r]'); if (b) setKidRole(b.dataset.r); };
+$('#kidCal').onclick = e => { const b = e.target.closest('[data-v]'); if (b) setCal(b.dataset.v); };
+['kidLd', 'kidLm', 'kidLy', 'kidLl'].forEach(id => $('#' + id).addEventListener(id === 'kidLy' ? 'input' : 'change', () => kidBdHint()));
+$('#kidOk').onclick = async () => {
+  const k0 = kidDraft, me = isMe(k0), child = isChild(k0), partner = isPartner(k0);
+  let name = $('#kidIn').value.trim().replace(/\s+/g, ' '); if (!name && !me && !child) name = roleName(k0);
+  if (!name) { toast(me ? 'Bạn nhập tên của bạn nhé' : 'Bạn nhập tên ở nhà của bé nhé'); $('#kidIn').focus(); return; }
+  let birth = CAL.mode === 'a' ? lunarSolar() : $('#kidBd').value;
+  if (CAL.mode === 'a' && $('#kidLy').value && !birth) { toast('Ngày âm lịch này không có trong năm đó — bạn kiểm tra lại ngày, tháng (hoặc bỏ ô “nhuận”) nhé', 3800); return; }
+  if ((me || child) && !parseYmd(birth)) { toast(me ? 'Bạn chọn ngày sinh của bạn nhé — app dùng để chia đời bạn thành các chương' : 'Bạn chọn ngày sinh của bé nhé', 3200); (CAL.mode === 'a' ? $('#kidLy') : $('#kidBd')).focus(); return; }
+  if (!parseYmd(birth)) birth = '';
+  const num = (v, lo, hi) => { const x = parseFloat(String(v).replace(',', '.')); return x >= lo && x <= hi ? Math.round(x * 100) / 100 : null; };
+  const kg = $('#kidKg').value.trim(), cm = $('#kidCm').value.trim();
+  if (child && kg && num(kg, .3, 9) == null) { toast('Cân nặng lúc sinh tính bằng kg, ví dụ 3,2'); $('#kidBx').open = true; $('#kidKg').focus(); return; }
+  if (child && cm && num(cm, 20, 70) == null) { toast('Chiều dài lúc sinh tính bằng cm, ví dụ 50'); $('#kidBx').open = true; $('#kidCm').focus(); return; }
+  const since = !me && !child && roleOf(k0) !== 'em' ? ($('#kidSi').value || null) : null, wed = partner ? ($('#kidWed').value || null) : null;
+  const ex = { role: roleOf(k0), gender: k0.gender || null, color: k0.color, avatar: k0.avatar || 0, avStyle: k0.avStyle || 0,
+    birthLunar: CAL.mode === 'a' && birth ? { d: +$('#kidLd').value, m: +$('#kidLm').value, y: +$('#kidLy').value, leap: $('#kidLl').checked } : null,
+    since, wed, showAge: !me && !child ? $('#kidAge').checked : false,
+    fullName: $('#kidFn').value.trim().replace(/\s+/g, ' ') || null, birthTime: child ? $('#kidTm').value || null : null, place: child ? $('#kidPl').value.trim() || null : null, weight: child ? num(kg, .3, 9) : null, length: child ? num(cm, 20, 70) : null };
+  if (kidEditing) {
+    Object.assign(kidEditing, { name, birth }, ex); await dbPut('kids', kidEditing); await P.warm([kidEditing]);
+    $('#mKid').classList.remove('open');
+    if (S.family) { if (LIFE()) S.kid = ME(); await loadAll(); buildGalaxy(); buildScrub(); await TL.reload(); renderKidBtn(); updateNow(); } else await selectKid(kidEditing.id, false);
+    toast('Đã lưu thông tin ' + (me ? 'của bạn' : name));
+  } else {
+    const k = { id: k0.id, name, birth, created: Date.now(), ...ex }; await dbPut('kids', k); S.kids.push(k); await P.warm([k]);
+    $('#mKid').classList.remove('open'); leaveIntro(true);
+    if (me) { await metaSet('meAsk', Date.now()); await selectKid(k.id, false); await enterFamily(); if (S.kids.length > 1) setTimeout(() => toast(`Đã tạo hồ sơ của bạn ✨ ${S.kids.filter(x => !isMe(x)).map(x => cap(x.name)).join(', ')} đã thành người thân trong hành trình của bạn`, 4200), 600); }
+    else if (ME()) { if (!LIFE()) await enterFamily(); else { await loadAll(); buildGalaxy(); buildScrub(); await TL.reload(); renderKidBtn(); } toast(`Đã thêm ${name} vào hành trình của bạn`, 2400); }
+    else await selectKid(k.id, true);
+  }
+  renderSettings();
+};
 // tên kiểu "Rin - Trần Đại Dũng" (nhập từ bản cũ chưa có ô tên thật) → tự tách tên ở nhà + tên thật, có Hoàn tác
 function splitName(name) {
   const m = /^\s*([^()\-–—|]+?)\s*(?:[-–—|]\s*(.+?)|\(\s*(.+?)\s*\))\s*$/.exec(name || ''); if (!m) return null;
@@ -1662,46 +1779,13 @@ async function splitNames() {
     S.splitNow = true; setTimeout(() => undoToast(`Đã tách tên ở nhà: <b>${esc(sp.name)}</b> · tên thật: <b>${esc(sp.fullName)}</b>`, async () => { k.name = old; delete k.fullName; await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); toast('Đã giữ lại tên cũ — bạn sửa trong hồ sơ bé khi cần nhé', 2400); }, 8000), 1800);
   }
 }
-function openKid(kid) {
-  if (!kid && S.kids.length >= 5) { toast('App giữ tối đa 5 bé để màn Cả nhà gọn đẹp — bạn sửa bé cũ hoặc xoá bớt nhé', 3800); return; }
-  kidEditing = kid; const first = !S.kids.length;
-  kidDraft = kid ? { ...kid } : { id: uid(), gender: null, color: null, avatar: 0, avStyle: 0 };
-  if (!kidDraft.color) kidDraft.color = defaultColor(kidDraft.gender, S.kids.filter(k => k.id !== kidDraft.id).map(k => k.color));
-  $('#kidTitle').textContent = first ? 'Chào bạn! 👋' : kid ? `Sửa thông tin ${cap(kid.name)}` : 'Thêm một bé';
-  $('#kidLead').textContent = first ? 'Cùng tạo dải ngân hà kỷ niệm cho con nhé. Ngày sinh giúp app tính con bao nhiêu tuổi ở mỗi tấm ảnh.' : kid ? 'Đổi tên hoặc ngày sinh — tuổi trên mọi tấm ảnh sẽ tự tính lại.' : 'Mỗi bé có một dải ngân hà riêng.';
-  $('#kidIn').value = kid?.name || ''; $('#kidBd').value = kid?.birth || ''; kidBdHint();
-  $('#kidFn').value = kid?.fullName || ''; $('#kidTm').value = kid?.birthTime || ''; $('#kidPl').value = kid?.place || ''; $('#kidKg').value = kid?.weight ? String(kid.weight).replace('.', ',') : ''; $('#kidCm').value = kid?.length ? String(kid.length).replace('.', ',') : ''; $('#kidBx').open = !!(kid?.birthTime || kid?.place || kid?.weight || kid?.length);
-  $('#kidCancel').hidden = first; $('#kidDel').hidden = !kid || S.kids.length < 1; $('#kidFirst').hidden = !first; $('#kfLink').value = ''; if (first) $('#kidLead').after($('#kidFirst'));
-  $('#kidOk').textContent = kid ? 'Lưu' : 'Bắt đầu';
-  kidSheetUi();
-  openModal($('#mKid')); setTimeout(() => $('#kidIn').focus(), 350);
-}
-$('#kidOk').onclick = async () => {
-  const name = $('#kidIn').value.trim().replace(/\s+/g, ' '), birth = $('#kidBd').value;
-  if (!name) { toast('Bạn nhập tên ở nhà của bé nhé'); $('#kidIn').focus(); return; }
-  if (!parseYmd(birth)) { toast('Bạn chọn ngày sinh của bé nhé'); $('#kidBd').focus(); return; }
-  const num = (v, lo, hi) => { const x = parseFloat(String(v).replace(',', '.')); return x >= lo && x <= hi ? Math.round(x * 100) / 100 : null; };
-  const kg = $('#kidKg').value.trim(), cm = $('#kidCm').value.trim();
-  if (kg && num(kg, .3, 9) == null) { toast('Cân nặng lúc sinh tính bằng kg, ví dụ 3,2'); $('#kidBx').open = true; $('#kidKg').focus(); return; }
-  if (cm && num(cm, 20, 70) == null) { toast('Chiều dài lúc sinh tính bằng cm, ví dụ 50'); $('#kidBx').open = true; $('#kidCm').focus(); return; }
-  const ex = { gender: kidDraft.gender || null, color: kidDraft.color, avatar: kidDraft.avatar || 0, avStyle: kidDraft.avStyle || 0,
-    fullName: $('#kidFn').value.trim().replace(/\s+/g, ' ') || null, birthTime: $('#kidTm').value || null, place: $('#kidPl').value.trim() || null, weight: num(kg, .3, 9), length: num(cm, 20, 70) };
-  if (kidEditing) {
-    Object.assign(kidEditing, { name, birth }, ex); await dbPut('kids', kidEditing); await P.warm([kidEditing]);
-    $('#mKid').classList.remove('open'); await selectKid(kidEditing.id, false); toast('Đã lưu thông tin ' + name);
-  } else {
-    const k = { id: kidDraft.id, name, birth, created: Date.now(), ...ex }; await dbPut('kids', k); S.kids.push(k); await P.warm([k]);
-    $('#mKid').classList.remove('open'); leaveIntro(true); await selectKid(k.id, true);
-  }
-  renderSettings();
-};
 $('#kfBackup').onclick = () => $('#importIn').click();
 setTimeout(() => DRV?.on && (() => { $('#kfBackup').insertAdjacentHTML('beforebegin', `<button class="kf-b kf-g" id="kfGoogle" type="button"><b class="g">G</b><span>Đăng nhập Google — lấy lại dữ liệu</span></button>`); $('#kfGoogle').onclick = () => DRV.signIn(); })(), 0);
 $('#kfLinkOk').onclick = async () => { const v = $('#kfLink').value.trim(); if (!/#hoso=/.test(v)) { toast('Bạn dán cả đường link hồ sơ (có đoạn #hoso=…) nhé', 3000); return; } await importProfiles(v); };
 $('#kfLink').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kfLinkOk').click(); });
 $('#kidIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kidBd').focus(); });
 $('#kidIn').addEventListener('input', () => kidDraft && kidSheetUi());
-$('#kidG').onclick = e => { const b = e.target.closest('[data-v]'); if (!b || !kidDraft) return; const was = kidDraft.gender; kidDraft.gender = b.dataset.v; if (!was || KID_COLORS.indexOf(kidDraft.color) >= 0) kidDraft.color = defaultColor(kidDraft.gender, S.kids.filter(k => k.id !== kidDraft.id).map(k => k.color)); haptic(6); kidSheetUi(); };
+$('#kidG').onclick = e => { const b = e.target.closest('[data-v]'); if (!b || !kidDraft) return; const was = kidDraft.gender; kidDraft.gender = b.dataset.v; kidDraft._autoG = false; if (!was || KID_COLORS.indexOf(kidDraft.color) >= 0) kidDraft.color = defaultColor(kidDraft.gender, S.kids.filter(k => k.id !== kidDraft.id).map(k => k.color)); haptic(6); kidSheetUi(); };
 $('#kidC').onclick = e => { const c = e.target.dataset.c; if (!c || !kidDraft) return; kidDraft.color = c; haptic(5); kidSheetUi(); };
 $('#kidAvB').onclick = () => { if (!kidDraft) return; const m = $('#mKid'); P.openAvatar({ ...kidDraft, name: cap($('#kidIn').value) || 'bé' }, k => { Object.assign(kidDraft, { avatar: k.avatar, avStyle: k.avStyle }); P.warm([kidDraft]).then(kidSheetUi); setTimeout(() => openModal(m), 50); }); };
 async function removeKid(k) {
@@ -1735,14 +1819,14 @@ function playIntro() {
   if (!S.kid) return;
   S.mode = 'intro'; document.body.classList.add('intro'); document.body.classList.remove('hide-intro');
   $('#intro').style.display = '';
-  const pre = 'Dải ngân hà của ', nm = KN(); let i = 0;
+  const pre = LIFE() ? 'Hành trình của ' : 'Dải ngân hà của ', nm = KN(); let i = 0;
   const L = (ch, col) => `<span class="letter"${col ? ` style="animation-delay:${(.25 + i * .045).toFixed(3)}s;color:${col}"` : ` style="animation-delay:${(.25 + i * .045).toFixed(3)}s"`}>${(i++, ch === ' ' ? '&nbsp;' : esc(ch))}</span>`;
   const NC = S.theme === 'dawn' ? ['#e0487f', '#f07a2c', '#d0569a', '#e8892f'] : ['#ff8fbf', '#ffd27f', '#9fe1cb', '#ffb3d6'];
   $('#introTitle').innerHTML = [...pre].map(c => L(c)).join('') + '<br class="br"><span class="nm2">' + [...nm].map((c, k) => L(c, NC[k % NC.length])).join('') + '</span>';
   const n = S.moments.length;
   const sub = $('#introSub'), btns = $('#introBtns');
   sub.textContent = n ? `${n} khoảnh khắc lấp lánh · ${ageText(S.kid, Date.now())} rồi đó` : `Hành trình lớn lên của ${nm} bắt đầu từ đây`;
-  if (parseYmd(S.kid.birth) > Date.now()) sub.textContent = n ? `${n} khoảnh khắc đang chờ ngày ${nm} chào đời` : `Đếm ngược tới ngày ${nm} chào đời`;
+  if (S.kid.birth && parseYmd(S.kid.birth) > Date.now()) sub.textContent = n ? `${n} khoảnh khắc đang chờ ngày ${nm} chào đời` : `Đếm ngược tới ngày ${nm} chào đời`;
   btns.innerHTML = n ? `<button class="primary" data-go="fly">✨ Bắt đầu hành trình</button><button class="glass" data-go="show">▶️ Chiếu có nhạc</button>` : `<button class="primary" data-go="add">➕ Thêm khoảnh khắc đầu tiên</button>`;
   [sub, btns].forEach(el => { el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; });
   // máy quay bay từ ngoài vũ trụ vào
@@ -1785,7 +1869,7 @@ async function renderLB() {
   LB.querySelector('.count').textContent = `${S.lbIdx + 1} / ${G.cards.length}`;
   LB.querySelector('.ti').textContent = m.title || 'Một ngày đáng nhớ';
   const d = new Date(m.ts);
-  LB.querySelector('.dt').textContent = `${WD[d.getDay()]} · ${dmy(m.ts)}`;
+  LB.querySelector('.dt').textContent = m.approx ? approxLabel(m.approx, m.ts) : `${WD[d.getDay()]} · ${dmy(m.ts)}`;
   LB.querySelector('.ag').textContent = ageText(S.kid, m.ts);
   LB.querySelector('.nt').innerHTML = m.note ? esc(m.note) : `<span style="color:var(--muted)">Chưa có ghi chú — bấm Sửa để kể thêm.</span>${m.dateSrc === 'check' ? '<br><span style="color:var(--accent-2)">Ngày có thể chưa đúng — bấm Sửa để chỉnh.</span>' : ''}`;
   LB.querySelector('.view').hidden = false; LB.querySelector('.edit').hidden = true;
@@ -1888,13 +1972,52 @@ function renderAddKids() {
   const box = $('#addKids'); if (!box) return; box.hidden = S.kids.length < 2;
   box.innerHTML = `<span>Ảnh của:</span>` + S.kids.map(k => `<button data-k="${k.id}" class="${ADD.kids.includes(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${P.avatarNow(k)}" alt="">${esc(cap(k.name))}</button>`).join('');
 }
-function openAdd() {
+function openAdd(opt = {}) {
   if (!S.kid) return;
-  if (!ADD.rows.length) ADD.kids = S.family ? [] : [S.kid.id]; renderAddKids();
+  if (!ADD.rows.length) ADD.kids = LIFE() ? [ME().id] : S.family ? [] : [S.kid.id]; renderAddKids();
+  if (opt.approx) { ADD.ao = { on: true, prec: opt.approx.prec || 'y', y: opt.approx.y, x: null }; aoUi(); } else if (!ADD.rows.length) { ADD.ao = { on: false, prec: 'y', y: null, x: null }; aoUi(); }
   if (S.mode === 'show') stopShow();
   openModal($('#mAdd')); refreshAddBtn();
 }
-function resetAdd() { if ($('#addGrp')) $('#addGrp').value = ''; ADD.day = null; if ($('#addDay')) { $('#addDay').value = ''; $('#addDayH').textContent = ''; } for (const r of ADD.rows) if (r.url) URL.revokeObjectURL(r.url); ADD.rows = []; $('#addList').innerHTML = ''; $('#addProg').style.display = 'none'; $('#addProg i').style.width = 0; refreshAddBtn(); }
+// ảnh cũ chụp lại từ ảnh giấy: cả đợt dùng ngày ước chừng (năm / mùa / tháng)
+ADD.ao = { on: false, prec: 'y', y: null, x: null };
+function aoFill() { const p = ADD.ao.prec, sel = $('#aoX'); sel.hidden = p === 'y'; if (p === 's') sel.innerHTML = SEASONS.map(q => `<option value="${q.k}">${q.t}</option>`).join(''); else if (p === 'm') sel.innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${i}">Tháng ${i + 1}</option>`).join(''); if (ADD.ao.x != null && [...sel.options].some(o => o.value === String(ADD.ao.x))) sel.value = ADD.ao.x; ADD.ao.x = p === 'y' ? null : sel.value; }
+function aoUi() {
+  const a = ADD.ao; $('#aoOn').checked = a.on; $('#aoG').hidden = !a.on; $$('#aoP button').forEach(b => b.classList.toggle('on', b.dataset.v === a.prec)); $('#aoY').value = a.y || ''; aoFill(); aoApply();
+}
+function aoTs() { const a = ADD.ao, y = +a.y; return a.on && y >= 1850 && y <= new Date().getFullYear() ? approxTs(a.prec, y, a.x) : null; }
+function aoApply() {
+  const t = aoTs(); $('#aoL').textContent = ADD.ao.on ? (t ? `Các ảnh đợt này xếp vào: ${approxLabel(ADD.ao.prec, t, true)}` : 'Nhập năm (4 chữ số) để app xếp ảnh vào đúng chỗ') : '';
+  ADD.rows.forEach((r, i) => { if (!r.ready) return; const bd = r.el.querySelector('.badge');
+    if (t) { if (r.ts0 == null) { r.ts0 = r.ts; r.src0 = r.src; } r.ts = t + i * 1000; r.approx = ADD.ao.prec; r.src = 'approx'; r.el.classList.add('apx'); r.el.querySelector('.r-dt').value = ymd(r.ts); bd.className = 'badge'; bd.textContent = 'ước chừng · ' + approxLabel(r.approx, r.ts, true); }
+    else if (r.approx) { r.ts = r.ts0; r.src = r.src0; delete r.approx; r.el.classList.remove('apx'); r.el.querySelector('.r-dt').value = ymd(r.ts); bd.className = 'badge'; bd.textContent = 'ngày chụp như cũ'; }
+    rowAge(r); });
+  if (ADD.rows.length) setTimeout(regroupAdd, 30);
+}
+$('#aoOn').onchange = e => { ADD.ao.on = e.target.checked; haptic(5); aoUi(); if (ADD.ao.on) setTimeout(() => $('#aoY').focus(), 80); };
+$('#aoP').onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; ADD.ao.prec = b.dataset.v; ADD.ao.x = null; aoUi(); };
+$('#aoY').addEventListener('input', e => { ADD.ao.y = e.target.value.replace(/\D/g, '').slice(0, 4); aoApply(); });
+$('#aoX').onchange = e => { ADD.ao.x = e.target.value; aoApply(); };
+// hộp chọn ngày ước chừng dùng chung (sự kiện, ảnh lẻ, chọn nhiều)
+function pickApprox({ title, ts, approx } = {}) {
+  const M = $('#mApx'), d = new Date(ts || Date.now()); let prec = approx || 'y';
+  M.querySelector('.ax-t').textContent = title || 'Ngày ước chừng'; $('#axY').value = d.getFullYear(); $('#axD').value = ymd(d.getTime());
+  const fill = () => { $$('#axP button').forEach(b => b.classList.toggle('on', b.dataset.v === prec)); $('#axXF').hidden = prec === 'y' || prec === 'd'; $('#axYF').hidden = prec === 'd'; $('#axDF').hidden = prec !== 'd';
+    $('#axXL').textContent = prec === 's' ? 'Mùa' : 'Tháng'; const sel = $('#axX');
+    if (prec === 's') { sel.innerHTML = SEASONS.map(q => `<option value="${q.k}">${q.t}</option>`).join(''); sel.value = SEASONS.find(q => Math.abs(q.m - d.getMonth()) <= 1)?.k || 'ha'; }
+    else if (prec === 'm') { sel.innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${i}">Tháng ${i + 1}</option>`).join(''); sel.value = d.getMonth(); } hint(); };
+  const val = () => { if (prec === 'd') { const t = parseYmd($('#axD').value); return t ? { prec, day: $('#axD').value, ts: t } : null; } const y = +$('#axY').value; if (!(y >= 1850 && y <= new Date().getFullYear() + 1)) return null; const t = approxTs(prec, y, prec === 'y' ? null : prec === 'm' ? +$('#axX').value : $('#axX').value); return { prec, ts: t, y }; };
+  const hint = () => { const v = val(); $('#axH').textContent = v ? (v.prec === 'd' ? fmtLong(v.ts) : 'Xếp vào: ' + approxLabel(v.prec, v.ts, true)) : 'Nhập năm (4 chữ số)'; };
+  fill(); openModal(M);
+  return new Promise(res => {
+    const done = v => { ob.disconnect(); $('#axP').onclick = $('#axOk').onclick = null; $('#axY').oninput = $('#axX').onchange = $('#axD').oninput = null; M.classList.remove('open'); res(v); };
+    $('#axP').onclick = e => { const b = e.target.closest('[data-v]'); if (b) { prec = b.dataset.v; haptic(5); fill(); } };
+    $('#axY').oninput = hint; $('#axX').onchange = hint; $('#axD').oninput = hint;
+    $('#axOk').onclick = () => { const v = val(); if (!v) { toast('Bạn nhập năm (4 chữ số) nhé', 1800); return; } done(v); };
+    const ob = new MutationObserver(() => { if (!M.classList.contains('open')) done(null); }); ob.observe(M, { attributes: true });
+  });
+}
+function resetAdd() { if ($('#addGrp')) $('#addGrp').value = ''; ADD.day = null; if ($('#addDay')) { $('#addDay').value = ''; $('#addDayH').textContent = ''; } for (const r of ADD.rows) if (r.url) URL.revokeObjectURL(r.url); ADD.rows = []; ADD.ao = { on: false, prec: 'y', y: null, x: null }; aoUi(); $('#addList').innerHTML = ''; $('#addProg').style.display = 'none'; $('#addProg i').style.width = 0; refreshAddBtn(); }
 function refreshAddBtn() {
   { const days = new Set(ADD.rows.filter(r => r.ready && !r.bad).map(r => ymd(r.ts))), box = $('#addGrpBox'); box.hidden = days.size < 2 && !$('#addGrp').value; const ts = ADD.rows.filter(r => r.ready && !r.bad).map(r => r.ts).sort((a, b) => a - b); box.querySelector('.addgrp-s').textContent = ts.length && days.size > 1 ? `${ts.length} ảnh · ${days.size} ngày · ${dmy(ts[0]).slice(0, 5)} – ${dmy(ts[ts.length - 1])}` : ''; }
   const b = $('#addSave'), n = ADD.rows.filter(r => !r.dup).length || (ADD.rows.some(r => r.dup) ? 1 : 0);
@@ -1919,7 +2042,7 @@ function regroupAdd() {
   let day = null, n = 0;
   for (const r of rows) {
     const d = r.ts ? ymd(r.ts) : '';
-    if (d !== day) { day = d; const cnt = rows.filter(x => x.ts && ymd(x.ts) === d).length; const ev = TL.events.find(e => e.days.includes(d)); list.insertAdjacentHTML('beforeend', `<div class="add-day">${icon('calendar', 15)}<b>${d ? fmtLong(r.ts) : 'Chưa rõ ngày'}</b><span>${cnt} ảnh${ev ? ` · vào “${esc(ev.title)}”` : ' · ngày mới'}</span></div>`); n++; }
+    if (d !== day) { day = d; const cnt = rows.filter(x => x.ts && ymd(x.ts) === d).length; const ev = TL.events.find(e => e.days.includes(d)); list.insertAdjacentHTML('beforeend', `<div class="add-day">${icon('calendar', 15)}<b>${d ? (r.approx ? approxLabel(r.approx, r.ts) : fmtLong(r.ts)) : 'Chưa rõ ngày'}</b><span>${cnt} ảnh${ev ? ` · vào “${esc(ev.title)}”` : ' · ngày mới'}</span></div>`); n++; }
     list.appendChild(r.el);
     if (r.src === 'align') { const bd = r.el.querySelector('.badge'); bd.className = 'badge'; bd.innerHTML = icon('sparkle', 12, 2) + '<span>ngày tự căn theo ảnh cùng đợt</span>'; r.el.querySelector('.r-dt').value = ymd(r.ts); rowAge(r); }
     else if (r.src === 'name') { const bd = r.el.querySelector('.badge'); bd.textContent = 'ngày từ tên tệp'; }
@@ -1990,7 +2113,7 @@ async function addFiles(list) {
       el.querySelector('.r-dt').value = ymd(r.ts); rowAge(r);
       try { r.fp = await fingerprint(f); markDup(r, await findDup(r)); } catch (e) { }
       el.querySelector('.r-dt').addEventListener('change', e => { const t = parseYmd(e.target.value, r.ts); if (t) { r.ts = t; r.src = 'user'; rowAge(r); setTimeout(regroupAdd, 50); const b2 = el.querySelector('.badge'); b2.className = 'badge'; b2.textContent = 'bạn đã chỉnh ngày'; } });
-      r.ready = true;
+      r.ready = true; if (ADD.ao.on && aoTs()) aoApply();
     } catch (e) { console.warn(e); el.querySelector('.pl').textContent = '⚠️'; r.bad = true; }
     ADD.pending--; refreshAddBtn();
   }
@@ -2011,7 +2134,7 @@ $('#drop').addEventListener('dragleave', () => $('#drop').classList.remove('over
 $('#addSave').onclick = saveAdd;
 async function saveAdd() {
   const rows = ADD.rows.filter(r => r.ready && !r.bad && !r.dup); if (!rows.length || ADD.busy) { if (!ADD.busy && ADD.rows.some(r => r.dup)) { toast('Các tệp này đã có trong app rồi — không cần thêm lại', 2600); $('#mAdd').classList.remove('open'); resetAdd(); } return; }
-  if (!ADD.kids.length) { const ks = $('#addKids'); ks.classList.remove('need'); void ks.offsetWidth; ks.classList.add('need'); toast('Ảnh này của bé nào? Chạm avatar để chọn nhé', 2600); return; }
+  if (!ADD.kids.length) { const ks = $('#addKids'); ks.classList.remove('need'); void ks.offsetWidth; ks.classList.add('need'); toast(ME() ? 'Ảnh này có ai? Chạm avatar để chọn nhé' : 'Ảnh này của bé nào? Chạm avatar để chọn nhé', 2600); return; }
   ADD.gname = ($('#addGrp')?.value || '').trim(); ADD.busy = true; refreshAddBtn(); $('#addProg').style.display = 'block';
   await askPersist();
   const ids = [];
@@ -2020,7 +2143,7 @@ async function saveAdd() {
       const r = rows[i], id = uid(), f = r.file;
       await dbPut('blobs', f, 'o_' + id);
       await dbPut('blobs', r.th.blob, 't_' + id);
-      const m = { id, fp: r.fp, tv: 2, kidId: ADD.kids[0], kidIds: ADD.kids.slice(), ts: r.ts, title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
+      const m = { id, fp: r.fp, tv: 2, kidId: ADD.kids[0], kidIds: ADD.kids.slice(), ts: r.ts, ...(r.approx ? { approx: r.approx, dateSrc: 'approx' } : {}), title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
       await dbPut('moments', m); S.all.push(m); ids.push(id);
       $('#addProg i').style.width = ((i + 1) / rows.length * 100) + '%';
     }
@@ -2088,7 +2211,8 @@ async function renderSettings() {
   renderBkLast(); DRV?.renderSettings(); $('#verNow').textContent = VERSION; $('#abVer').textContent = 'Phiên bản ' + VERSION; checkUpdate(true);
   if ($('#kidNhacAll')) $('#kidNhacAll').hidden = S.kids.length < 2;
   const ms = await dbAll('moments');
-  $('#kidsList').innerHTML = S.kids.map(k => `<div class="kid-row"><img src="${P.avatarNow(k)}" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px ${k.color || '#ff8fbf'}"><div><div class="n">${esc(cap(k.name))}</div><div class="b">Sinh ${dmy(parseYmd(k.birth))} · ${ms.filter(m => !m.deleted && kidsOf(m).includes(k.id)).length} khoảnh khắc</div></div><div class="kr-acts"><button data-nhac="${k.id}">${icon('cake', 16)}<span>Nhắc sinh nhật</span></button><button data-prof="${k.id}">${icon('star', 16)}<span>Hồ sơ</span></button><button data-kid="${k.id}">${icon('edit', 16)}<span>Sửa</span></button></div></div>`).join('');
+    { const h = $('#kidsList').previousElementSibling; if (h) h.textContent = ME() ? 'Bạn và người thân' : 'Các bé'; $('#kidAdd span').textContent = ME() ? 'Thêm người thân' : 'Thêm bé'; }
+  $('#kidsList').innerHTML = sortPeople(S.kids).map(k => `<div class="kid-row"><img src="${P.avatarNow(k)}" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px ${k.color || '#ff8fbf'}"><div><div class="n">${esc(cap(k.name))}</div><div class="b">${ME() ? (isMe(k) ? 'Bạn · ' : roleName(k) + ' · ') : ''}${k.birth ? 'Sinh ' + dmy(parseYmd(k.birth)) : 'chưa có ngày sinh'} · ${ms.filter(m => !m.deleted && kidsOf(m).includes(k.id)).length} khoảnh khắc</div></div><div class="kr-acts"><button data-nhac="${k.id}"${k.birth ? '' : ' hidden'}>${icon('cake', 16)}<span>Nhắc sinh nhật</span></button><button data-prof="${k.id}">${icon('star', 16)}<span>Hồ sơ</span></button><button data-kid="${k.id}">${icon('edit', 16)}<span>Sửa</span></button></div></div>`).join('');
   $$('#segTheme button').forEach(b => b.classList.toggle('on', b.dataset.v === S.theme));
   $$('#segMusic button').forEach(b => b.classList.toggle('on', b.dataset.v === S.music));
   $('#musicHint').textContent = S.music === 'builtin' ? 'Giai điệu hộp nhạc dịu êm do app tự chơi — không lo bản quyền.' : S.music === 'file' ? `Đang dùng: ${S.musicName || 'bài của bạn'} · bấm “Bài của bạn” lần nữa để đổi bài.` : 'Trình chiếu không có nhạc.';
@@ -2224,7 +2348,7 @@ async function smallAvatar(k) {
   let u = c.toDataURL('image/webp', .72); if (!u.startsWith('data:image/webp')) u = c.toDataURL('image/jpeg', .72); return u;
 }
 async function profileLink() {
-  const kids = []; for (const k of S.kids) kids.push({ id: k.id, name: k.name, fullName: k.fullName || null, birth: k.birth, birthTime: k.birthTime || null, place: k.place || null, weight: k.weight || null, length: k.length || null, gender: k.gender || null, color: k.color, avStyle: k.avStyle || 0, av: k.avatar ? await smallAvatar(k) : '' });
+  const kids = []; for (const k of S.kids) kids.push({ id: k.id, name: k.name, role: k.role || null, since: k.since || null, wed: k.wed || null, showAge: !!k.showAge, birthLunar: k.birthLunar || null, fullName: k.fullName || null, birth: k.birth, birthTime: k.birthTime || null, place: k.place || null, weight: k.weight || null, length: k.length || null, gender: k.gender || null, color: k.color, avStyle: k.avStyle || 0, av: k.avatar ? await smallAvatar(k) : '' });
   const raw = new TextEncoder().encode(JSON.stringify({ v: 1, kids })), z = await zip(raw, true);
   return location.origin + location.pathname + (TEST ? location.search : '') + '#hoso=' + (z ? 'z' + b64u(z) : 'j' + b64u(raw));
 }
@@ -2245,7 +2369,7 @@ async function importProfiles(text) {
   if (location.hash.includes('hoso=')) history.replaceState(null, '', location.pathname + location.search);
   const have = await dbAll('kids'), fresh = data.kids.filter(k => !have.some(h => !h.deleted && (h.id === k.id || (cap(h.name) === cap(k.name) && h.birth === k.birth))));
   if (!fresh.length) { toast('Các bé trong link này đã có sẵn trong app rồi', 3000); return false; }
-  const line = fresh.map(k => `${cap(k.name)}${k.fullName ? ` (${k.fullName})` : ''}, sinh ${dmy(parseYmd(k.birth))}`).join('; ');
+  const line = fresh.map(k => `${cap(k.name)}${k.fullName ? ` (${k.fullName})` : ''}${k.birth ? `, sinh ${dmy(parseYmd(k.birth))}` : ''}`).join('; ');
   if (!(await ask(fresh.length > 1 ? `Thêm ${fresh.length} bé?` : `Thêm 1 bé: ${line}?`, fresh.length > 1 ? line : 'Thông tin bé lấy từ link hồ sơ — ảnh, video không đi kèm (mở bản sao lưu để có ảnh).', 'Đồng ý'))) return false;
   for (const k of fresh) {
     const { av, ...kk } = k; kk.created = Date.now(); kk.avatar = 0;
@@ -2256,6 +2380,13 @@ async function importProfiles(text) {
   $('#mKid').classList.remove('open'); document.body.classList.remove('intro'); leaveIntro(true);
   await selectKid(S.kid?.id || fresh[0].id, true); renderSettings();
   toast(`Đã thêm ${fresh.map(k => cap(k.name)).join(', ')} — không cần nhập lại`, 3200); return true;
+}
+// v1.6.0: mời người dùng cũ tạo hồ sơ "Tôi" — banner nhỏ, bỏ qua được, không bắt khai lại gì
+function meBanner() {
+  $('#gban')?.remove(); const b = document.createElement('div'); b.id = 'gban'; b.className = 'meban';
+  b.innerHTML = `<span class="mb-ic">✨</span><b>Mới: Hành Trình Của Bạn <small style="display:block;font-weight:600;color:var(--muted)">Tạo hồ sơ của chính bạn để xếp mọi kỷ niệm vào cuộc đời bạn, chia thành từng chương. ${S.kids.length > 1 ? 'Các bé' : esc(cap(S.kids[0]?.name || 'Bé'))} thành người thân vai trò Con — ảnh, nhật ký giữ nguyên.</small></b><button data-m="1" class="mb-go">Tạo hồ sơ của tôi</button><button class="later" data-m="">Để sau</button>`;
+  document.body.appendChild(b); requestAnimationFrame(() => b.classList.add('on'));
+  b.onclick = async e => { const t = e.target.closest('[data-m]'); if (!t) return; await metaSet('meAsk', Date.now()); b.classList.remove('on'); setTimeout(() => b.remove(), 400); if (t.dataset.m) openKid(null, { role: 'me' }); else toast('Lúc nào muốn, bạn mở menu tên ở góc trên › “Tạo hồ sơ của tôi”', 3200); };
 }
 // hỏi giới tính bằng banner nhỏ (không chặn màn hình), có "Để sau"
 function genderBanner(k) {
@@ -2304,7 +2435,8 @@ async function startShow() {
     else if (it.kind === 'm') { SH.list.push(G.stops.find(s => s.card === it.card)); for (const b of G.books || []) if (b.card === it.card) SH.list.push({ kind: 'book', s: b.s, book: b }); }
   }
   SH.i = -1; SH.prevS = (SH.list[0]?.s ?? 0) - 1; SH.camS = FL.s - 10; FL.camS = SH.camS;
-  if (S.family || !S.kid.birth) { await startMusic(); showNext(); return; }
+  if (LIFE()) { await startMusic(); await lifeCard(); if (S.mode === 'show') showNext(); return; }
+  if (S.family || !S.kid.birth || !isChild(S.kid)) { await startMusic(); showNext(); return; }
   // đoạn mở đầu ngày sinh (chạm để bỏ qua) rồi mới bay vào dải ngân hà
   const k = dispKid(S.kid), b0 = dayStart(parseYmd(k.birth)), mine = S.moments.slice().sort((a, b) => a.ts - b.ts);
   const pick = (arr, n) => arr.length <= n ? arr : Array.from({ length: n }, (_, i) => arr[Math.round(i * (arr.length - 1) / (n - 1))]);
@@ -2315,6 +2447,15 @@ async function startShow() {
     onMusic: () => { if (!musicOn) { musicOn = true; startMusic(); } },
     onDone: () => { INTRO = null; setTimeout(() => { SH.introUrls.forEach(u => URL.revokeObjectURL(u)); SH.introUrls = []; }, 3000); if (S.mode === 'show' && SH.runId === run) { if (!musicOn) { musicOn = true; startMusic(); } showNext(); } } });
 }
+// mở đầu trình chiếu cả đời: "Hành trình của <tên> · từ <năm sinh>" + avatar mọi người (chạm để bỏ qua)
+async function lifeCard() {
+  const me = ME(); if (!me) return; const ps = sortPeople(S.kids).slice(0, 9), y0 = me.birth ? me.birth.slice(0, 4) : '';
+  const el = document.createElement('div'); el.id = 'lifecard';
+  el.innerHTML = `<div class="lc-in"><small>Hành Trình Của Bạn</small><h1>${[...('Hành trình của ' + cap(me.name))].map((c, i) => `<span style="animation-delay:${(.15 + i * .04).toFixed(2)}s">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join('')}</h1>${y0 ? `<p>từ ${y0}</p>` : ''}<div class="lc-av">${ps.map((k, i) => `<img src="${P.avatarNow(k)}" alt="" style="--c:${k.color};animation-delay:${(1.1 + i * .12).toFixed(2)}s">`).join('')}</div></div>`;
+  document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('on'));
+  await new Promise(r => { const t = setTimeout(r, REDUCED_M ? 1800 : 4200); el.onclick = () => { clearTimeout(t); r(); }; SH.lcClose = () => { clearTimeout(t); r(); }; });
+  el.classList.remove('on'); setTimeout(() => el.remove(), 600); SH.lcClose = null;
+}
 let INTRO = null; const REDUCED_M = matchMedia('(prefers-reduced-motion: reduce)').matches;
 async function startMusic() { let blob = null; if (S.music === 'file') blob = await dbGet('blobs', 'music'); Music.start(S.music === 'file' && !blob ? 'builtin' : S.music, blob); }
 let capTok = 0;
@@ -2322,7 +2463,7 @@ function capSet(t, s) { const c = $('#cap'); c.classList.remove('on'); const tok
 function capOff() { capTok++; $('#cap').classList.remove('on'); }
 function showYear(g) {
   if (g.shown === SH.runId) return; g.shown = SH.runId;
-  const y = $('#year'); y.querySelector('.y').textContent = g.it.year; y.querySelector('.s').textContent = g.it.age >= 1 ? `${KN()} tròn ${g.it.age} tuổi` : '';
+  const y = $('#year'); y.querySelector('.y').textContent = g.it.year; y.querySelector('.s').textContent = gateSub(g.it.year, g.it.age);
   y.classList.remove('on'); void y.offsetWidth; y.classList.add('on'); SH.yearT = performance.now();
   clearTimeout(showYear.t); showYear.t = setTimeout(() => y.classList.remove('on'), 3300);
   Burst.fire(g.g.position, 90, 10);
@@ -2376,10 +2517,10 @@ function updateShow(dt) {
       }
       else if (st.card) {
         const m = st.card.m, [t1] = cardText(m);
-        capSet(m.title || dmy(m.ts), m.title ? `${dmy(m.ts)} · ${ageText(S.kid, m.ts)}` : ageText(S.kid, m.ts));
+        { const dd = m.approx ? approxLabel(m.approx, m.ts) : dmy(m.ts); capSet(m.title || dd, m.title ? `${dd} · ${ageText(S.kid, m.ts)}` : ageText(S.kid, m.ts) || (m.approx ? '' : '')); }
         SH.hold = 4 + (performance.now() - (SH.yearT || 0) < 3300 ? 1.5 : 0);
         if (m.type === 'video') { startCardVideo(st.card); SH.hold = clamp((m.dur || 4) + .3, 4, 10.3); }
-      } else { capSet(`Ngày ${KN()} chào đời`, dmy(parseYmd(S.kid.birth))); SH.hold = 4; Burst.fire(G.star.g.position, 80, 9); }
+      } else { const SI = starInfo(); capSet(SI.t, SI.d ? dmy(parseYmd(SI.d)) : ''); SH.hold = 4; Burst.fire(G.star.g.position, 80, 9); }
     }
   } else if (SH.phase === 'hold') {
     tmpA.subVectors(SH.to.look, SH.to.pos).normalize(); cam.pos.addScaledVector(tmpA, dt * .12);
@@ -2392,6 +2533,7 @@ function updateShow(dt) {
 function stopShow(ended) {
   if (S.mode !== 'show') return;
   if (INTRO) { const it = INTRO; INTRO = null; it.skip(); }
+  SH.lcClose?.();
   if (!ended) SH.outro?.close(); SH.outro = null;
   if (D.viewer.auto) D.closeViewer();
   if (SH.cur?.card) stopCardVideo(SH.cur.card);
@@ -2482,7 +2624,7 @@ DRV = initDrive({ clientId: GOOGLE_CLIENT_ID || (TEST && Q.has('mock') ? 'mock-c
     PLACES.v = DATAVER; PLACES.map = map; return map;
   },
   onRemoteApplied: async () => {
-    S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0)); S.groups = (await metaGet('groups')) || [];
+    S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0)); S.groups = (await metaGet('groups')) || []; S.chCfg = (await metaGet('chapters')) || {};
     if (!S.kids.length) return; await P.warm(S.kids);
     if ($('#mKid').classList.contains('open') && !kidEditing) { $('#mKid').classList.remove('open'); document.body.classList.remove('intro'); leaveIntro(true); }
     if (!S.kid || !S.kids.some(k => k.id === S.kid.id)) await selectKid(S.kids[0].id, false); else { await loadAll(); await TL.reload(); buildGalaxy(); buildScrub(); renderKidBtn(); updateNow(); }
@@ -2513,25 +2655,26 @@ async function makeDiary(ms) {
   const nd = new Set(list.map(m => ymd(m.ts))).size; toast(nd > 1 ? `Đã tạo 1 cuốn nhật ký ${nd} chương (mỗi ngày một chương)` : 'Đã tạo nhật ký — bạn chỉnh lời, khung tuỳ thích nhé', 3500);
 }
 function openKidMenu(a) {
-  if (innerWidth < 768) { // điện thoại: action sheet dính đáy
-    contextMenu({ at: a, title: 'Chọn bé', items: [
-      S.kids.length > 1 && { img: P.avatarNow(S.kids[0]), label: 'Cả nhà', note: S.kids.length + ' bé', on: !!S.family, act: () => enterFamily() },
-      ...S.kids.map(k => ({ img: P.avatarNow(k), color: k.color, label: esc(cap(k.name)), note: k.birth ? dmy(parseYmd(k.birth)) : '', on: !S.family && k.id === S.kid?.id, act: () => { if (k.id !== S.kid?.id || S.family) { leaveIntro(true); metaSet('family', false); selectKid(k.id, true); } } })),
-      { sep: 1 },
-      S.kid && { icon: 'star', label: `Hồ sơ của ${esc(KN())}`, act: () => P.openProfile(dispKid(S.kid)) },
-      S.kid && { icon: 'edit', label: `Sửa thông tin ${esc(KN())}`, act: () => openKid(S.kid) },
-      { icon: 'plus', label: 'Thêm bé', act: () => openKid(null) }] });
-    return;
-  }
-  const m = $('#kidMenu'); renderKidMenu(); const r = a.getBoundingClientRect(); m.style.top = (r.bottom + 8) + 'px'; m.style.left = Math.max(12, Math.min(r.left, innerWidth - 250)) + 'px'; m.hidden = false; }
+  const me = ME(), ps = sortPeople(S.kids), go = k => { if (k.id !== S.kid?.id || S.family) { leaveIntro(true); metaSet('family', false); selectKid(k.id, true); } };
+  const note = k => isMe(k) ? 'chỉ ảnh có bạn' : [roleName(k), k.birth ? dmy(parseYmd(k.birth)) : ''].filter(Boolean).join(' · ');
+  contextMenu({ at: a, title: me ? 'Xem hành trình của' : 'Chọn bé', items: [
+    me && { img: P.avatarNow(me), color: me.color, label: '<b>Hành trình của bạn</b>', note: 'cả đời · mọi người', on: LIFE(), act: () => enterFamily() },
+    !me && S.kids.length > 1 && { img: P.avatarNow(S.kids[0]), label: 'Cả nhà', note: S.kids.length + ' bé', on: !!S.family, act: () => enterFamily() },
+    ...ps.map(k => ({ img: P.avatarNow(k), color: k.color, label: esc(cap(k.name)) + (isMe(k) ? ' <small class="cm-n">(bạn)</small>' : ''), note: note(k), on: !S.family && k.id === S.kid?.id, act: () => go(k) })),
+    { sep: 1 },
+    S.kid && !LIFE() && { icon: 'star', label: `Hồ sơ của ${esc(isMe(S.kid) ? 'bạn' : KN())}`, act: () => P.openProfile(dispKid(S.kid)) },
+    S.kid && { icon: 'edit', label: LIFE() || isMe(S.kid) ? 'Sửa hồ sơ của bạn' : `Sửa thông tin ${esc(KN())}`, act: () => openKid(S.kid) },
+    { icon: 'plus', label: me ? 'Thêm người thân' : 'Thêm bé', act: () => openKid(null) },
+    !me && { icon: 'sparkle', label: 'Tạo hồ sơ của tôi <small class="cm-n">hành trình cả đời</small>', act: () => openKid(null, { role: 'me' }) }] });
+}
 // chọn bé cho một hoặc nhiều ảnh
 function pickKids(ms) {
   const M = $('#mKids'), box = M.querySelector('.mk-k'); let sel = new Set(ms.flatMap(kidsOf));
-  M.querySelector('.mk-l').textContent = ms.length > 1 ? `Áp dụng cho ${ms.length} ảnh/video đã chọn.` : 'Chạm avatar để gắn hoặc bỏ gắn bé.';
+  M.querySelector('.mk-l').textContent = ms.length > 1 ? `Áp dụng cho ${ms.length} ảnh/video đã chọn.` : 'Chạm avatar để gắn hoặc bỏ gắn.';
   const draw = () => { box.innerHTML = S.kids.map(k => `<button data-k="${k.id}" class="${sel.has(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${P.avatarNow(k)}" alt="">${esc(cap(k.name))}</button>`).join(''); };
   draw(); openModal(M);
   return new Promise(res => {
-    const click = e => { const b = e.target.closest('[data-k]'); if (!b) return; const id = b.dataset.k; if (sel.has(id)) { if (sel.size < 2) { toast('Ảnh cần thuộc ít nhất 1 bé', 1400); return; } sel.delete(id); } else sel.add(id); haptic(5); draw(); };
+    const click = e => { const b = e.target.closest('[data-k]'); if (!b) return; const id = b.dataset.k; if (sel.has(id)) { if (sel.size < 2) { toast('Ảnh cần có ít nhất 1 người', 1400); return; } sel.delete(id); } else sel.add(id); haptic(5); draw(); };
     const ok = () => { fin(); res([...sel]); };
     const ob = new MutationObserver(() => { if (!M.classList.contains('open')) { fin(); res(null); } });
     function fin() { ob.disconnect(); box.removeEventListener('click', click); M.querySelector('.mk-ok').onclick = null; M.classList.remove('open'); }
@@ -2564,11 +2707,13 @@ function kidMenu(el) {
 }
 function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(() => $('#bgList')?.closest('.sec')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 380); }
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
-const TL = initTimeline({ kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
+async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
+const TL = initTimeline({ life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
+  addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
   music: on => on ? startMusic() : Music.stop(), confetti: c => P.confetti(c), nhac: ks => nhacFor(ks ? ks.map(k => S.kids.find(x => x.id === k.id)) : null),
-  kids: () => S.kids.map(dispKid), family: () => !!S.family, kidsOf, avatar: k => P.avatarNow(k), setMomentKids, openProfile: () => P.openProfile(dispKid(S.kid)),
+  kids: () => sortPeople(S.kids).map(dispKid), family: () => !!S.family, kidsOf, avatar: k => P.avatarNow(k), setMomentKids, openProfile: () => P.openProfile(dispKid(S.kid)),
   trashMoments, pickKids, setKidsMany, updateMany, shareMany, setBgFromMoment, avatarFromMoment, kidMenu, prompt: prompt2, diaryMenu: (id, el) => D.diaryMenu(id, el), dbGet, metaGet, metaSet, ymd, dmy, WD, parseYmd, dayStart, ageText, openModal, closeModal, toast, ask,
   openDiary: id => D.openViewer(id), openKidMenu, openAdd: () => openAdd(), makeDiary, importFiles: (f, p, day, kids) => importFilesQuiet(f, p, day, kids), saveOriginal, deleteMoment, updateMoment, duck: v => Music.duck(v), onScroll: f => { S.tlScroll = f; S.tlScrollAt = performance.now(); } });
 let gxHint = false;
@@ -2622,7 +2767,10 @@ function initBars() {
   $('#addBar').insertAdjacentHTML('beforebegin', '<div class="kidsel" id="addKids" hidden></div>');
   $('#addKids').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (!b) return; const id = b.dataset.k; ADD.kids = ADD.kids.includes(id) ? ADD.kids.filter(x => x !== id) : [...ADD.kids, id]; haptic(5); renderAddKids(); });
   // ngày sinh: hiện chữ rõ để khỏi nhầm ngày/tháng
-  const kh = () => { const t = parseYmd($('#kidBd').value); $('#kidBdH').textContent = t ? 'Sinh ' + fmtLong(t) : ''; };
+  const kh = () => {
+    if (CAL.mode === 'a') { const sv = lunarSolar(), L = sv && solar2lunar(+sv.slice(8), +sv.slice(5, 7), +sv.slice(0, 4)); $('#kidBdH').textContent = sv ? `Âm lịch ${L.d}/${L.m}${L.leap ? ' nhuận' : ''}/${L.y} = dương lịch ${fmtLong(parseYmd(sv))}` : ($('#kidLy').value.length === 4 ? 'Ngày âm này không có trong năm đó' : ''); return; }
+    const t = parseYmd($('#kidBd').value); $('#kidBdH').textContent = t ? 'Sinh ' + fmtLong(t) : '';
+  };
   $('#kidBd').addEventListener('input', kh); $('#kidBd').addEventListener('change', kh); kidBdHint = kh;
   // hình nền
   $('#bgList').addEventListener('click', e => {
@@ -2666,7 +2814,7 @@ async function boot() {
     if (TEST && Q.has('mock')) { const mk = await import('./drive-mock.js'); T.MOCK = mk.install(); T.mockDrive = mk; }
     S.drvBoot = await DRV.boot();
     if (DRV.signedIn && !(await dbAll('kids')).length) { await DRV.sync('boot'); } // máy mới / kho trống mà đã đăng nhập: kéo dữ liệu về trước
-    S.groups = (await metaGet('groups')) || [];
+    S.groups = (await metaGet('groups')) || []; S.chCfg = (await metaGet('chapters')) || {};
     S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0));
   } catch (e) { console.error(e); toast('Trình duyệt chặn bộ nhớ — bạn mở bằng Safari/Chrome thường (không ở chế độ ẩn danh) nhé', 8000); }
   setTheme(theme, false);
@@ -2679,8 +2827,8 @@ async function boot() {
     await splitNames();
     await P.warm(S.kids);
     const id = await metaGet('curKid'); await selectKid(S.kids.some(k => k.id === id) ? id : S.kids[0].id, true);
-    if (S.kids.length > 1 && await metaGet('family')) await enterFamily();
-    setTimeout(async () => { for (const k of S.kids) { if (k.gender || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
+    { const fam = await metaGet('family'); if (ME() ? fam !== false : S.kids.length > 1 && fam) await enterFamily(); }
+    setTimeout(async () => { if (!ME() && !(await metaGet('meAsk'))) { meBanner(); return; } for (const k of S.kids) { if (k.gender || !isChild(k) || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
     setTimeout(() => queueThumbFix((S.all || []).slice().sort((a, b) => b.ts - a.ts)), 4000);
     if (DRV.signedIn) setTimeout(() => DRV.afterLogin(), 1500);
     setTimeout(() => checkUpdate(true), 3000);
@@ -2744,7 +2892,7 @@ if (TEST) {
     const R = [[330,140,880,682],[545,165,775,360],[380,60,700,682],[0,120,640,682],[120,0,1262,600],[420,100,820,640],[900,100,1262,682],[600,180,740,320]];
     const crop = async (r, W = 1000) => { const [a, b, c, d] = r, w = c - a, h = d - b, k = W / Math.max(w, h), cv = document.createElement('canvas'); cv.width = Math.round(w * k); cv.height = Math.round(h * k); cv.getContext('2d').drawImage(im, a, b, w, h, 0, 0, cv.width, cv.height); return await new Promise(res => cv.toBlob(res, 'image/jpeg', .9)); };
     const file = async (i, ts) => { if (!im) return fakePhoto(i, ts, {}); const jb = new Uint8Array(await (await crop(R[i % R.length])).arrayBuffer()); return new File([jb.subarray(0, 2), exifSeg(ts), jb.subarray(2)], 'IMG_' + (1000 + i) + '.jpg', { type: 'image/jpeg', lastModified: Date.now() }); };
-    openKid(null); await sleep(400); $('#kidIn').value = 'Rin - Trần Đại Dũng'; $('#kidBd').value = '2025-05-07'; $('#kidOk').click(); for (let k = 0; k < 100 && !S.kid; k++) await sleep(50);
+    openKid(null, { role: 'con' }); await sleep(400); $('#kidIn').value = 'Rin - Trần Đại Dũng'; $('#kidBd').value = '2025-05-07'; $('#kidOk').click(); for (let k = 0; k < 100 && !S.kid; k++) await sleep(50);
     const k = S.kid; k.gender = 'm'; k.color = '#5fb4ff'; if (im) { await dbPut('blobs', await crop([560, 150, 760, 330], 400), 'av_' + k.id); k.avatar = Date.now(); } await dbPut('kids', k); await P.warm([k]);
     const D = s => Date.parse(s), list = [[0, D('2025-05-07T09:12')], [1, D('2025-05-07T09:40')], [2, D('2025-05-07T15:00')], [3, D('2025-06-07T10:00')], [4, D('2025-06-07T10:20')], [5, D('2025-06-07T16:30')], [6, D('2025-08-15T08:00')], [7, D('2025-08-15T08:30')]];
     const fs = []; for (const [i, ts] of list) fs.push(await file(i, ts));
@@ -2769,7 +2917,8 @@ if (TEST) {
     },
     // nạp ảnh có EXIF đúng giờ chụp từ các blob ảnh cho sẵn
     async addBlobs(list) { const files = []; for (const { blob, ts, name } of list) { const jb = new Uint8Array(await blob.arrayBuffer()); files.push(new File([jb.subarray(0, 2), exifSeg(ts), jb.subarray(2)], name || 'IMG.jpg', { type: 'image/jpeg', lastModified: Date.now() })); } return await importFilesQuiet(files); },
-    async kid(name = 'Bin', birth = '2023-03-12') {
+    async kid(name = 'Bin', birth = '2023-03-12', role = 'con') {
+      if (kidDraft && !kidEditing) setKidRole(role);
       $('#kidIn').value = name; $('#kidBd').value = birth; $('#kidOk').click();
       for (let k = 0; k < 100 && S.kid?.name !== name; k++) await sleep(50); return S.kid?.id;
     },
@@ -2787,7 +2936,8 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: []
+    errors: [], ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));
   addEventListener('unhandledrejection', e => T.errors.push('rej: ' + (e.reason?.message || e.reason)));

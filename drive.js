@@ -289,7 +289,7 @@ export function initDrive(A) {
     for (const k of await A.dbAll('kids')) recs['k:' + k.id] = k;
     for (const m of await A.dbAll('moments')) recs['m:' + m.id] = m;
     for (const d of await A.dbAll('diaries')) recs['d:' + d.id] = d;
-    for (const key of (await A.dbKeys('meta')).map(String)) if (/^(ev:|bg:)/.test(key) || key === 'groups' || key === 'drvFolders') { const v = await A.metaGet(key); if (v != null) recs['x:' + key] = v; }
+    for (const key of (await A.dbKeys('meta')).map(String)) if (/^(ev:|bg:|sy:)|^(groups|drvFolders|chapters|anniv)$/.test(key)) { const v = await A.metaGet(key); if (v != null) recs['x:' + key] = v; }
     for (const k of await A.dbAll('kids')) if (k.avatar && !k.deleted) { const u = await A.avatarSmall(k); if (u) recs['a:' + k.id] = u; }
     return recs;
   }

@@ -911,6 +911,67 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
 .nh-hd { margin-top: 14px; } .nh-hd summary { cursor: pointer; font-weight: 700; color: var(--accent); }
 .nh-steps { margin: 8px 0 0; padding-left: 20px; line-height: 1.6; font-size: 14px; } .nh-steps li { margin-bottom: 6px; }
 @media (prefers-reduced-motion: reduce) { #tlv .rail i { animation: none; } .ev { opacity: 1; transform: none; } }
+
+/* v1.6.0: hồ sơ Tôi + người thân */
+.kfst { display: grid; gap: 8px; margin: 2px 0 12px; }
+.kfst button { display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; border-radius: 18px; background: rgba(255,255,255,.06); border: 1.5px solid var(--line); transition: transform .25s var(--sp-bouncy, ease), border-color .2s, background .2s; }
+.kfst button b { font-size: 28px; line-height: 1; } .kfst button span { display: flex; flex-direction: column; font-weight: 800; font-size: 15px; } .kfst button small { font-weight: 600; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.kfst button.on { border-color: var(--kc, #ff8fbf); background: color-mix(in srgb, var(--kc, #ff8fbf) 16%, transparent); transform: scale(1.015); }
+.rchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rchips button { padding: 7px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--field); border: 1px solid var(--line); }
+.rchips button.on { background: var(--kc, #ff8fbf); color: #fff; border-color: transparent; box-shadow: 0 4px 14px color-mix(in srgb, var(--kc, #ff8fbf) 45%, transparent); }
+.kbd { display: block; } .kbd-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.seg.mini { padding: 3px; } .seg.mini button { padding: 5px 10px; font-size: 12px; }
+.klun { display: grid; grid-template-columns: 1fr 1.3fr 1.1fr auto; gap: 6px; align-items: center; }
+.klun select, .klun input[type=text], .klun input:not([type]) , .klun input[inputmode] { width: 100%; min-width: 0; }
+.klun label { display: flex; gap: 4px; align-items: center; font-size: 12.5px; font-weight: 700; color: var(--sub); white-space: nowrap; }
+.ksi-h { margin: -2px 2px 6px; font-size: 12.5px; color: var(--muted); }
+.kbd > input, .klun select, .klun input[inputmode] { display: block; width: 100%; min-width: 0; font: 600 16px var(--font); color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px; outline: none; min-height: 46px; }
+.kbd { margin: 12px 0 0; font-size: 13px; font-weight: 700; color: var(--sub); }
+.kage { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 14px; font-weight: 600; }
+
+#lifecard { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; text-align: center; padding: 24px; background: radial-gradient(ellipse at 50% 40%, rgba(40,20,80,.55), rgba(5,4,20,.88)); opacity: 0; transition: opacity .55s ease; cursor: pointer; }
+#lifecard.on { opacity: 1; }
+#lifecard small { display: block; font-size: 13px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: #ffd27f; opacity: 0; animation: lcUp .7s .05s ease-out forwards; }
+#lifecard h1 { margin: 10px 0 4px; font-size: clamp(30px, 8vw, 58px); line-height: 1.15; font-weight: 800; color: #fff; text-shadow: 0 0 22px rgba(255,140,200,.65), 0 3px 0 rgba(120,40,90,.6); }
+#lifecard h1 span { display: inline-block; opacity: 0; transform: translateY(26px) scale(.6); animation: lcPop .62s cubic-bezier(.34,1.56,.64,1) forwards; }
+#lifecard p { margin: 0; font-size: 20px; font-weight: 700; color: #ffd0e4; opacity: 0; animation: lcUp .7s .9s ease-out forwards; }
+.lc-av { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.lc-av img { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 3px var(--c), 0 0 22px var(--c); opacity: 0; transform: scale(.2); animation: lcPop .55s cubic-bezier(.34,1.56,.64,1) forwards; }
+@keyframes lcPop { to { opacity: 1; transform: none; } }
+@keyframes lcUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+#gban.meban .mb-ic { font-size: 26px; } #gban.meban b { min-width: 200px; line-height: 1.35; } #gban.meban .mb-go { background: linear-gradient(135deg, #ff8fbf, #ffb36b); color: #fff; border: none; font-weight: 800; }
+
+/* v1.6.0: ảnh cũ, ngày ước chừng */
+.addold { margin: 10px 0 4px; padding: 10px 12px; border-radius: 16px; background: rgba(255,255,255,.05); border: 1px dashed var(--glb, var(--line)); }
+.ao-t { display: flex; gap: 10px; align-items: center; font-weight: 700; font-size: 14px; cursor: pointer; } .ao-t small { display: block; font-weight: 600; font-size: 12px; color: var(--muted); }
+.ao-g { margin-top: 10px; } .ao-r { display: flex; gap: 8px; margin-top: 8px; }
+.ao-r input, .ao-r select, .ax-g select { flex: 1; min-width: 0; font: 600 16px var(--font); color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; min-height: 44px; }
+.ax-g { display: grid; grid-template-columns: 1fr 1.3fr; gap: 0 10px; } #mApx .seg { margin-top: 4px; }
+.row-add.apx .r-dt { opacity: .45; pointer-events: none; }
+/* v1.6.0: chương đời */
+.chap { position: relative; z-index: 2; display: flex; align-items: flex-end; gap: 12px; min-height: 132px; margin: 30px 0 18px calc(var(--lx, 0px) * -1 + 12px); padding: 18px 50px 18px 18px; border-radius: 26px; overflow: hidden; color: #fff;
+  background: linear-gradient(135deg, var(--cc), color-mix(in srgb, var(--cc) 55%, #1b1240)); box-shadow: 0 14px 34px color-mix(in srgb, var(--cc) 40%, transparent), inset 0 1px 0 rgba(255,255,255,.35); cursor: pointer; }
+#tl:not(.fam) .chap { margin-left: 0; }
+.chap .ch-cv { position: absolute; inset: 0; } .chap .ch-cv img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .5s; } .chap .ch-cv img.ok { opacity: .55; }
+.chap .ch-cv::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 10%, color-mix(in srgb, var(--cc) 70%, #120a2a) 92%); }
+.chap .ch-tx { position: relative; } .chap small { display: block; font-size: 12.5px; font-weight: 800; letter-spacing: .4px; opacity: .92; text-transform: uppercase; }
+.chap h2 { margin: 4px 0 2px; font-size: clamp(26px, 7vw, 36px); line-height: 1.1; font-weight: 800; text-shadow: 0 2px 0 rgba(0,0,0,.18), 0 0 18px rgba(0,0,0,.25); display: flex; align-items: center; gap: 10px; }
+.chap .ch-ic { display: inline-block; font-size: .9em; filter: drop-shadow(0 2px 4px rgba(0,0,0,.3)); animation: chBob 3.2s ease-in-out infinite; }
+@keyframes chBob { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-4px) rotate(5deg); } }
+.chap p { margin: 0; font-size: 13.5px; font-weight: 700; opacity: .92; }
+.chap .ch-more { position: absolute; right: 10px; top: 10px; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; padding: 0; border: none; background: rgba(255,255,255,.22); color: #fff; }
+.chap.empty { min-height: 0; padding-top: 14px; padding-bottom: 14px; opacity: .92; background: linear-gradient(135deg, color-mix(in srgb, var(--cc) 75%, transparent), color-mix(in srgb, var(--cc) 35%, #1b1240)); }
+.chap.empty h2 { font-size: 24px; }
+.chap .ch-add { margin-top: 8px; display: inline-flex; gap: 6px; align-items: center; padding: 7px 12px; border-radius: 999px; border: none; font-weight: 800; font-size: 13px; background: rgba(255,255,255,.92); color: color-mix(in srgb, var(--cc) 70%, #2a1640); }
+.chap.pre { cursor: default; }
+/* loại kỷ niệm */
+.chip.ty { background: color-mix(in srgb, var(--tc) 22%, transparent); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 55%, transparent); font-weight: 800; }
+.ev.typed .cd > .tx { position: relative; } .ev.typed .cd > .tx::before { content: ''; position: absolute; left: -11px; top: 4px; bottom: 4px; width: 4px; border-radius: 4px; background: var(--tc); box-shadow: 0 0 10px var(--tc); pointer-events: none; }
+.mb.ab { background: rgba(148,163,184,.25); }
+.hc.ty { border: none; background: color-mix(in srgb, var(--tc) 30%, rgba(255,255,255,.12)); color: inherit; font-weight: 800; cursor: pointer; }
+.lane.me { width: 4px; }
 </style>
 </head>
 <body data-theme="night" class="v12">
@@ -980,17 +1041,35 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
   <p class="lead">Chọn nhiều ảnh, video một lúc. App tự đọc ngày chụp và tính tuổi của con — bạn sửa lại được nếu chưa đúng.</p>
   <div id="drop"><span class="big">📸</span>Kéo thả ảnh, video vào đây<br>hoặc bấm để chọn</div>
   <input type="file" id="fileIn" accept="image/*,video/*" multiple hidden>
+  <div class="addold" id="addOld"><label class="ao-t"><input type="checkbox" id="aoOn" class="ck"><span>📜 Ảnh cũ chụp lại từ ảnh giấy <small>không có ngày chụp — chỉ nhớ khoảng thời gian</small></span></label>
+    <div class="ao-g" id="aoG" hidden><div class="seg mini" id="aoP"><button type="button" data-v="y" class="on">Chỉ biết năm</button><button type="button" data-v="s">Mùa</button><button type="button" data-v="m">Tháng</button></div>
+    <div class="ao-r"><input id="aoY" inputmode="numeric" maxlength="4" placeholder="Năm, vd 1995" aria-label="Năm"><select id="aoX" aria-label="Mùa hoặc tháng" hidden></select></div><p class="datehint" id="aoL"></p></div></div>
   <div id="addList"></div>
   <label class="f addgrp" id="addGrpBox" hidden>Đặt tên nhóm cho đợt ảnh này <small class="opt">tuỳ chọn — vd “Đi biển Cửa Lò”</small><input id="addGrp" maxlength="60" placeholder="Để trống nếu không cần gom nhóm" autocomplete="off"><span class="addgrp-s"></span></label>
   <div class="prog" id="addProg"><i></i></div>
   <div class="foot"><button data-close>Huỷ</button><button class="primary" id="addSave" disabled>✨ Lưu vào dòng thời gian</button></div>
 </div></div>
 
+<div class="modal" id="mApx"><div class="card glass" style="width:min(440px,100%)">
+  <h2 class="ax-t">Ngày ước chừng</h2>
+  <p class="lead">Ảnh cũ chụp lại từ ảnh giấy thường không có ngày. Chọn khoảng thời gian bạn nhớ — app xếp vào đúng chỗ trên hành trình.</p>
+  <div class="seg" id="axP"><button type="button" data-v="y">Chỉ biết năm</button><button type="button" data-v="s">Mùa</button><button type="button" data-v="m">Tháng</button><button type="button" data-v="d">Đúng ngày</button></div>
+  <div class="ax-g"><label class="f" id="axYF">Năm<input id="axY" inputmode="numeric" maxlength="4" placeholder="vd 1995"></label><label class="f" id="axXF"><span id="axXL">Mùa</span><select id="axX"></select></label><label class="f" id="axDF" hidden>Ngày<input id="axD" type="date"></label></div>
+  <p class="datehint" id="axH"></p>
+  <div class="foot"><button data-close>Huỷ</button><button class="primary" id="axOk">Lưu</button></div>
+</div></div>
+
 <div class="modal" id="mKid"><div class="card glass">
   <h2 id="kidTitle">Chào bạn! 👋</h2>
   <p class="lead" id="kidLead">Cùng tạo dải ngân hà kỷ niệm cho con nhé. Ngày sinh giúp app tính con bao nhiêu tuổi ở mỗi tấm ảnh.</p>
-  <label class="f">Tên ở nhà của bé<input id="kidIn" maxlength="30" placeholder="Ví dụ: Bin"></label>
-  <label class="f">Ngày sinh<input id="kidBd" type="date"></label><div class="datehint" id="kidBdH"></div>
+  <div class="kfst" id="kidFst" hidden><button data-r="me" class="on"><b>🙂</b><span>Hành trình của tôi<small>từ ngày tôi chào đời, rồi thêm người thân</small></span></button><button data-r="con"><b>👶</b><span>Chỉ lưu ảnh của con<small>như cuốn album của bé</small></span></button></div>
+  <div class="kidx" id="kidRoleRow"><div class="lbl">Người này là</div><div class="rchips" id="kidRole"></div></div>
+  <label class="f"><span id="kidInL">Tên ở nhà của bé</span><input id="kidIn" maxlength="30" placeholder="Ví dụ: Bin"></label>
+  <div class="f kbd"><div class="kbd-h"><span id="kidBdL">Ngày sinh</span><span class="seg mini" id="kidCal"><button data-v="d" class="on" type="button">Dương lịch</button><button data-v="a" type="button">Âm lịch</button></span></div>
+    <input id="kidBd" type="date">
+    <div class="klun" id="kidLun" hidden><select id="kidLd" aria-label="Ngày âm"></select><select id="kidLm" aria-label="Tháng âm"></select><input id="kidLy" inputmode="numeric" maxlength="4" placeholder="Năm" aria-label="Năm"><label><input type="checkbox" id="kidLl"> nhuận</label></div>
+  </div><div class="datehint" id="kidBdH"></div>
+  <div id="kidSince" hidden><label class="f"><span id="kidSiL">Ngày quen nhau</span> <small class="opt">tuỳ chọn</small><input id="kidSi" type="date"></label><label class="f" id="kidWedF">Ngày cưới <small class="opt">tuỳ chọn</small><input id="kidWed" type="date"></label><p class="hint ksi-h" id="kidSiH"></p></div>
   <label class="f">Tên thật / họ tên đầy đủ <small class="opt">tuỳ chọn</small><input id="kidFn" maxlength="60" placeholder="Ví dụ: Nguyễn Ngọc Minh Anh" autocomplete="off"></label>
   <details class="kbx" id="kidBx"><summary>Thông tin lúc chào đời <small class="opt">tuỳ chọn</small></summary>
     <div class="kbx-g"><label class="f">Giờ sinh<input id="kidTm" type="time"></label><label class="f">Nơi sinh<input id="kidPl" maxlength="60" placeholder="Ví dụ: Bệnh viện Từ Dũ"></label>
@@ -998,7 +1077,8 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
     <p class="hint">Dùng cho đoạn mở đầu trình chiếu và hồ sơ của bé. Trên dòng thời gian app chỉ dùng tên ở nhà cho gọn.</p>
   </details>
   <div class="kidx"><div class="lbl">Giới tính</div><div class="seg" id="kidG"><button data-v="m">Bé trai</button><button data-v="f">Bé gái</button></div></div>
-  <div class="kidx"><div class="lbl">Màu của bé</div><div class="swr" id="kidC"></div></div>
+  <label class="kage" id="kidAgeF" hidden><input type="checkbox" id="kidAge" class="ck"><span>Hiện tuổi của người này trên ảnh</span></label>
+  <div class="kidx"><div class="lbl" id="kidCL">Màu của bé</div><div class="swr" id="kidC"></div></div>
   <div class="kav"><img id="kidAvI" alt=""><button id="kidAvB">Đổi avatar</button></div>
   <div class="kfirst" id="kidFirst" hidden>
     <button class="kf-b" id="kfBackup" type="button">📂 <span>Mình đã dùng app rồi — mở bản sao lưu</span></button>
@@ -1054,7 +1134,7 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
 <div class="modal" id="mPrompt"><div class="card glass" style="width:min(440px,100%)"><h2></h2><label class="f"><input></label><div class="foot"><button data-close>Huỷ</button><button class="primary">Lưu</button></div></div></div>
 <div class="modal" id="mTrash"><div class="card glass"><h2>Thùng rác</h2><p class="lead">Ảnh, video, nhật ký, bé đã xoá nằm ở đây 30 ngày rồi mới xoá hẳn. Chạm ảnh để chọn.</p><p class="hint" id="trInfo"></p><div id="trList"></div>
   <div class="foot"><button data-close>Đóng</button><button id="trPurge" class="danger">Dọn sạch thùng rác</button><button id="trRestore" class="primary">Khôi phục tất cả</button></div></div></div>
-<div class="modal" id="mKids"><div class="card glass" style="width:min(440px,100%)"><h2>Ảnh này của bé nào?</h2><p class="lead mk-l"></p><div class="kidsel mk-k" style="margin:6px 0 4px"></div><div class="foot"><button data-close>Huỷ</button><button class="primary mk-ok">Lưu</button></div></div></div>
+<div class="modal" id="mKids"><div class="card glass" style="width:min(440px,100%)"><h2>Ai có trong ảnh này?</h2><p class="lead mk-l"></p><div class="kidsel mk-k" style="margin:6px 0 4px"></div><div class="foot"><button data-close>Huỷ</button><button class="primary mk-ok">Lưu</button></div></div></div>
 <div class="modal" id="mAsk"><div class="card glass" style="width:min(420px,100%)">
   <h2 id="askT"></h2><p class="lead" id="askL"></p>
   <div class="foot"><button data-close id="askNo">Thôi</button><button class="primary" id="askYes">Đồng ý</button></div>

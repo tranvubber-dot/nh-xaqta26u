@@ -2,6 +2,8 @@
 // Cuộn bằng cuộn gốc của trình duyệt (iPhone có quán tính + giãn cao su sẵn); chuyển động bằng lò xo (ui.js).
 import { icon, animateSpring, rubber, haptic, IOS, REDUCED, fmtLong, clamp, contextMenu, longPress, undoToast } from './ui.js';
 import { timeVN } from './nhatky.js';
+import { isMe, isChild, isPartner, roleOf, roleName, showsAge, sinceOf, anchorOf, chapterAt, approxLabel, TYPES, typeOf, guessType, holidayOf, MILES, mileOf, CH_COLORS } from './doi.js';
+const META0 = () => ({ titles: {}, notes: {}, merges: [], splits: {}, covers: {}, types: {}, miles: {} });
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pad = n => String(n).padStart(2, '0');
@@ -30,7 +32,7 @@ const HTML = `
   <div class="evp-bar"><div class="evp-bbg"></div><button class="evp-back glassbtn" aria-label="Quay lại">${icon('back', 22, 2)}</button><div class="evp-bt"><b></b><small></small></div><button class="evp-more glassbtn" aria-label="Tuỳ chọn sự kiện">${icon('more', 22, 2)}</button></div>
 </div>
 <div id="bulk" aria-hidden="true"><div class="bk-top"><b class="bk-n">Chọn ảnh</b><button data-b="all">Chọn tất cả</button><button data-b="done" class="primary">Xong</button></div>
-  <div class="bk-acts"><button data-b="del" class="danger">${icon('trash', 21)}<span>Xoá</span></button><button data-b="date">${icon('calendar', 21)}<span>Đổi ngày</span></button><button data-b="move">${icon('move', 21)}<span>Chuyển sự kiện</span></button><button data-b="kids">${icon('baby', 21)}<span>Gắn bé</span></button><button data-b="group">${icon('grid', 21)}<span>Gộp nhóm</span></button><button data-b="diary">${icon('book', 21)}<span>Nhật ký</span></button><button data-b="save">${icon('download', 21)}<span>Lưu về máy</span></button></div></div>
+  <div class="bk-acts"><button data-b="del" class="danger">${icon('trash', 21)}<span>Xoá</span></button><button data-b="date">${icon('calendar', 21)}<span>Đổi ngày</span></button><button data-b="apx">${icon('clock', 21)}<span>Ước chừng</span></button><button data-b="move">${icon('move', 21)}<span>Chuyển sự kiện</span></button><button data-b="kids">${icon('baby', 21)}<span>Ai trong ảnh</span></button><button data-b="group">${icon('grid', 21)}<span>Gộp nhóm</span></button><button data-b="diary">${icon('book', 21)}<span>Nhật ký</span></button><button data-b="save">${icon('download', 21)}<span>Lưu về máy</span></button></div></div>
 <div id="pv" aria-hidden="true">
   <div class="pv-bg"><i class="pv-bgc"></i><img class="pv-bgi" alt=""></div><div class="pv-track"></div>
   <div class="pv-ui">
@@ -112,7 +114,7 @@ export function initTimeline(A) {
   // ---------- gộp ảnh thành sự kiện (theo ngày + cột mốc) ----------
   async function loadMeta() {
     st.hidePreg = !!(A.kid() && await A.metaGet('hidePreg:' + (A.family() ? 'fam' : A.kid().id)));
-    const k = A.kid(); st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, (k && await A.metaGet(metaKey())) || {});
+    const k = A.kid(); st.meta = Object.assign(META0(), (k && await A.metaGet(metaKey())) || {});
   }
   const metaKey = () => A.family() ? 'ev:fam' : 'ev:' + A.kid().id;
   const saveMeta = () => A.metaSet(metaKey(), st.meta);
@@ -131,6 +133,23 @@ export function initTimeline(A) {
     }
     return out.sort((x, y) => y.p - x.p)[0] || null;
   }
+  // cột mốc của người lớn trong hành trình: sinh nhật của bạn, ngày gặp / cưới / kỷ niệm cưới, sinh nhật người thân (kèm tuổi)
+  function lifeMilestone(p, days, present) {
+    const N = cap(p.name), out = [], me = A.me(), bd = p.birth ? new Date(p.birth + 'T12:00:00') : null;
+    const same = (d, ymd) => { const x = new Date(ymd + 'T12:00:00'); return d.getMonth() === x.getMonth() && d.getDate() === x.getDate(); };
+    for (const ds of days) {
+      const d = new Date(ds + 'T12:00:00');
+      if (isMe(p) && bd) { const y = d.getFullYear() - bd.getFullYear(); if (ds === p.birth) out.push({ k: 'birth', p: 5, label: 'Ngày bạn chào đời', ic: 'star', kid: p.id }); else if (y >= 1 && same(d, p.birth)) out.push({ k: 'mybday', p: 4, label: `Sinh nhật ${y} tuổi của bạn`, ic: 'cake', kid: p.id }); continue; }
+      if (isPartner(p)) {
+        if (p.wed) { const y = d.getFullYear() - +p.wed.slice(0, 4); if (ds === p.wed) out.push({ k: 'wed', p: 6, label: `Đám cưới của bạn và ${N}`, ic: 'heart', kid: p.id }); else if (y >= 1 && same(d, p.wed)) out.push({ k: 'wedann', p: 4, label: `Kỷ niệm ${y} năm ngày cưới`, ic: 'heart', kid: p.id }); }
+        if (p.since && ds === p.since) out.push({ k: 'meet', p: 5, label: `Ngày gặp ${N}`, ic: 'heart', kid: p.id });
+      }
+      if (bd && !isChild(p) && !isMe(p) && present && same(d, p.birth)) { const y = d.getFullYear() - bd.getFullYear(); if (y >= 1) out.push({ k: 'pbday', p: 3, label: `Sinh nhật ${y} tuổi của ${N}`, ic: 'cake', kid: p.id }); }
+      if (bd && isChild(p) && ds === p.birth && me) { const first = roleOf(p) === 'con' && !kidsAll().some(o => roleOf(o) === 'con' && o.birth && o.birth < p.birth), g = me.gender; if (first || roleOf(p) === 'chau') out.push({ k: 'birth', p: 6, label: `${N} chào đời · bạn lên chức ${roleOf(p) === 'chau' ? (g === 'f' ? 'bà' : g === 'm' ? 'ông' : 'ông bà') : (g === 'f' ? 'mẹ' : g === 'm' ? 'bố' : 'bố mẹ')}`, ic: 'star', kid: p.id }); }
+    }
+    return out.sort((x, y) => y.p - x.p)[0] || null;
+  }
+  const cap = t => { t = String(t ?? '').trim(); return t ? t.charAt(0).toLocaleUpperCase('vi') + t.slice(1) : t; };
   const SES = { sang: ['Buổi sáng vui vẻ', 'Chào ngày mới', 'Sáng nay của {n}', 'Nắng sớm dịu dàng', 'Buổi sáng của {be}'], trua: ['Buổi trưa ấm áp', 'Trưa nay có gì vui', 'Giờ ăn trưa'], chieu: ['Buổi chiều dịu dàng', 'Chiều đi chơi', 'Chiều nắng đẹp', 'Một chiều vui'], toi: ['Buổi tối quây quần', 'Tối nay của {n}', 'Tối ấm áp'], dem: ['Đêm yên bình', 'Giấc ngủ ngon'] };
   function autoTitle(e, kid, famCtx) {
     if (e.preg) return `${kid.name} trong bụng mẹ`;
@@ -148,11 +167,12 @@ export function initTimeline(A) {
     const kid = ctx?.kid || A.kid(), M = ctx?.meta || st.meta, ms0 = (ctx?.moments || A.moments()).slice().sort((a, b) => a.ts - b.ts);
     const GR = A.groups?.() || [], inG = new Map(); for (const g of GR) for (const id of g.momentIds) inG.set(id, g);
     const ms = ms0.filter(m => !inG.has(m.id)); // ảnh đã vào nhóm thì không còn ở thẻ ngày lẻ
-    const byDay = new Map(); for (const m of ms) { const d = A.ymd(m.ts); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(m); }
+    // ảnh ngày ước chừng (ảnh giấy cũ) gom riêng, không lẫn với ảnh chụp đúng ngày đó
+    const byDay = new Map(); for (const m of ms) { const d = A.ymd(m.ts) + (m.approx ? '~' + m.approx : ''); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(m); }
     let evs = [];
-    for (const [day, list] of byDay) {
-      const cuts = (M.splits[day] || []).slice().sort((a, b) => a - b); let seg = [], k = 0, ci = 0;
-      const push = () => { if (seg.length) evs.push({ key: k ? `${day}#${k}` : day, day, days: [day], ms: seg }); k++; seg = []; };
+    for (const [dk, list] of byDay) {
+      const day = dk.slice(0, 10), cuts = (M.splits[dk] || []).slice().sort((a, b) => a - b); let seg = [], k = 0, ci = 0;
+      const push = () => { if (seg.length) evs.push({ key: k ? `${dk}#${k}` : dk, day, days: [day], ms: seg }); k++; seg = []; };
       for (const m of list) { while (ci < cuts.length && m.ts >= cuts[ci]) { push(); ci++; } seg.push(m); }
       push();
     }
@@ -162,31 +182,44 @@ export function initTimeline(A) {
       evs = evs.filter(e => e === f || !parts.includes(e));
     }
     for (const g of GR) { const gm = ms0.filter(m => inG.get(m.id) === g); if (gm.length) evs.push({ key: 'g:' + g.id, day: A.ymd(gm[0].ts), days: [...new Set(gm.map(m => A.ymd(m.ts)))], ms: gm, group: g }); }
-    const fam = ctx ? false : A.family(), KS = fam ? kidsAll() : [kid];
-    const b0 = kid?.birth ? A.dayStart(A.parseYmd(kid.birth)) : 0, dias = A.diaries();
+    const fam = ctx ? false : A.family(), life = !ctx && A.life?.(), KS = fam ? kidsAll() : [kid];
+    const b0 = kid?.birth ? A.dayStart(A.parseYmd(kid.birth)) : 0, dias = A.diaries(), childView = !fam && isChild(kid);
+    const wedDays = new Set(kidsAll().filter(p => p.wed).map(p => p.wed.slice(5))), chs = life ? A.chapters() : [];
     for (const e of evs) {
       e.kids = fam ? [...new Set(e.ms.flatMap(m => A.kidsOf(m)))].filter(id => kidById(id)) : [kid.id];
       e.ts0 = e.ms[0].ts; e.ts1 = e.ms[e.ms.length - 1].ts;
       e.nImg = e.ms.filter(m => m.type !== 'video').length; e.nVid = e.ms.length - e.nImg;
+      const ap = e.ms.every(m => m.approx) ? ['y', 's', 'm'].find(x => e.ms.some(m => m.approx === x)) : null; e.approx = ap;
       const present = fam ? e.kids.map(kidById) : [kid];
-      // chỉ 42 tuần trước ngày sinh mới là "trong bụng mẹ"; xa hơn là ảnh trước khi chào đời bình thường
+      // chỉ 42 tuần trước ngày sinh mới là "trong bụng mẹ"; xa hơn là ảnh trước khi chào đời bình thường; chỉ áp dụng cho con, cháu
       const inPreg = (d, b) => d < b && d >= b - 294 * 864e5;
-      e.preg = fam ? present.every(k => k?.birth && inPreg(A.dayStart(e.ts0), A.dayStart(A.parseYmd(k.birth)))) : inPreg(A.dayStart(e.ts0), b0);
-      if (e.group) e.mile = null;
-      else if (fam) { const ms2 = KS.map(k => (e.kids.includes(k.id) || A.ymd(A.parseYmd(k.birth)) === e.day) ? milestone(k, e.days, true) : null).filter(Boolean).sort((a, b) => b.p - a.p); e.mile = ms2[0] || null; }
-      else e.mile = e.preg ? null : milestone(kid, e.days);
+      e.preg = !ap && (fam ? present.length > 0 && present.every(k => k && isChild(k) && k.birth && inPreg(A.dayStart(e.ts0), A.dayStart(A.parseYmd(k.birth)))) : childView && inPreg(A.dayStart(e.ts0), b0));
+      const lm = !e.group && M.miles?.[e.key]; e.lifeMile = lm || null;
+      if (lm) { const x = mileOf(lm); e.mile = { k: 'life:' + lm, p: 9, label: x?.t || 'Cột mốc', ic: 'star', emo: x?.ic }; }
+      else if (e.group || ap) e.mile = null;
+      else if (fam) {
+        const cand = [];
+        for (const k of KS) { if (!k) continue; const here = e.kids.includes(k.id);
+          if (isChild(k)) { if (here || (k.birth && A.ymd(A.parseYmd(k.birth)) === e.day)) { const c = milestone(k, e.days, true); if (c) cand.push(c); } }
+          if (life || !isChild(k)) { const c = lifeMilestone(k, e.days, here); if (c) cand.push(c); } }
+        e.mile = cand.sort((a, b) => b.p - a.p)[0] || null;
+      }
+      else e.mile = e.preg ? null : isChild(kid) ? milestone(kid, e.days) : lifeMilestone(kid, e.days, true);
       e.sibs = [];
-      if (fam) for (const nb of KS) if (A.ymd(A.parseYmd(nb.birth)) === e.day) for (const o of KS) if (o !== nb && A.parseYmd(o.birth) < A.parseYmd(nb.birth)) e.sibs.push({ id: o.id, txt: `${o.name} ${g3(o, 'làm anh', 'làm chị', 'lên chức anh chị')}` });
-      e.auto = e.preg && fam ? `${present[0]?.name || ''} trong bụng mẹ` : autoTitle(e, fam ? present[0] || kid : kid, fam);
+      if (fam) for (const nb of KS) if (isChild(nb) && nb.birth && A.ymd(A.parseYmd(nb.birth)) === e.day) for (const o of KS) if (o !== nb && isChild(o) && o.birth && A.parseYmd(o.birth) < A.parseYmd(nb.birth)) e.sibs.push({ id: o.id, txt: `${o.name} ${g3(o, 'làm anh', 'làm chị', 'lên chức anh chị')}` });
+      const hol = !ap && !e.group ? e.days.map(holidayOf).find(Boolean) : null;
+      e.auto = ap ? 'Những tấm ảnh cũ' : e.preg && fam ? `${present[0]?.name || ''} trong bụng mẹ` : hol && hol !== 'Khai giảng' ? `${hol} ${new Date(e.ts0).getFullYear()}` : autoTitle(e, fam ? present[0] || kid : kid, fam);
       e.title = e.group ? e.group.name : M.titles[e.key] || e.mile?.label || e.auto;
       e.note = e.group ? e.group.note || '' : M.notes[e.key] || '';
       const ids = new Set(e.ms.map(m => m.id));
       e.diaries = dias.filter(d => d.pages.some(p => p.panels.some(q => ids.has(q.mid))));
-      e.ages = present.filter(Boolean).map(k => ({ id: k.id, color: k.color, txt: A.ageText(k, e.ts0) }));
+      e.ages = present.filter(k => k && showsAge(k)).map(k => ({ id: k.id, color: k.color, txt: A.ageText(k, e.ts0) })).filter(a => a.txt);
       const cid = e.group ? e.group.cover : M.covers[e.key], cov = cid && e.ms.find(m => m.id === cid);
       const imgs = e.ms.filter(m => m.type !== 'video'), pool = imgs.length >= 3 ? imgs : e.ms;
       const pick = pool.length <= 3 ? pool : [pool[0], pool[Math.floor(pool.length / 2)], pool[pool.length - 1]];
       e.stack = cov ? [cov, ...pick.filter(m => m !== cov)].slice(0, 3) : pick;
+      e.typeSet = M.types?.[e.key] || (e.group?.type) || null; e.type = e.typeSet || guessType(e, { wedDays });
+      if (life) e.chapter = chapterAt(chs, e.ts0);
     }
     evs.sort((a, b) => b.ts0 - a.ts0);
     if (ctx) return evs;
@@ -197,57 +230,77 @@ export function initTimeline(A) {
     return evs;
   }
   const countTxt = e => [e.nImg ? `${e.nImg} ảnh` : '', e.nVid ? `${e.nVid} video` : ''].filter(Boolean).join(' · ');
-  const dateTxt = e => { const d = new Date(e.ts0), d1 = new Date(e.ts1); if (e.days.length <= 1) return `${A.WD[d.getDay()]} · ${A.dmy(e.ts0)}`; return d.getMonth() === d1.getMonth() && d.getFullYear() === d1.getFullYear() ? `${d.getDate()} – ${A.dmy(e.ts1)}` : `${A.dmy(e.ts0).slice(0, 5)} – ${A.dmy(e.ts1)}`; };
+  const dateTxt = e => { if (e.approx) return approxLabel(e.approx, e.ts0); const d = new Date(e.ts0), d1 = new Date(e.ts1); if (e.days.length <= 1) return `${A.WD[d.getDay()]} · ${A.dmy(e.ts0)}`; return d.getMonth() === d1.getMonth() && d.getFullYear() === d1.getFullYear() ? `${d.getDate()} – ${A.dmy(e.ts1)}` : `${A.dmy(e.ts0).slice(0, 5)} – ${A.dmy(e.ts1)}`; };
 
   // ---------- dựng dòng sự kiện ----------
   function card(e, i) {
-    const side = st.wide ? (i % 2 ? 'R' : 'L') : 'R', ag = A.ageText(A.kid(), e.ts0, false);
-    const chips = [`<span class="chip">${icon(e.nImg ? 'image' : 'video', 15, 1.9)}${esc(countTxt(e))}</span>`,
+    const side = st.wide ? (i % 2 ? 'R' : 'L') : 'R', ag = A.ageText(A.kid(), e.ts0, false), T = typeOf(e.type);
+    const chips = [e.type !== 'daily' ? `<span class="chip ty" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</span>` : '', `<span class="chip">${icon(e.nImg ? 'image' : 'video', 15, 1.9)}${esc(countTxt(e))}</span>`,
       e.diaries.length ? `<button class="chip bk" data-diary="${e.diaries[0].id}">${icon('book', 15, 1.9)}nhật ký</button>` : '',
       ...(A.family() ? e.ages.filter(a => a.txt !== e.title).map(a => `<span class="chip age" style="--c:${a.color}"><img class="mav" src="${A.avatar(kidById(a.id))}" alt="">${esc(a.txt)}</span>`) : [ag ? `<span class="chip age">${esc(ag)}</span>` : '']),
       ...e.sibs.map(x => `<span class="chip sib" style="--c:${kidById(x.id)?.color}">${icon('heart', 13, 2)}${esc(x.txt)}</span>`)].join('');
-    return `<article class="ev ${side}${e.mile ? ' mile' : ''}${e.group ? ' grp' : ''}${e.preg ? ' preg' : ''}" data-key="${esc(e.key)}">
+    return `<article class="ev ${side}${e.mile ? ' mile' : ''}${e.group ? ' grp' : ''}${e.preg ? ' preg' : ''}${e.type !== 'daily' ? ' typed' : ''}${e.approx ? ' apx' : ''}" data-key="${esc(e.key)}" style="--tc:${T.c}">
       ${A.family() ? `<div class="kdots">${e.kids.map(id => { const k = kidById(id), i = kidsAll().indexOf(k); return `<img class="kd${e.mile?.kid === id ? ' m' : ''}" style="left:${(16 + i * 7 - 10).toFixed(0)}px;--c:${k.color};top:${44 + (i % 2) * 14}px" src="${A.avatar(k)}" alt="">`; }).join('')}</div>` : `<div class="dot">${e.mile ? icon(e.mile.ic, 13, 2.2) : e.group ? icon('grid', 12, 2.2) : ''}</div>`}
       <div class="cd" role="button" tabindex="0" aria-label="${esc(e.title)}">
         <div class="tx">
-          <div class="dt">${e.mile ? `<span class="mb">${icon(e.mile.ic, 12, 2.1)}Cột mốc</span>` : ''}${e.group ? `<span class="mb gb">${icon('grid', 12, 2.1)}Nhóm · ${e.days.length} ngày</span>` : ''}<span>${esc(dateTxt(e))}</span></div>
+          <div class="dt">${e.mile ? `<span class="mb">${e.mile.emo || icon(e.mile.ic, 12, 2.1)}Cột mốc</span>` : ''}${e.approx ? `<span class="mb ab">${icon('calendar', 12, 2.1)}ước chừng</span>` : ''}${e.group ? `<span class="mb gb">${icon('grid', 12, 2.1)}Nhóm · ${e.days.length} ngày</span>` : ''}<span>${esc(dateTxt(e))}</span></div>
           <h3>${esc(e.title)}</h3>
           <div class="chips">${chips}</div>
         </div>
         <div class="stk n${e.stack.length}">${e.stack.map((m, j) => `<div class="pol p${j}${m.type === 'video' ? ' v' : ''}"><img data-mid="${m.id}" alt="" decoding="async"></div>`).join('')}${e.nVid ? `<span class="vb">${icon('play', 11, 2.4)}</span>` : ''}</div>
       </div></article>`;
   }
+  // tiêu đề chương đời (hành trình của bạn): màu riêng, ảnh bìa, số chương, khoảng năm + tuổi
+  function chapHTML(c, evs, me, empty) {
+    const y0 = new Date(c.ts).getFullYear(), y1 = c.end ? new Date(c.end - 864e5).getFullYear() : null, a0 = me?.birth ? y0 - +me.birth.slice(0, 4) : null;
+    const span = y1 == null ? `từ ${y0}` : y1 > y0 ? `${y0} – ${y1}` : `${y0}`, ages = a0 == null ? '' : y1 == null ? ` · từ ${Math.max(0, a0)} tuổi` : ` · ${Math.max(0, a0)}–${Math.max(0, y1 - +me.birth.slice(0, 4))} tuổi`;
+    const n = evs.reduce((t, e) => t + e.ms.length, 0), best = evs.slice().sort((a, b) => b.ms.length - a.ms.length)[0];
+    const cov = c.cover && evs.flatMap(e => e.ms).find(m => m.id === c.cover) || best?.stack[0];
+    return `<section class="chap${empty ? ' empty' : ''}" data-ch="${esc(c.key)}" style="--cc:${c.c}">${cov ? `<div class="ch-cv"><img data-mid="${cov.id}" alt="" decoding="async"></div>` : ''}<div class="ch-tx"><small>Chương ${c.num} · ${span}${ages}</small><h2><span class="ch-ic">${c.ic}</span>${esc(c.title)}</h2>${empty ? `<button class="ch-add" data-a="addold" data-y="${y0}">${icon('plus', 15, 2.4)}<span>Thêm ảnh cũ của chương này</span></button>` : `<p>${n} khoảnh khắc · ${evs.length} ngày đáng nhớ</p>`}</div><button class="ch-more" data-a="chmenu" aria-label="Tuỳ chọn chương">${icon('more', 20, 2.2)}</button></section>`;
+  }
   function render(keep = true) {
     const kid = A.kid(); if (!kid) { IN.innerHTML = ''; return; }
     const anchor = keep ? topAnchor() : null;
     st.wide = wide(); TL.classList.toggle('wide', st.wide); document.body.classList.toggle('tlwide', st.wide);
     const evs = compute(), n = A.moments().length;
-    const fam = A.family(), KS = kidsAll();
-    TL.classList.toggle('fam', fam); document.body.classList.toggle('tlfam', fam); TL.style.setProperty('--nl', fam ? KS.length : 1);
-    const out = fam ? [`<header class="lt"><div class="lt-row"><div class="lt-avs">${KS.map(k => `<img src="${A.avatar(k)}" style="--c:${k.color}" alt="">`).join('')}</div><button class="lt-name" data-a="kid"><h1>Cả nhà</h1>${icon('chevronDown', 22, 2.2)}</button></div><p>${KS.length} bé · ${n} khoảnh khắc · ${evs.length} ngày đáng nhớ</p>
-        <div class="kflt">${KS.map(k => `<button data-kf="${k.id}" class="${!st.filter || st.filter.has(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${A.avatar(k)}" alt=""><span>${esc(k.name)}</span></button>`).join('')}</div></header>`, '<div class="lanes"></div>']
-      : [`<header class="lt"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><button class="lt-name" data-a="kid"><h1>${esc(kid.name)}</h1>${icon('chevronDown', 20, 2.2)}</button></div><p>${esc(A.ageText(kid, Date.now(), false) || '')}${n ? ` · ${n} khoảnh khắc` : ''}</p></header>`,
+    const fam = A.family(), life = !!A.life?.(), KS = kidsAll(), me = life ? A.me() : null, chs = life ? A.chapters() : [];
+    const who = isMe(kid) ? 'bạn' : kid.name, Who = isMe(kid) ? 'Bạn' : kid.name;
+    TL.classList.toggle('fam', fam); TL.classList.toggle('life', life); document.body.classList.toggle('tlfam', fam); TL.style.setProperty('--nl', fam ? KS.length : 1);
+    const lifeSub = me ? [A.ageText(me, Date.now(), false), chs.length ? `${chs.length} chương` : '', `${n} khoảnh khắc`].filter(Boolean).join(' · ') : '';
+    const out = fam ? [`<header class="lt"><div class="lt-row"><div class="lt-avs">${KS.slice(0, 8).map(k => `<img src="${A.avatar(k)}" style="--c:${k.color}" alt="">`).join('')}</div><button class="lt-name" data-a="kid"><h1>${life ? 'Hành trình của ' + esc(me.name) : 'Cả nhà'}</h1>${icon('chevronDown', 22, 2.2)}</button></div><p>${life ? esc(lifeSub) : `${KS.length} bé · ${n} khoảnh khắc · ${evs.length} ngày đáng nhớ`}</p>
+        ${KS.length > 1 ? `<div class="kflt">${KS.map(k => `<button data-kf="${k.id}" class="${!st.filter || st.filter.has(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${A.avatar(k)}" alt=""><span>${esc(isMe(k) ? 'Bạn' : k.name)}</span></button>`).join('')}</div>` : ''}</header>`, '<div class="lanes"></div>']
+      : [`<header class="lt"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><button class="lt-name" data-a="kid"><h1>${esc(kid.name)}</h1>${icon('chevronDown', 20, 2.2)}</button></div><p>${esc([isMe(kid) ? 'Ảnh có bạn' : !isChild(kid) ? roleName(kid) : '', A.ageText(kid, Date.now(), false)].filter(Boolean).join(' · ') || '')}${n ? ` · ${n} khoảnh khắc` : ''}</p></header>`,
         evs.length ? `<button class="rstart" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button>` : ''];
-    document.body.style.setProperty('--kc', fam ? '#ff8fbf' : (kid.color || '#ff8fbf'));
-    if (!evs.length) out.push(`<div class="empty"><div class="em-ic">${icon('sparkle', 46, 1.4)}</div><h3>Dòng thời gian của ${esc(kid.name)} đang chờ những khoảnh khắc đầu tiên</h3><p>Bấm nút <b>+</b> ở giữa thanh dưới để thêm ảnh, video. App tự đọc ngày chụp và xếp vào đúng ngày.</p><button class="primary" data-a="add">${icon('plus', 18, 2.2)}<span>Thêm khoảnh khắc đầu tiên</span></button></div>`);
-    let y = null, mo = null, i = 0;
+    document.body.style.setProperty('--kc', fam && !life ? '#ff8fbf' : ((life ? me?.color : kid.color) || '#ff8fbf'));
+    if (!evs.length) out.push(`<div class="empty"><div class="em-ic">${icon('sparkle', 46, 1.4)}</div><h3>${life ? 'Hành trình của bạn đang chờ những khoảnh khắc đầu tiên' : `Dòng thời gian của ${esc(kid.name)} đang chờ những khoảnh khắc đầu tiên`}</h3><p>Bấm nút <b>+</b> ở giữa thanh dưới để thêm ảnh, video. App tự đọc ngày chụp và xếp vào đúng ngày.${life ? ' Ảnh cũ chụp lại từ ảnh giấy cũng được — chọn “ảnh cũ” rồi nhập năm bạn nhớ.' : ''}</p><button class="primary" data-a="add">${icon('plus', 18, 2.2)}<span>Thêm khoảnh khắc đầu tiên</span></button></div>`);
+    // chương đời: mỗi chương mở bằng một thẻ tiêu đề lớn; chương chưa có ảnh vẫn hiện (gợi ý thêm ảnh cũ)
+    const chEvs = new Map(chs.map(c => [c.key, []])), pre = []; for (const e of evs) { if (e.chapter) chEvs.get(e.chapter.key)?.push(e); else if (life) pre.push(e); }
+    let ci = chs.length - 1; const flushCh = upto => { const html = []; while (ci >= 0 && (!upto || chs[ci].ts > upto.ts)) { html.push(chapHTML(chs[ci], [], me, true)); ci--; } return html; };
+    let y = null, mo = null, i = 0, curCh, preHdr = false, lastMl = null;
+    const closeY = () => { if (y !== null) out.push('</section>'); y = null; mo = null; lastMl = null; };
     for (const e of evs) {
+      if (life && st.filter == null && !st.range) {
+        if (e.chapter && e.chapter !== curCh) { closeY(); out.push(...flushCh(e.chapter)); out.push(chapHTML(e.chapter, chEvs.get(e.chapter.key) || [], me, false)); ci = chs.indexOf(e.chapter) - 1; curCh = e.chapter; }
+        else if (!e.chapter && !preHdr) { closeY(); out.push(...flushCh(null)); out.push(`<section class="chap pre" data-ch="pre" style="--cc:#a78bfa"><div class="ch-tx"><small>Trước chương 1</small><h2><span class="ch-ic">🌱</span>Trước khi bạn chào đời</h2><p>${pre.reduce((t, x) => t + x.ms.length, 0)} khoảnh khắc của gia đình</p></div></section>`); preHdr = true; }
+      }
       const d = new Date(e.ts0), yy = d.getFullYear(), mm = d.getMonth();
       if (yy !== y) {
-        if (y !== null) out.push('</section>');
-        const by = kid.birth ? +kid.birth.slice(0, 4) : 0, age = yy - by, sub = !by ? '' : age < 0 ? (evs.some(x => x.preg && new Date(x.ts0).getFullYear() === yy) ? 'Chờ ngày gặp con' : '') : age === 0 ? `Năm ${esc(kid.name)} chào đời` : `${esc(kid.name)} tròn ${age} tuổi`;
+        closeY();
+        const by = kid.birth && (isMe(kid) || isChild(kid) || showsAge(kid)) ? +kid.birth.slice(0, 4) : 0, age = yy - by, sub = !by ? '' : age < 0 ? (evs.some(x => x.preg && new Date(x.ts0).getFullYear() === yy) ? 'Chờ ngày gặp con' : '') : age === 0 ? `Năm ${esc(who)} chào đời` : `${esc(Who)} tròn ${age} tuổi`;
         out.push(`<section class="yr" data-y="${yy}"><i class="ysen"></i><h2 class="yh"><b>${yy}</b>${sub ? `<small>${sub}</small>` : ''}</h2>`); y = yy; mo = null;
       }
-      if (mm !== mo) { out.push(`<div class="mo" data-ym="${yy}-${mm}"><span>${MONTH(mm)}${e.preg ? ' · trước khi chào đời' : ''}</span></div>`); mo = mm; }
+      const ml = e.approx === 'y' ? 'Không rõ tháng' : e.approx === 's' ? approxLabel('s', e.ts0) : MONTH(mm) + (e.preg ? ' · trước khi chào đời' : '');
+      if (mm !== mo || ml !== lastMl) { out.push(`<div class="mo" data-ym="${yy}-${mm}"><span>${ml}</span></div>`); mo = mm; lastMl = ml; }
       out.push(card(e, i++));
     }
-    if (y !== null) out.push('</section>');
-    if (evs.length) out.push(`<div class="tl-end">${icon('star', 18, 1.8)}<span>Hành trình của ${esc(kid.name)} bắt đầu từ đây</span></div>`);
-    if (evs.length && evs.length < 6 && !fam) out.push(`<button class="tl-more" data-a="add"><i>${icon('plus', 26, 2.2)}</i><b>Thêm khoảnh khắc tiếp theo</b><span>Ảnh, video của ${esc(kid.name)} — app tự xếp vào đúng ngày</span></button>`);
+    closeY();
+    if (life && st.filter == null && !st.range && evs.length) out.push(...flushCh(null));
+    if (evs.length) out.push(`<div class="tl-end">${icon('star', 18, 1.8)}<span>${life ? 'Ngày bạn chào đời — hành trình bắt đầu từ đây' : isChild(kid) || isMe(kid) ? `Hành trình của ${esc(who)} bắt đầu từ đây` : `Hành trình cùng ${esc(kid.name)} bắt đầu từ đây`}</span></div>`);
+    if (evs.length && evs.length < 6 && !fam) out.push(`<button class="tl-more" data-a="add"><i>${icon('plus', 26, 2.2)}</i><b>Thêm khoảnh khắc tiếp theo</b><span>Ảnh, video của ${esc(who)} — app tự xếp vào đúng ngày</span></button>`);
     if (evs.length && !fam) out.push('<div class="rail2" aria-hidden="true"><i></i></div>');
     out.splice(1, 0, bdayBanner());
     IN.innerHTML = out.join('');
-    IN.querySelectorAll('.pol img').forEach(im => imgIO.observe(im));
+    IN.querySelectorAll('.pol img, .ch-cv img').forEach(im => imgIO.observe(im));
     IN.querySelectorAll('.ev').forEach(el => cardIO.observe(el));
     IN.querySelectorAll('.ysen').forEach(el => yrIO.observe(el));
     if (anchor) restoreAnchor(anchor);
@@ -271,21 +324,26 @@ export function initTimeline(A) {
   new ResizeObserver(() => { if (!A.family()) layRail(); }).observe(IN);
   // các dải song song của Cả nhà: mỗi bé một màu, bắt đầu từ ngày sinh (đoạn mang bầu nét đứt), avatar so le ở đầu dải
   function drawLanes() {
-    const box = IN.querySelector('.lanes'); if (!box) return; const KS = kidsAll(), evEls = [...IN.querySelectorAll('.ev')];
+    const box = IN.querySelector('.lanes'); if (!box) return; const KS = kidsAll(), evEls = [...IN.querySelectorAll('.ev')], me = A.me?.();
     if (!evEls.length) { box.innerHTML = ''; return; }
-    const y0 = IN.querySelector('.yr'), top = (y0 ? aT(y0) : aT(evEls[0]) - 70) + 6, html = [];
+    const y0 = IN.querySelector('.yr, .chap'), top = (y0 ? aT(y0) : aT(evEls[0]) - 70) + 6, html = [], ev = el => st.byKey.get(el.dataset.key);
     KS.forEach((k, i) => {
       if (st.filter && !st.filter.has(k.id)) return;
-      const x = 16 + i * 7, mine = evEls.filter(el => st.byKey.get(el.dataset.key)?.kids.includes(k.id)); if (!mine.length) return;
-      const bd = A.ymd(A.parseYmd(k.birth)), birthEl = evEls.find(el => { const e = st.byKey.get(el.dataset.key); return e && e.ts0 >= A.dayStart(A.parseYmd(k.birth)) && e.ts0 < A.dayStart(A.parseYmd(k.birth)) + 864e5; });
-      const born = mine.filter(el => !st.byKey.get(el.dataset.key).preg || st.byKey.get(el.dataset.key).ts0 >= A.dayStart(A.parseYmd(k.birth)));
-      const unborn = !birthEl && !born.length;
-      const endEl = birthEl || born[born.length - 1] || mine[mine.length - 1], bot = unborn ? top : aT(endEl) + 60;
-      if (!unborn) html.push(`<div class="lane" style="left:${x}px;top:${top}px;height:${Math.max(40, bot - top)}px;--c:${k.color}"><i></i></div>`);
-      const pre = mine.filter(el => st.byKey.get(el.dataset.key).ts0 < A.dayStart(A.parseYmd(k.birth)));
-      if (pre.length) { const pb = aT(pre[pre.length - 1]) + 60; if (pb > bot) html.push(`<div class="lane preg" style="left:${x}px;top:${bot}px;height:${pb - bot}px;--c:${k.color}"></div>`); }
+      const x = 16 + i * 7, mine = evEls.filter(el => ev(el)?.kids.includes(k.id)), anc = A.life?.() ? sinceOf(k, me) : (isChild(k) ? k.birth : anchorOf(k, me));
+      const ancT = anc ? A.dayStart(A.parseYmd(anc)) : null;
+      if (isMe(k) && A.life?.()) { // dải chính của bạn: suốt hành trình, tới ngày bạn chào đời
+        const end = IN.querySelector('.tl-end') || evEls[evEls.length - 1], bot = aT(end) + 12;
+        html.push(`<div class="lane me" style="left:${x}px;top:${top}px;height:${Math.max(40, bot - top)}px;--c:${k.color}"><i></i></div>`);
+      } else {
+        if (!mine.length && ancT == null) return;
+        // dải chạy từ hiện tại xuống tới ngày người này bước vào đời bạn (con: ngày sinh); trước đó nét đứt (con: lúc mang bầu)
+        const after = ancT == null ? mine : evEls.filter(el => ev(el) && ev(el).ts0 >= ancT), endEl = after[after.length - 1];
+        const bot = endEl ? aT(endEl) + 60 : top; if (endEl) html.push(`<div class="lane" style="left:${x}px;top:${top}px;height:${Math.max(40, bot - top)}px;--c:${k.color}"><i></i></div>`);
+        const pre = ancT == null ? [] : mine.filter(el => ev(el).ts0 < ancT);
+        if (pre.length) { const pb = aT(pre[pre.length - 1]) + 60; if (pb > bot) html.push(`<div class="lane preg" style="left:${x}px;top:${bot}px;height:${pb - bot}px;--c:${k.color}"></div>`); }
+        if (!endEl && !pre.length) return;
+      }
       html.push(`<img class="lh" src="${A.avatar(k)}" style="left:${x - 17 + (i % 2 ? 9 : -2)}px;top:${top - 46 + (i % 2) * 14}px;--c:${k.color};z-index:${10 - i}" alt="">`);
-      void bd;
     });
     box.innerHTML = html.join('');
   }
@@ -298,7 +356,7 @@ export function initTimeline(A) {
   function bdayBanner() {
     if (st.range) return `<div class="bdb flt">${icon('calendar', 18)}<span>Đang xem kỷ niệm từ sinh nhật năm ngoái đến nay</span><button data-a="unrange">${icon('close', 16, 2.2)}<span>Bỏ lọc</span></button></div>`;
     const bs = bdays(); const td = bs.find(b => !b.days && !st.conf?.has(b.k.id)); if (td) { (st.conf ||= new Set()).add(td.k.id); setTimeout(() => A.confetti?.(td.k.color || '#ff8fbf'), 900); }
-    return bs.map(b => `<div class="bdb${b.days ? '' : ' today'}" style="--c:${b.k.color || '#ff8fbf'}"><img src="${A.avatar(b.k)}" alt=""><div><b>${b.days ? `Còn ${b.days} ngày nữa là sinh nhật ${b.turn} tuổi của ${esc(b.k.name)}` : `Hôm nay là sinh nhật ${b.turn} tuổi của ${esc(b.k.name)}!`}</b><div class="bdb-a"><button data-a="lastyear" data-k="${b.k.id}">${icon('heart', 16)}<span>Xem lại kỷ niệm năm qua</span></button><button data-a="bnhac" data-k="${b.k.id}">${icon('cake', 16)}<span>Nhắc sinh nhật</span></button></div></div></div>`).join('');
+    return bs.map(b => `<div class="bdb${b.days ? '' : ' today'}" style="--c:${b.k.color || '#ff8fbf'}"><img src="${A.avatar(b.k)}" alt=""><div><b>${b.days ? `Còn ${b.days} ngày nữa là sinh nhật ${b.turn} tuổi của ${esc(isMe(b.k) ? 'bạn' : b.k.name)}` : `Hôm nay là sinh nhật ${b.turn} tuổi của ${esc(isMe(b.k) ? 'bạn' : b.k.name)}!`}</b><div class="bdb-a"><button data-a="lastyear" data-k="${b.k.id}">${icon('heart', 16)}<span>Xem lại kỷ niệm năm qua</span></button><button data-a="bnhac" data-k="${b.k.id}">${icon('cake', 16)}<span>Nhắc sinh nhật</span></button></div></div></div>`).join('');
   }
   function topAnchor() { // giữ chỗ đang xem khi dựng lại
     const evs = [...IN.querySelectorAll('.ev')]; const top = TL.scrollTop;
@@ -371,6 +429,9 @@ export function initTimeline(A) {
     if (a?.dataset.a === 'lastyear') { const b = bdays().find(x => x.k.id === a.dataset.k); if (b) { st.range = [b.last, Date.now()]; haptic(8); render(false); TL.scrollTo({ top: 0, behavior: 'smooth' }); A.toast(st.events.length ? `${st.events.length} ngày kỷ niệm từ sinh nhật năm ngoái` : 'Năm qua chưa có ảnh nào — thêm ảnh nhé!', 2400); } return; }
     if (a?.dataset.a === 'unrange') { st.range = null; render(false); return; }
     if (a?.dataset.a === 'bnhac') { A.nhac([kidById(a.dataset.k)]); return; }
+    if (a?.dataset.a === 'addold') { A.addOld(+a.dataset.y); return; }
+    if (a?.dataset.a === 'chmenu') { chapterMenu(a.closest('.chap').dataset.ch, a); return; }
+    { const ch = e.target.closest('.chap:not(.pre)'); if (ch && !a) { chapterMenu(ch.dataset.ch, ch.querySelector('.ch-more')); return; } }
     if (a?.dataset.a === 'kid') { A.openKidMenu(a); return; } if (a?.dataset.a === 'add') { A.openAdd(); return; } if (a?.dataset.a === 'prof') { A.openProfile(); return; }
     if (performance.now() < st.guard) return;
     if (SEL.on && SEL.scope === 'tl') { const ev2 = e.target.closest('.ev'); if (ev2) toggleSel(ev2.dataset.key); return; }
@@ -587,10 +648,11 @@ export function initTimeline(A) {
     an.onfinish = fin; setTimeout(() => { if (g.isConnected) fin(); }, 900);
   }
   function fillEvent(e) {
-    EVP.querySelector('.evp-dt').textContent = e.days.length > 1 ? dateTxt(e) : fmtLong(e.ts0);
+    EVP.querySelector('.evp-dt').textContent = e.approx ? approxLabel(e.approx, e.ts0) : e.days.length > 1 ? dateTxt(e) : fmtLong(e.ts0);
     if (!EVP.querySelector('.evp-ti').classList.contains('editing')) EVP.querySelector('.evp-ti .tt').textContent = e.title;
     const ag = A.family() ? '' : A.ageText(A.kid(), e.ts0, false);
-    EVP.querySelector('.evp-chips').innerHTML = [e.mile ? `<span class="hc mile">${icon(e.mile.ic, 14, 2)}Cột mốc</span>` : '', ag ? `<span class="hc age">${esc(ag)}</span>` : '', `<span class="hc">${esc(countTxt(e))}</span>`].join('');
+    const T = typeOf(e.type); EVP.style.setProperty('--tc', T.c);
+    EVP.querySelector('.evp-chips').innerHTML = [e.type !== 'daily' ? `<button class="hc ty" data-a="type" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</button>` : '', e.mile ? `<span class="hc mile">${e.mile.emo || icon(e.mile.ic, 14, 2)}Cột mốc</span>` : '', e.approx ? `<span class="hc">${icon('clock', 14, 2)}ước chừng</span>` : '', ag ? `<span class="hc age">${esc(ag)}</span>` : '', `<span class="hc">${esc(countTxt(e))}</span>`].join('');
     EVP.querySelector('.evp-bt b').textContent = e.title; EVP.querySelector('.evp-bt small').textContent = A.dmy(e.ts0);
     const nt = EVP.querySelector('.evp-nt'); nt.textContent = e.note; nt.hidden = !e.note;
     EVP.classList.toggle('mile', !!e.mile);
@@ -669,6 +731,7 @@ export function initTimeline(A) {
     const dia = ev.target.closest('[data-diary]'); if (dia) { A.openDiary(dia.dataset.diary); return; }
     const b = ev.target.closest('[data-a], [data-day]'); if (!b || !EVP.contains(b)) return; const a = b.dataset.a;
     if (a === 'play') playEvent(e);
+    else if (a === 'type') typeMenu(e, b);
     else if (b.dataset.day) jumpDay(b.dataset.day);
     else if (a === 'grid') showGrid(GRID.hidden, true);
   });
@@ -782,6 +845,7 @@ export function initTimeline(A) {
       { sep: 1 },
       { icon: 'edit', label: 'Sửa nhóm: tên, ghi chú, chọn ngày / ảnh', act: () => openGroupPicker({ group: e.group }) },
       { icon: 'star', label: 'Đổi ảnh bìa', act: async () => { await ensure(); startCoverPick(); } },
+      { icon: 'tag', label: `Loại kỷ niệm: ${typeOf(e.type).ic} ${typeOf(e.type).t}`, act: () => typeMenu(e, el) },
       { icon: 'plus', label: 'Thêm ảnh từ máy vào nhóm', act: () => { st.cur = st.cur || e; st.addTo = e; $('#evFiles').click(); } },
       { icon: 'grid', label: GRID.hidden ? 'Xem dạng lưới' : 'Ẩn lưới', act: async () => { await ensure(); showGrid(GRID.hidden, true); } },
       { icon: 'check', label: 'Chọn nhiều ảnh', act: async () => { await ensure(); showGrid(true, true); startSel('ev'); } },
@@ -801,6 +865,9 @@ export function initTimeline(A) {
       { sep: 1 },
       { icon: 'star', label: 'Đổi ảnh bìa', act: async () => { await ensure(); startCoverPick(); } },
       { icon: 'calendar', label: 'Đổi ngày cả sự kiện', act: () => changeEventDate(e) },
+      { icon: 'clock', label: e.approx ? `Ngày ước chừng: ${approxLabel(e.approx, e.ts0, true)}` : 'Không nhớ rõ ngày? Đặt ngày ước chừng', act: () => approxMoments(e.ms, e) },
+      { icon: 'tag', label: `Loại kỷ niệm: ${typeOf(e.type).ic} ${typeOf(e.type).t}`, act: () => typeMenu(e, el) },
+      { icon: 'flag', label: e.lifeMile ? `Cột mốc: ${mileOf(e.lifeMile)?.ic || ''} ${mileOf(e.lifeMile)?.t || ''}` : 'Đánh dấu cột mốc đời người…', act: () => mileMenu(e, el) },
       { icon: 'grid', label: 'Gộp với ngày khác thành nhóm…', act: () => openGroupPicker({ preselect: e.ms }) },
       older && { icon: 'merge', label: `Gộp với ngày trước (${A.dmy(older.ts0).slice(0, 5)})`, act: () => mergeWith(e, older) },
       newer && { icon: 'merge', label: `Gộp với ngày sau (${A.dmy(newer.ts0).slice(0, 5)})`, act: () => mergeWith(e, newer) },
@@ -808,6 +875,47 @@ export function initTimeline(A) {
       A.driveFolderOf?.(e) && { icon: 'image', label: 'Mở thư mục sự kiện trên Drive', act: () => window.open('https://drive.google.com/drive/folders/' + A.driveFolderOf(e), '_blank') },
       { icon: 'trash', label: 'Xoá sự kiện…', danger: true, act: () => deleteEvent(e) }
     ] });
+  }
+  // loại kỷ niệm (chuyến đi, Lễ Tết…): tự đoán, đổi được; nhóm lưu trong nhóm, ngày lẻ lưu trong meta sự kiện
+  function typeMenu(e, el) {
+    contextMenu({ el: null, at: el || EVP.querySelector('.evp-more'), title: `Loại kỷ niệm · ${esc(e.title)}`, items: [
+      ...TYPES.map(t => ({ label: `${t.ic} ${t.t}`, note: e.type === t.k ? (e.typeSet ? 'đang chọn' : 'app tự đoán') : '', on: e.type === t.k, act: () => setType(e, t.k) })),
+      e.typeSet && { sep: 1 }, e.typeSet && { icon: 'sparkle', label: 'Để app tự đoán', act: () => setType(e, null) }] });
+  }
+  async function setType(e, k) {
+    if (e.group) { if (k) e.group.type = k; else delete e.group.type; await A.saveGroups(); }
+    else { st.meta.types ||= {}; if (k) st.meta.types[e.key] = k; else delete st.meta.types[e.key]; await saveMeta(); }
+    refreshAll(e.key); haptic(8); A.toast(k ? `Đã đặt loại: ${typeOf(k).ic} ${typeOf(k).t}` : 'App sẽ tự đoán loại kỷ niệm', 1600);
+  }
+  // cột mốc đời người: tốt nghiệp, việc làm đầu tiên, mua nhà, cưới, nghỉ hưu…
+  function mileMenu(e, el) {
+    contextMenu({ at: el || EVP.querySelector('.evp-more'), title: `Cột mốc · ${esc(e.title)}`, items: [
+      ...MILES.map(x => ({ label: `${x.ic} ${x.t}`, on: e.lifeMile === x.k, act: async () => { st.meta.miles ||= {}; st.meta.miles[e.key] = x.k; if (x.k === 'khac' && !st.meta.titles[e.key]) { const t = await A.prompt('Tên cột mốc', '', 60); if (t?.trim()) st.meta.titles[e.key] = t.trim(); } await saveMeta(); refreshAll(e.key); haptic(12); A.confetti?.('#ffd27f'); A.toast(`Đã đánh dấu cột mốc: ${x.ic} ${x.t}`, 1800); } })),
+      e.lifeMile && { sep: 1 }, e.lifeMile && { icon: 'close', label: 'Bỏ đánh dấu cột mốc', act: async () => { delete st.meta.miles[e.key]; await saveMeta(); refreshAll(e.key); } }] });
+  }
+  // ngày ước chừng cho ảnh giấy cũ: chọn năm / mùa / tháng, app đặt ảnh vào giữa khoảng đó để xếp đúng chỗ
+  async function approxMoments(ms, e) {
+    const r = await A.pickApprox({ title: ms.length > 1 ? `Ngày ước chừng cho ${ms.length} ảnh` : 'Ngày ước chừng', ts: ms[0].ts, approx: e?.approx || ms[0].approx }); if (!r) return;
+    const keep = e && !e.group ? { t: st.meta.titles[e.key], n: st.meta.notes[e.key], ty: st.meta.types?.[e.key], mi: st.meta.miles?.[e.key] } : null;
+    ms.forEach((m, i) => { if (r.prec === 'd') { m.ts = A.parseYmd(r.day, m.ts); delete m.approx; } else { m.ts = r.ts + i * 1000; m.approx = r.prec; } m.dateSrc = 'user'; });
+    await A.updateMany(ms); closeEvent(); render(); const nk = keyOfMid(ms[0].id);
+    if (keep && nk && nk !== e.key) { if (keep.t) st.meta.titles[nk] = keep.t; if (keep.n) st.meta.notes[nk] = keep.n; if (keep.ty) st.meta.types[nk] = keep.ty; if (keep.mi) st.meta.miles[nk] = keep.mi; await saveMeta(); render(); }
+    if (nk) setTimeout(() => scrollToKey(nk), 450); A.toast(r.prec === 'd' ? `Đã chuyển sang ${A.dmy(A.parseYmd(r.day))}` : `Đã xếp vào ${approxLabel(r.prec, r.ts, true)}`, 2200);
+  }
+  // menu chương đời
+  function chapterMenu(key, at) {
+    const c = A.chapters().find(x => x.key === key); if (!c) return; const cfg = JSON.parse(JSON.stringify(A.chCfg() || {})); cfg.edits ||= {}; cfg.custom ||= [];
+    const cu = c.custom ? cfg.custom.find(x => 'c:' + x.id === key) : null, ed = cu || (cfg.edits[key] ||= {});
+    const save = async msg => { await A.saveChapters(cfg); render(); A.toast(msg, 1600); };
+    contextMenu({ at, title: `${c.ic} Chương ${c.num} · ${esc(c.title)}`, items: [
+      { icon: 'edit', label: 'Đổi tên chương', act: async () => { const t = await A.prompt('Tên chương', c.title, 40); if (t?.trim()) { ed.title = t.trim(); await save('Đã đổi tên chương'); } } },
+      { icon: 'calendar', label: `Đổi ngày bắt đầu (${A.dmy(c.ts)})`, act: async () => { const v = await A.prompt('Chương bắt đầu từ ngày', c.start, 10, 'date'); if (v && A.parseYmd(v)) { ed.start = v; await save('Đã đổi ngày bắt đầu chương'); } } },
+      { icon: 'palette', label: 'Đổi màu chương', act: () => contextMenu({ at, title: 'Màu chương', items: CH_COLORS.map(col => ({ label: `<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${col};vertical-align:-4px;margin-right:8px"></span>${col === c.c ? 'Đang dùng' : 'Chọn màu này'}`, on: col === c.c, act: async () => { ed.c = col; await save('Đã đổi màu chương'); } })) }) },
+      { icon: 'plus', label: 'Thêm ảnh cũ của chương này', act: () => A.addOld(new Date(c.ts).getFullYear()) },
+      { sep: 1 },
+      { icon: 'sparkle', label: 'Thêm chương mới…', act: async () => { const t = await A.prompt('Tên chương mới (vd “Du học”, “Những năm ở Sài Gòn”)', '', 40); if (!t?.trim()) return; const v = await A.prompt('Chương bắt đầu từ ngày', A.ymd(Date.now()), 10, 'date'); if (!v || !A.parseYmd(v)) return; cfg.custom.push({ id: Date.now().toString(36), title: t.trim(), start: v, c: CH_COLORS[(cfg.custom.length + 8) % CH_COLORS.length], ic: '✨' }); await save('Đã thêm chương “' + t.trim() + '”'); } },
+      !c.custom && (c.edited || !c.auto) && { icon: 'back', label: 'Về như app gợi ý', act: async () => { delete cfg.edits[key]; await save('Đã khôi phục chương như gợi ý'); } },
+      { icon: 'close', label: c.custom ? 'Xoá chương này' : 'Ẩn chương này', danger: true, act: async () => { if (cu) cfg.custom = cfg.custom.filter(x => x !== cu); else ed.hidden = true; await save(c.custom ? 'Đã xoá chương' : 'Đã ẩn chương — ảnh vẫn còn, nằm ở chương trước'); } }] });
   }
   function renameEvent(e) { $('#evnTi').value = e.title; $('#evnNt').value = e.note; $('#mEvName .evn-sub').textContent = `${dateTxt(e)} · ${countTxt(e)}`; st.cur = e; A.openModal($('#mEvName')); setTimeout(() => $('#evnTi').focus(), 350); }
   async function mergeWith(e, o) { const ks = [...new Set([...(e.merged || [e.key]), ...(o.merged || [o.key])])]; st.meta.merges = st.meta.merges.filter(g => !g.some(k => ks.includes(k))); st.meta.merges.push(ks); await saveMeta(); const mid = e.ms[0].id; closeEvent(); render(); const k = keyOfMid(mid); if (k) setTimeout(() => scrollToKey(k), 450); A.toast('Đã gộp thành một sự kiện', 1600); }
@@ -831,10 +939,12 @@ export function initTimeline(A) {
     contextMenu({ el, at, title: esc(m.title || `${timeVN(m.ts)} · ${A.dmy(m.ts)}`), items: [
       !inViewer && { icon: 'image', label: 'Xem lớn', act: () => openViewer(e.ms, e.ms.indexOf(m), gridRect) },
       { icon: 'edit', label: 'Sửa tên, ngày, giờ, ghi chú', act: () => openEditM(m) },
-      kidsAll().length > 1 && { icon: 'baby', label: 'Gắn / bỏ bé', act: async () => { const ids = await A.pickKids([m]); if (ids) { await A.setKidsMany([m], ids); if (inViewer) fillInfo(); refreshAll(st.cur?.key); A.toast('Đã gắn bé', 1200); } } },
+      kidsAll().length > 1 && { icon: 'baby', label: 'Ai có trong ảnh này?', act: async () => { const ids = await A.pickKids([m]); if (ids) { await A.setKidsMany([m], ids); if (inViewer) fillInfo(); refreshAll(st.cur?.key); A.toast('Đã cập nhật người trong ảnh', 1200); } } },
       { icon: 'download', label: 'Lưu về máy', act: () => A.saveOriginal(m) },
       { sep: 1 },
       { icon: 'star', label: 'Đặt làm ảnh bìa sự kiện', act: () => setCover(m) },
+      A.life?.() && e?.chapter && { icon: 'star', label: `Làm ảnh bìa chương “${esc(e.chapter.title)}”`, act: async () => { const cfg = JSON.parse(JSON.stringify(A.chCfg() || {})); cfg.edits ||= {}; cfg.custom ||= []; const cu = cfg.custom.find(x => 'c:' + x.id === e.chapter.key); if (cu) cu.cover = m.id; else (cfg.edits[e.chapter.key] ||= {}).cover = m.id; await A.saveChapters(cfg); render(); A.toast('Đã đặt làm ảnh bìa chương', 1500); } },
+      { icon: 'clock', label: m.approx ? `Ngày ước chừng: ${approxLabel(m.approx, m.ts, true)}` : 'Ảnh cũ? Đặt ngày ước chừng', act: () => approxMoments([m], null) },
       { icon: 'image', label: 'Đặt làm hình nền', act: () => A.setBgFromMoment(m) },
       { icon: 'smile', label: 'Đặt làm avatar bé', act: () => A.avatarFromMoment(m) },
       inViewer && st.cur && !st.cur.merged && V.i > 0 && { icon: 'split', label: 'Tách sự kiện từ ảnh này', act: () => splitHere(m) },
@@ -864,11 +974,12 @@ export function initTimeline(A) {
     const ms = selMoments(); if (!ms.length) return;
     if (a === 'del') { if (!(await A.ask(`Xoá ${ms.length} ảnh/video?`, 'Chúng sẽ vào thùng rác 30 ngày, khôi phục được.', `Xoá ${ms.length} mục`, true))) return; const k = st.cur?.key; endSel(); await A.trashMoments(ms); refreshAll(k); }
     else if (a === 'date') { const v = await A.prompt(`Đổi ngày cho ${ms.length} ảnh`, A.ymd(ms[0].ts), 10, 'date'); if (!v || !A.parseYmd(v)) return; for (const m of ms) { m.ts = A.parseYmd(v, m.ts); m.dateSrc = 'user'; } endSel(); await A.updateMany(ms); closeEvent(); render(); const k = keyOfMid(ms[0].id); if (k) setTimeout(() => scrollToKey(k), 450); A.toast(`Đã chuyển ${ms.length} ảnh sang ${A.dmy(A.parseYmd(v))}`, 2200); }
+    else if (a === 'apx') { endSel(); await approxMoments(ms.slice().sort((x, y) => x.ts - y.ts), null); }
     else if (a === 'move') {
       const cur = st.cur, opts = st.events.filter(e => e !== cur).slice(0, 40);
       contextMenu({ at: b, title: 'Chuyển sang sự kiện nào?', items: opts.map(e => ({ icon: e.mile ? 'star' : 'calendar', label: `${esc(e.title)} · ${A.dmy(e.ts0)}`, act: async () => { for (const m of ms) { m.ts = A.parseYmd(e.days[0], m.ts); m.dateSrc = 'user'; } endSel(); await A.updateMany(ms); closeEvent(); render(); setTimeout(() => scrollToKey(keyOfMid(ms[0].id)), 450); A.toast(`Đã chuyển ${ms.length} ảnh vào “${e.title}”`, 2200); } })) });
     }
-    else if (a === 'kids') { const ids = await A.pickKids(ms); if (!ids) return; await A.setKidsMany(ms, ids); A.toast(`Đã gắn bé cho ${ms.length} ảnh`, 1600); endSel(); refreshAll(st.cur?.key); }
+    else if (a === 'kids') { const ids = await A.pickKids(ms); if (!ids) return; await A.setKidsMany(ms, ids); A.toast(`Đã cập nhật người trong ${ms.length} ảnh`, 1600); endSel(); refreshAll(st.cur?.key); }
     else if (a === 'group') { endSel(); openGroupPicker({ preselect: ms }); }
     else if (a === 'diary') { endSel(); A.makeDiary(ms.filter(m => m.type !== 'video').length ? ms.filter(m => m.type !== 'video') : ms); }
     else if (a === 'save') { A.shareMany(ms); }
@@ -994,8 +1105,8 @@ export function initTimeline(A) {
   }
   function fillInfo() {
     const m = V.list[V.i]; if (!m) return; PV.querySelector('.pv-count').textContent = `${V.i + 1} / ${V.list.length}`;
-    PV.querySelector('.pv-ti').textContent = m.title || timeVN(m.ts);
-    PV.querySelector('.pv-dt').textContent = m.title ? `${fmtLong(m.ts)} · ${timeVN(m.ts)}` : fmtLong(m.ts);
+    PV.querySelector('.pv-ti').textContent = m.title || (m.approx ? 'Ảnh cũ' : timeVN(m.ts));
+    PV.querySelector('.pv-dt').textContent = m.approx ? approxLabel(m.approx, m.ts) : m.title ? `${fmtLong(m.ts)} · ${timeVN(m.ts)}` : fmtLong(m.ts);
     const ks = kidsAll().length > 1 ? A.kidsOf(m).map(kidById).filter(Boolean) : [A.kid()];
     PV.querySelector('.pv-ag').innerHTML = ks.map(k => `<span style="--c:${k.color || '#ff8fbf'}">${esc(A.ageText(k, m.ts))}</span>`).join('');
     const nt = PV.querySelector('.pv-nt'); nt.textContent = m.note || ''; nt.hidden = !m.note;
@@ -1192,7 +1303,7 @@ export function initTimeline(A) {
   return {
     async reload() { await loadMeta(); render(false); },
     render, refreshAll, scrollToKey, keyOfMid, openEvent, closeEvent, openViewer, closeViewer, openJump,
-    setTitle, refreshThumb, eventsForKid: (kid, moments, meta) => compute({ kid, moments, meta: Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, meta || {}) }), get events() { return st.events; }, get meta() { return st.meta; }, setMeta: async m => { st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, m); await saveMeta(); },
+    setTitle, refreshThumb, eventsForKid: (kid, moments, meta) => compute({ kid, moments, meta: Object.assign(META0(), meta || {}) }), get events() { return st.events; }, get meta() { return st.meta; }, setMeta: async m => { st.meta = Object.assign(META0(), m); await saveMeta(); },
     guard: (ms = 550) => { st.guard = performance.now() + ms; },
     startSel, endSel, eventMenu, get hidePreg() { return st.hidePreg; },
     async setHidePreg(v) { st.hidePreg = v; await A.metaSet('hidePreg:' + (A.family() ? 'fam' : A.kid().id), v); render(); },
