@@ -915,6 +915,10 @@ body.maptab #mapv { bottom: calc(var(--tabh, 62px) + 16px + var(--safe-b)); }
 .pc-cv, .pc-out { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #eef0f2; }
 #mPlc .card > * { flex-shrink: 0; } .pc-ph { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; } .pc-ph button { position: relative; flex: none; width: 58px; height: 58px; padding: 0; border-radius: 12px; overflow: hidden; opacity: .6; }
 .pc-ph button.on { opacity: 1; box-shadow: 0 0 0 3px #ff8fbf; } .pc-ph img { width: 100%; height: 100%; object-fit: cover; } .pc-ph span { position: absolute; left: 4px; top: 3px; min-width: 18px; height: 18px; border-radius: 9px; background: #ff5f9e; color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; } .pc-ph button.v::after { content: '▶'; position: absolute; right: 4px; bottom: 2px; font-size: 11px; color: #fff; }
+.awh { margin: 6px 0 2px; display: grid; gap: 8px; } .awh[hidden] { display: none; } .awh-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .awh-r.col { display: grid; gap: 6px; }
+.awh-t { font-size: 13.5px; color: var(--sub); } .awh-l { font-size: 18px; } .awh-v { flex: 1; min-width: 0; min-height: 40px; padding: 8px 12px; border-radius: 14px; text-align: left; font-weight: 800; font-size: 14.5px; background: var(--field); border: 1px solid var(--line); color: var(--text); display: flex; align-items: center; flex-wrap: wrap; gap: 2px; } .awh-v small { font-weight: 600; color: var(--sub); }
+.awh-v.on { border-color: #ff8fbf; } .awh-x { min-height: 40px; padding: 0 14px; border-radius: 14px; font-weight: 800; }
+.awh-c { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; } .awh-c::-webkit-scrollbar { display: none; } .awh-c button { flex: none; min-height: 40px; padding: 0 12px; border-radius: 20px; font-size: 13.5px; font-weight: 700; white-space: nowrap; } .awh-c .awh-skip { opacity: .7; }
 /* v1.8.2 — bản đồ SÁNG: nút tròn trên cùng dùng nền trắng đặc + icon tím đậm (kính trắng gần như vô hình trên nền sáng) */
 #mapv.light .mp-top .glassbtn { background: #fff !important; color: #3d1b35 !important; border: none; box-shadow: 0 6px 18px rgba(40,20,60,.18) !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
 #mapv.light .mp-q { box-shadow: 0 6px 18px rgba(40,20,60,.14); }
@@ -1500,6 +1504,7 @@ body.maptab #mapv .maplibregl-ctrl-bottom-right { top: calc(var(--safe-t) + 78px
   <div class="sec"><h3>Hiển thị</h3>
     <label class="tog"><span>Chữ to, dễ đọc <small>cho người lớn tuổi: chữ, nút to hơn, chuyển động nhẹ hơn</small></span><input type="checkbox" id="setBig"></label>
     <label class="tog"><span>Ngày này năm xưa <small>thẻ nhắc kỷ niệm cùng ngày các năm trước</small></span><input type="checkbox" id="setOtd"></label>
+    <label class="tog"><span>Xoá vị trí khỏi ảnh khi chia sẻ <small>ảnh JPEG gửi ra ngoài sẽ không còn toạ độ GPS; ảnh trong app vẫn giữ</small></span><input type="checkbox" id="setGps"></label>
     <label class="tog"><span>Âm thanh hiệu ứng <small>tiếng pop, ting… nhẹ khi chạm (theo nút gạt im lặng của iPhone)</small></span><input type="checkbox" id="setSfx" checked></label>
     <label class="sfxv">🔈<input type="range" id="setSfxV" min="0" max="100" value="35" aria-label="Âm lượng hiệu ứng">🔊</label>
   </div>

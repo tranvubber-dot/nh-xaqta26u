@@ -22,7 +22,7 @@ import { buildMemoir } from './hoiky.js';
 import { initAlbum } from './album.js';
 import { initPlaceCard } from './thenoi.js';
 import { placeInfo, reverseName } from './bando.js';
-import { initMap, eventGeo, searchPlace } from './bando.js';
+import { initMap, eventGeo, searchPlace, distM, PLACE_EMO, KINDS } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
 import { initVideoUI } from './videoui.js';
@@ -2089,8 +2089,19 @@ LB.querySelector('.edit').onclick = async e => {
     toast('Đã lưu — khoảnh khắc đã về đúng chỗ trên dòng thời gian');
   } else { Stream.refresh(c); renderLB(); toast('Đã lưu'); }
 };
+// v1.8.2: tuỳ chọn xoá toạ độ GPS khỏi ảnh JPEG khi chia sẻ ra ngoài (mặc định giữ nguyên EXIF như ảnh gốc).
+// Xoá các mục trong GPS IFD (đặt số mục = 0, xoá trắng dữ liệu toạ độ), giữ nguyên ngày chụp và mọi thông tin khác.
+async function stripGps(b) {
+  if (!/jpe?g/i.test(b.type) || !(await metaGet('sy:stripGps'))) return b;
+  const u = new Uint8Array(await b.arrayBuffer()); let o = 2;
+  while (o + 4 < u.length && u[o] === 0xFF) { const mk = u[o + 1], len = (u[o + 2] << 8) | u[o + 3];
+    if (mk === 0xE1 && u[o + 4] === 0x45 && u[o + 5] === 0x78 && u[o + 6] === 0x69 && u[o + 7] === 0x66) { const t = o + 10, le = u[t] === 0x49, dv = new DataView(u.buffer, t), r16 = x => dv.getUint16(x, le), r32 = x => dv.getUint32(x, le);
+      try { const i0 = r32(4), n0 = r16(i0); for (let i = 0; i < n0; i++) { const e = i0 + 2 + i * 12; if (r16(e) === 0x8825) { const g = r32(e + 8), n = r16(g); for (let k = 0; k < n; k++) { const ge = g + 2 + k * 12, ty = r16(ge + 2), cnt = r32(ge + 4), sz = ({ 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 }[ty] || 1) * cnt; if (sz > 4) { const vo = r32(ge + 8); u.fill(0, t + vo, Math.min(u.length, t + vo + sz)); } u.fill(0, t + ge, t + ge + 12); } dv.setUint16(g, 0, le); } } } catch (e) { } }
+    if (mk === 0xDA) break; o += 2 + len; }
+  return new Blob([u], { type: b.type });
+}
 async function saveOriginal(m) {
-  const b = await dbGet('blobs', 'o_' + m.id); if (!b) return toast('Không tìm thấy tệp gốc');
+  const b = await stripGps(await dbGet('blobs', 'o_' + m.id)); if (!b) return toast('Không tìm thấy tệp gốc');
   const ext = (m.name && m.name.includes('.')) ? '' : '.' + ((b.type.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('jpeg', 'jpg'));
   const name = m.name || `khoanh-khac-${ymd(m.ts)}${ext}`;
   await shareOrDownload(new File([b], name, { type: b.type }), name);
@@ -2111,6 +2122,61 @@ function renderAddKids() {
   const box = $('#addKids'); if (!box) return; const me = ME(), rel = sortPeople(S.kids).filter(k => !me || !isMe(k)); box.hidden = me ? !rel.length : S.kids.length < 2;
   // v1.8.0: chọn nhanh "Ai có mặt?" bằng chip avatar người thân (nhiều người); không chọn ai = chỉ mình bạn
   box.innerHTML = `<span>${me ? 'Ai có mặt?' : 'Ảnh của:'}</span>` + rel.map(k => `<button data-k="${k.id}" class="${ADD.kids.includes(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${P.avatarNow(k)}" alt="">${esc(cap(k.name))}</button>`).join('') + (me ? `<small class="ak-me">${ADD.kids.some(id => id !== me.id) ? '' : 'chưa chọn = chỉ mình bạn'}</small>` : '');
+}
+// ---------- v1.8.2: 📍 Ở ĐÂU? khi thêm ảnh ----------
+// ảnh có GPS: gom cụm ≤300 m, đặt tên bằng reverse geocode (ưu tiên quán / công viên gần nhất). Ảnh không GPS: chip gợi ý chạm 1 lần.
+// Thêm vào sự kiện đã có nơi chốn thì không hỏi lại. Toạ độ chỉ nằm trong máy + Drive của bạn.
+ADD.where = null; ADD.gname = ''; const PLN = new Map();
+const plName = async (lat, lon) => { const k = lat.toFixed(4) + ',' + lon.toFixed(4); if (PLN.has(k)) return PLN.get(k); let n = ''; try { const i = await placeInfo(lat, lon); n = i.name ? [i.name, i.addr?.split(',').slice(-2, -1)[0]?.trim()].filter(Boolean).join(', ') : i.addr; if (i.name || i.cat || i.addr) await metaSet('pli:' + k, i); } catch (e) { } if (!n) n = await reverseName(lat, lon).catch(() => '') || ''; PLN.set(k, n); return n; };
+function gpsClusters() {
+  const cl = []; for (const r of ADD.rows.filter(r => r.ready && !r.bad && !r.dup && r.gps)) { const c = cl.find(c => distM(c, r.gps) < 300); if (c) c.rows.push(r); else cl.push({ lat: r.gps.lat, lon: r.gps.lon, rows: [r], name: '' }); }
+  ADD.cl = cl.map(c => { const old = (ADD.cl || []).find(o => distM(o, c) < 30); return Object.assign(c, old ? { name: old.name, over: old.over } : {}); }); return ADD.cl;
+}
+const noGpsRows = () => ADD.rows.filter(r => r.ready && !r.bad && !r.dup && !r.gps);
+// sự kiện đã có nơi chốn mà các ảnh không GPS sẽ rơi vào (theo ngày)
+function targetGeo() { const rs = noGpsRows(); if (!rs.length) return null; const gs = rs.map(r => { const d = ymd(r.ts), e = TL.events.find(x => x.days.includes(d) && !x.approx); return e?.geo ? { ...e.geo, ev: e.title } : null; }); return gs.every(Boolean) && gs.every(g => distM(g, gs[0]) < 300) ? gs[0] : null; }
+async function renderWhere() {
+  let box = $('#addWhere'); if (!box) { $('#addKids').insertAdjacentHTML('afterend', '<div class="awh" id="addWhere" hidden></div>'); box = $('#addWhere'); box.addEventListener('click', whereClick); }
+  const ready = ADD.rows.filter(r => r.ready && !r.bad && !r.dup); box.hidden = !ready.length || !S.kid; if (box.hidden) return;
+  const cl = gpsClusters(), ng = noGpsRows(), tg = ng.length && !ADD.where ? targetGeo() : null; const out = [];
+  if (cl.length) out.push(`<div class="awh-r"><span class="awh-l">📍</span><button class="awh-v" data-w="cl">${cl.length === 1 ? esc(cl[0].over?.name || cl[0].name || 'Đang đọc tên nơi…') : `${cl.length} nơi`}<small>${cl.length === 1 && cl[0].over ? '' : ' · lấy từ ảnh'}${ng.length ? ` · ${ready.length - ng.length} ảnh` : ''}</small></button></div>`);
+  if (ng.length) {
+    const lab = cl.length ? `<b class="awh-t">${ng.length} ảnh còn lại ở đâu?</b>` : '<b class="awh-t">📍 Ở đâu?</b>';
+    if (ADD.where) out.push(`<div class="awh-r">${lab}<span class="awh-v on">${esc(ADD.where.name || 'Nơi đã chọn')}<small> · ${esc(ADD.where.lbl || '')}</small></span><button class="awh-x" data-w="clear">Đổi</button></div>`);
+    else if (tg) out.push(`<div class="awh-r">${lab}<span class="awh-v on">${esc(tg.name || 'Nơi của sự kiện')}<small> · nơi của “${esc(tg.ev)}”</small></span><button class="awh-x" data-w="chg">Đổi</button></div>`);
+    else if (!ADD.whereSkip || ADD.whereOpen) {
+      const recent = ((await metaGet('sy:recentPl')) || []).slice(0, 4), saved = ((await metaGet('sy:places')) || []).slice(0, 5), now = Date.now(), fresh = ng.some(r => Math.abs(now - r.ts) < 6 * 3600e3);
+      const chips = [fresh && navigator.geolocation ? `<button data-w="here">📍 Chỗ tôi đang đứng</button>` : '', ...saved.map((p, i) => `<button data-w="sv" data-i="${i}">${PLACE_EMO[p.kind] || '📍'} ${esc(p.name || KINDS.find(k => k.k === p.kind)?.t || '')}</button>`),
+        ...recent.filter(rp => !saved.some(p => distM(p, rp) < 60)).map((p, i) => `<button data-w="rc" data-i="${recent.indexOf(p)}">🕘 ${esc((p.name || '').split(',')[0])}</button>`), '<button data-w="find">🔎 Tìm địa chỉ…</button>', MAP ? '<button data-w="map">🗺 Chọn trên bản đồ</button>' : '', '<button data-w="skip" class="awh-skip">Bỏ qua</button>'].filter(Boolean);
+      out.push(`<div class="awh-r col">${lab}<div class="awh-c">${chips.join('')}</div></div>`);
+    } else out.push(`<div class="awh-r">${lab}<span class="awh-v">Chưa gắn nơi</span><button class="awh-x" data-w="open">Gắn nơi</button></div>`);
+  }
+  box.innerHTML = out.join('');
+  for (const c of cl) if (!c.name) plName(c.lat, c.lon).then(n => { if (n && !c.name) { c.name = n; renderWhere(); } });
+}
+const setWhere = (pl, lbl) => { ADD.where = pl ? { lat: +pl.lat, lon: +pl.lon, name: pl.name || '', lbl } : null; ADD.whereSkip = !pl; ADD.whereOpen = false; haptic(6); SFX.play('tick'); renderWhere(); };
+async function pickWhere(at, done) { // chọn nơi bằng tìm kiếm hoặc bản đồ (dùng chung cho cụm ảnh có GPS)
+  return contextMenu({ at, title: 'Đặt nơi khác', items: [
+    { icon: 'pin', label: '🔎 Tìm địa chỉ…', act: () => findWhere(at, done) }, MAP && { icon: 'map', label: '🗺 Chọn trên bản đồ', act: () => mapWhere(done) }] });
+}
+async function findWhere(at, done) {
+  const q = (await prompt2('Tìm địa chỉ, tên nơi', '', 80))?.trim(); if (!q) { openModal($('#mAdd')); return; } openModal($('#mAdd'));
+  let rs = []; try { rs = await searchPlace(q); } catch (e) { toast(e.message || 'Chưa tìm được', 2500); return; } if (!rs.length) { toast('Không tìm thấy “' + q + '” — thử gõ kèm tỉnh, thành phố', 3000); return; }
+  contextMenu({ at, title: 'Chọn nơi', items: rs.slice(0, 6).map(r => ({ icon: 'pin', label: esc(r.name), note: esc((r.sub || '').split(',').slice(1, 3).join(',')), act: () => done({ lat: r.lat, lon: r.lon, name: r.name }, 'tìm kiếm') })) });
+}
+function mapWhere(done) { // bản đồ chế độ chọn chỗ: tạm ẩn sheet Thêm (không xoá dữ liệu đang chọn), chọn xong mở lại
+  const M = $('#mAdd'); M.classList.remove('open'); MAP.open({ pick: pl => done(pl, 'chọn trên bản đồ') });
+  const iv = setInterval(() => { if (!MAP.isOpen()) { clearInterval(iv); M.classList.add('open'); } }, 300);
+}
+async function whereClick(e) {
+  const b = e.target.closest('[data-w]'); if (!b) return; const w = b.dataset.w;
+  if (w === 'skip') setWhere(null); else if (w === 'clear' || w === 'chg' || w === 'open') { ADD.where = null; ADD.whereSkip = false; ADD.whereOpen = true; ADD.whereForce = true; renderWhere(); }
+  else if (w === 'sv') { const p = ((await metaGet('sy:places')) || [])[+b.dataset.i]; if (p) setWhere(p, 'nơi đã lưu'); }
+  else if (w === 'rc') { const p = ((await metaGet('sy:recentPl')) || [])[+b.dataset.i]; if (p) setWhere(p, 'dùng gần đây'); }
+  else if (w === 'find') findWhere(b, (pl, l) => setWhere(pl, l));
+  else if (w === 'map') mapWhere((pl, l) => setWhere(pl, l));
+  else if (w === 'here') { b.disabled = true; b.textContent = '📍 Đang lấy vị trí…'; navigator.geolocation.getCurrentPosition(async p => { const lat = +p.coords.latitude.toFixed(6), lon = +p.coords.longitude.toFixed(6); setWhere({ lat, lon, name: (await plName(lat, lon)) || 'Chỗ tôi đứng' }, 'vị trí hiện tại'); }, () => { toast('Bạn chưa cho phép lấy vị trí — chọn nơi khác nhé', 2600); renderWhere(); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }); }
+  else if (w === 'cl') { const cl = ADD.cl || []; contextMenu({ at: b, title: cl.length > 1 ? `${cl.length} nơi lấy từ ảnh` : 'Nơi lấy từ ảnh', items: cl.map(c => ({ icon: 'pin', label: esc(c.over?.name || c.name || 'Đang đọc tên…'), note: `${c.rows.length} ảnh${c.over ? ' · đã sửa' : ''}`, act: () => pickWhere(b, pl => { c.over = { lat: pl.lat, lon: pl.lon, name: pl.name }; renderWhere(); }) })) }); }
 }
 function openAdd(opt = {}) {
   if (!S.kid) return;
@@ -2157,7 +2223,7 @@ function pickApprox({ title, ts, approx } = {}) {
     const ob = new MutationObserver(() => { if (!M.classList.contains('open')) done(null); }); ob.observe(M, { attributes: true });
   });
 }
-function resetAdd() { if ($('#addGrp')) $('#addGrp').value = ''; ADD.day = null; if ($('#addDay')) { $('#addDay').value = ''; $('#addDayH').textContent = ''; } for (const r of ADD.rows) if (r.url) URL.revokeObjectURL(r.url); ADD.rows = []; ADD.ao = { on: false, prec: 'y', y: null, x: null }; aoUi(); $('#addList').innerHTML = ''; $('#addProg').style.display = 'none'; $('#addProg i').style.width = 0; refreshAddBtn(); }
+function resetAdd() { ADD.where = null; ADD.whereSkip = false; ADD.whereOpen = false; ADD.cl = []; if ($('#addWhere')) $('#addWhere').hidden = true; if ($('#addGrp')) $('#addGrp').value = ''; ADD.day = null; if ($('#addDay')) { $('#addDay').value = ''; $('#addDayH').textContent = ''; } for (const r of ADD.rows) if (r.url) URL.revokeObjectURL(r.url); ADD.rows = []; ADD.ao = { on: false, prec: 'y', y: null, x: null }; aoUi(); $('#addList').innerHTML = ''; $('#addProg').style.display = 'none'; $('#addProg i').style.width = 0; refreshAddBtn(); }
 function refreshAddBtn() {
   { const days = new Set(ADD.rows.filter(r => r.ready && !r.bad).map(r => ymd(r.ts))), box = $('#addGrpBox'); box.hidden = days.size < 2 && !$('#addGrp').value; const ts = ADD.rows.filter(r => r.ready && !r.bad).map(r => r.ts).sort((a, b) => a - b); box.querySelector('.addgrp-s').textContent = ts.length && days.size > 1 ? `${ts.length} ảnh · ${days.size} ngày · ${dmy(ts[0]).slice(0, 5)} – ${dmy(ts[ts.length - 1])}` : ''; }
   const b = $('#addSave'), n = ADD.rows.filter(r => !r.dup).length || (ADD.rows.some(r => r.dup) ? 1 : 0);
@@ -2253,7 +2319,7 @@ async function addFiles(list) {
       el.querySelector('.r-dt').value = ymd(r.ts); rowAge(r);
       try { r.fp = await fingerprint(f); markDup(r, await findDup(r)); } catch (e) { }
       el.querySelector('.r-dt').addEventListener('change', e => { const t = parseYmd(e.target.value, r.ts); if (t) { r.ts = t; r.src = 'user'; rowAge(r); setTimeout(regroupAdd, 50); const b2 = el.querySelector('.badge'); b2.className = 'badge'; b2.textContent = 'bạn đã chỉnh ngày'; } });
-      r.ready = true; if (ADD.ao.on && aoTs()) aoApply();
+      r.ready = true; if (ADD.ao.on && aoTs()) aoApply(); clearTimeout(ADD.wt); ADD.wt = setTimeout(renderWhere, 250);
     } catch (e) { console.warn(e); el.querySelector('.pl').textContent = '⚠️'; r.bad = true; }
     ADD.pending--; refreshAddBtn();
   }
@@ -2278,13 +2344,14 @@ async function saveAdd() {
   if (!KIDS.length) { const ks = $('#addKids'); ks.classList.remove('need'); void ks.offsetWidth; ks.classList.add('need'); toast(ME() ? 'Ảnh này có ai? Chạm avatar để chọn nhé' : 'Ảnh này của bé nào? Chạm avatar để chọn nhé', 2600); return; }
   ADD.gname = ($('#addGrp')?.value || '').trim(); ADD.busy = true; refreshAddBtn(); $('#addProg').style.display = 'block';
   await askPersist();
-  const ids = [];
+  const ids = [], placed = [];
   try {
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i], id = uid(), f = r.file;
       await dbPut('blobs', f, 'o_' + id);
       await dbPut('blobs', r.th.blob, 't_' + id);
-      const m = { id, fp: r.fp, tv: 2, kidId: KIDS[0], kidIds: KIDS.slice(), ts: r.ts, ...(r.approx ? { approx: r.approx, dateSrc: 'approx' } : {}), ...(r.gps ? { gps: r.gps } : {}), title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
+      const cl = r.gps ? (ADD.cl || []).find(c => c.rows.includes(r)) : null, pl = cl ? (cl.over ? { lat: cl.over.lat, lon: cl.over.lon, name: cl.over.name } : cl.name ? { lat: r.gps.lat, lon: r.gps.lon, name: cl.name } : null) : ADD.where ? { lat: ADD.where.lat, lon: ADD.where.lon, name: ADD.where.name } : null; if (pl) placed.push(pl);
+      const m = { id, fp: r.fp, tv: 2, kidId: KIDS[0], kidIds: KIDS.slice(), ts: r.ts, ...(pl ? { place: pl } : {}), ...(r.approx ? { approx: r.approx, dateSrc: 'approx' } : {}), ...(r.gps ? { gps: r.gps } : {}), title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
       await dbPut('moments', m); S.all.push(m); ids.push(id);
       $('#addProg i').style.width = ((i + 1) / rows.length * 100) + '%';
     }
@@ -2293,6 +2360,10 @@ async function saveAdd() {
   }
   ADD.busy = false; $('#mAdd').classList.remove('open'); resetAdd(); refreshKid();
   if (!ids.length) return;
+  if (placed.length) { // nơi dùng gần đây + toast "Xem trên bản đồ"
+    const rec = (await metaGet('sy:recentPl')) || []; for (const p of placed) { const i = rec.findIndex(x => distM(x, p) < 60); if (i >= 0) rec.splice(i, 1); rec.unshift({ lat: p.lat, lon: p.lon, name: p.name }); } await metaSet('sy:recentPl', rec.slice(0, 8));
+    const p0 = placed[0], nm = (p0.name || 'nơi này').split(',')[0]; let tries = 0; const show = () => { if (document.querySelector('.utoast') && tries++ < 8) { setTimeout(show, 1500); return; } SFX.play('ting'); undoToast(`Đã gắn ${esc(nm)} ✨`, () => showOnMap(p0), 6500, { label: 'Xem trên bản đồ', icon: 'map' }); }; setTimeout(show, 2600);
+  }
   buildGalaxy(); buildScrub();
   const news = S.all.filter(m => ids.includes(m.id)), target = news.reduce((a, b) => b.ts > a.ts ? b : a, news[0]);
   leaveIntro(true); closeLBNow(); if (S.mode !== 'tl') exitGalaxy();
@@ -2359,7 +2430,7 @@ async function renderSettings() {
   $$('#segMusic button').forEach(b => b.classList.toggle('on', b.dataset.v === S.music));
   $('#musicHint').textContent = S.music === 'builtin' ? 'Giai điệu hộp nhạc dịu êm do app tự chơi — không lo bản quyền.' : S.music === 'file' ? `Đang dùng: ${S.musicName || 'bài của bạn'} · bấm “Bài của bạn” lần nữa để đổi bài.` : 'Trình chiếu không có nhạc.';
   $('#verTxt').textContent = 'Hành Trình Của Bạn · v' + VERSION;
-  renderGem(); renderBgUi(); $('#setBig').checked = document.documentElement.classList.contains('big'); $('#setOtd').checked = !(await metaGet('otdOff')); renderArc(); { const st = SFX.state(); $('#setSfx').checked = st.on; $('#setSfxV').value = Math.round(st.vol * 100); $('#setSfxV').disabled = !st.on; }
+  renderGem(); renderBgUi(); $('#setBig').checked = document.documentElement.classList.contains('big'); $('#setOtd').checked = !(await metaGet('otdOff')); renderArc(); $('#setGps').checked = !!(await metaGet('sy:stripGps')); { const st = SFX.state(); $('#setSfx').checked = st.on; $('#setSfxV').value = Math.round(st.vol * 100); $('#setSfxV').disabled = !st.on; }
   try {
     const e = await navigator.storage?.estimate?.(), p = await navigator.storage?.persisted?.();
     $('#storeInfo').textContent = e ? `Đang dùng ${fmtSize(e.usage || 0)} trong máy${p ? ' · đã bật lưu bền vững ✓' : ''}.` : '';
@@ -2371,6 +2442,7 @@ $('#setOtd').onchange = async e => { await metaSet('otdOff', !e.target.checked);
 $('#arcDl').onclick = async () => { const b = $('#arcDl'); b.disabled = true; $('#arcInfo').textContent = 'Đang dựng bản lưu bền…'; try { const a = await makeArchive(); const f = new File([a.html], 'doc-hanh-trinh.html', { type: 'text/html' }); $('#arcInfo').textContent = `Đã dựng: ${a.nEv} kỷ niệm, ${a.nImg} ảnh nhỏ · ${(a.html.size / 1e6).toFixed(1).replace('.', ',')} MB`; if (TEST) { T.lastArchive = a; return; } await shareOrDownload(f, f.name); } catch (e) { $('#arcInfo').textContent = 'Chưa dựng được: ' + (e.message || e); } finally { b.disabled = false; } };
 $('#arcUp').onclick = async () => { if (!DRV?.signedIn) { toast('Bạn đăng nhập Google ở mục Google Drive trước nhé', 2600); return; } const b = $('#arcUp'); b.disabled = true; $('#arcInfo').textContent = 'Đang ghi lên Drive…'; const ok = await archiveToDrive(true).catch(() => false); b.disabled = false; $('#arcInfo').textContent = ok ? 'Đã ghi doc-hanh-trinh.html + hanh-trinh.json vào thư mục Hành Trình Của Bạn ✓' : 'Chưa ghi được — kiểm tra mạng rồi thử lại'; if (ok) SFX.play('ting'); };
 async function renderArc() { const t = await metaGet('arcAt'); if ($('#arcInfo') && !$('#arcInfo').textContent) $('#arcInfo').textContent = t ? `Bản lưu bền trên Drive cập nhật lúc ${dmy(t)} ${new Date(t).toTimeString().slice(0, 5)}` : DRV?.signedIn ? 'Chưa có bản lưu bền trên Drive — app sẽ tự ghi khi có thay đổi.' : 'Đăng nhập Google để app tự ghi bản lưu bền lên Drive.'; }
+$('#setGps').onchange = async e => { await metaSet('sy:stripGps', e.target.checked); };
 $('#setSfx').onchange = async e => { SFX.setOn(e.target.checked); $('#setSfxV').disabled = !e.target.checked; await metaSet('sy:sfx', SFX.state()); if (e.target.checked) SFX.play('ting'); };
 $('#setSfxV').oninput = e => { SFX.setVol(e.target.value / 100); }; $('#setSfxV').onchange = async () => { await metaSet('sy:sfx', SFX.state()); SFX.play('pop'); };
 async function loadSfx() { const v = await metaGet('sy:sfx'); if (v) { SFX.setOn(v.on !== false); if (v.vol != null) SFX.setVol(v.vol); } }
@@ -2899,7 +2971,7 @@ function pickKids(ms, title) {
 async function setKidsMany(ms, ids) { for (const m of ms) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); } await afterDataChange(); }
 async function updateMany(ms) { for (const m of ms) await dbPut('moments', m); await afterDataChange(); }
 async function shareMany(ms) {
-  const files = []; for (const m of ms) { const b = await dbGet('blobs', 'o_' + m.id); if (!b) continue; const ext = (b.type.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('jpeg', 'jpg'); files.push(new File([b], m.name || `khoanh-khac-${ymd(m.ts)}-${m.id.slice(-4)}.${ext}`, { type: b.type })); }
+  const files = []; for (const m of ms) { const b0 = await dbGet('blobs', 'o_' + m.id), b = b0 && await stripGps(b0); if (!b) continue; const ext = (b.type.split('/')[1] || 'bin').replace('quicktime', 'mov').replace('jpeg', 'jpg'); files.push(new File([b], m.name || `khoanh-khac-${ymd(m.ts)}-${m.id.slice(-4)}.${ext}`, { type: b.type })); }
   if (TEST) { T.lastDownloads = files; return; }
   if (MOBILE && navigator.canShare && navigator.canShare({ files })) { try { await navigator.share({ files }); return; } catch (e) { if (e.name === 'AbortError') return; } }
   for (const f of files) { await shareOrDownload(f, f.name); await sleep(350); }
@@ -2994,6 +3066,7 @@ async function homeFromName(name) {
 }
 const TABS = ['tl', 'map', 'add', 'diary', 'set'];
 function tabOn(t) { $$('#tabbar [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === t)); const i = TABS.indexOf(t); if (i >= 0) $('#tabbar').style.setProperty('--i', i); }
+function showOnMap(p) { if (MAP.isOpen()) MAP.close(); TL.closeViewer(); TL.closeEvent(); $$('#tabbar [data-t]').forEach(x => x.classList.toggle('on', x.dataset.t === 'map')); $('#tabbar').style.setProperty('--i', 1); MAP.open({ tab: true, at: { lat: p.lat, lon: p.lon, name: (p.name || '').split(',')[0] }, focus: { lat: p.lat, lon: p.lon } }); }
 function goTab(t) { $('#tabbar [data-t="' + t + '"]')?.click(); }
 function enterGalaxy() {
   TL.closeViewer(); TL.closeEvent(); $('#kidMenu').hidden = true;
@@ -3223,7 +3296,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, letters, exportMemoir, album, placeCard, saveHere, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, renderWhere, showOnMap, stripGps, aiOpen, makeArchive, archiveToDrive, letters, exportMemoir, album, placeCard, saveHere, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));
