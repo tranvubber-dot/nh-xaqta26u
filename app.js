@@ -12,11 +12,12 @@ import { GOOGLE_CLIENT_ID } from './config.js';
 import { ROLES, roleOf, isMe, isChild, isPartner, isElder, roleName, showsAge, findMe, sortPeople, sinceOf, anchorOf, chaptersOf, chapterAt, approxLabel, approxTs, SEASONS, PRECS } from './doi.js';
 import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 import { initOnboarding } from './lamquen.js';
-import { chibiSVG, chibiWaveSVG } from './chibi.js';
+import { chibiSVG, chibiWaveSVG, svgURL } from './chibi.js';
 import { initSfx } from './sfx.js';
 import { initAI, testKey, resetModel as aiReset } from './ai.js';
 import { buildArchive } from './luutru.js';
 import { initLetters } from './thu.js';
+import { buildMemoir } from './hoiky.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
@@ -1609,6 +1610,20 @@ async function archiveToDrive(force = false) {
 }
 // v1.8.0: 💌 thư gửi tương lai
 let LET = null; const letters = () => LET ||= initLetters({ metaGet, metaSet, people: () => S.kids.map(dispKid), me: () => ME() ? dispKid(ME()) : null, toast, ask, openModal: m => openModal(m), closeModal: m => closeModal(m), contextMenu, confetti: () => P.confetti('#ffd27f'), ai: o => aiOpen(o), deliverICS: f => shareOrDownload(f, f.name), notify: (msg, act) => undoToast(msg, act, 10000, { label: 'Mở thư', icon: 'mail' }) });
+// v1.8.0: 📕 hồi ký PDF — cả hành trình hoặc một chương
+async function exportMemoir(ch = null) {
+  const me = ME(), evs = (TL.events || []).filter(e => !ch || e.chapter?.key === ch.key); if (!evs.length) { toast('Chưa có kỷ niệm nào để in', 2000); return null; }
+  const svgC = new Map(); const chibi = p => { if (!svgC.has(p.id)) svgC.set(p.id, svgURL(chibiSVG(p, { w: 240 }))); return svgC.get(p.id); };
+  toast('📕 Đang dựng hồi ký… giữ app mở nhé', 4000);
+  const r = await buildMemoir({ title: ch ? `${ch.title}` : me ? `Hành trình của ${cap(me.name)}` : 'Hành trình của gia đình', me: me && dispKid(me), people: sortPeople(S.kids).map(dispKid), chapters: S.chapters || [], events: evs, roleName, chibi,
+    image: async (m, big) => { try { const b = (big && m.type === 'image' && !m.heic && await dbGet('blobs', 'o_' + m.id)) || await dbGet('blobs', 't_' + m.id); return b ? await createImageBitmap(b, { imageOrientation: 'from-image' }) : null; } catch (e) { return null; } },
+    onProg: p => { if (p.pages % 5 === 0) toast(`📕 Đang dựng hồi ký… ${p.pages} trang`, 2500); } });
+  const name = `Hoi-ky-${noAccent(ch ? ch.title : me?.name || 'hanh-trinh')}.pdf`, f = new File([r.pdf], name, { type: 'application/pdf' });
+  if (TEST) { T.lastMemoir = { file: f, pages: r.pages, cut: r.cut }; return f; }
+  toast(`Xong ${r.pages} trang · ${(f.size / 1e6).toFixed(1).replace('.', ',')} MB${r.cut ? ' (dừng ở giới hạn — xuất từng chương để đủ)' : ''}`, 3200); SFX.play('ting');
+  if (MOBILE && navigator.canShare?.({ files: [f] })) { try { await navigator.share({ files: [f], title: name }); return f; } catch (e) { if (e.name === 'AbortError') return f; } }
+  await shareOrDownload(f, name); return f;
+}
 // v1.8.0: âm thanh hiệu ứng (sfx.js) — không phát khi đang chiếu có nhạc hoặc đang dựng / xem video
 window.SFX = initSfx({ block: () => { try { return document.body.classList.contains('showing') || !!document.querySelector('#mVid.open, #vkFs.on') || !!INTRO?.active; } catch (e) { return false; } } });
 function openModal(m) { const was = m.classList.contains('open'); m.classList.add('open'); haptic(5); if (!was) SFX.play('pop'); }
@@ -2907,6 +2922,7 @@ function storyHub(at) {
     ps.length > 1 && { icon: 'people', label: 'Kể chuyện về một người…', act: () => contextMenu({ at, title: 'Kể chuyện về ai?', items: ps.map(k => ({ img: P.avatarNow(k), color: k.color, label: esc(isMe(k) ? 'Bạn' : cap(k.name)), note: isMe(k) ? '' : roleName(k), act: () => startStory({ person: k }) })) }) },
     { icon: 'grid', label: 'Kể chuyện một chuyến đi / nhóm…', act: () => { const gs = TL.events.filter(e => e.group || e.type === 'trip').slice(0, 30); if (!gs.length) { toast('Chưa có chuyến đi hay nhóm nào — gộp nhiều ngày thành nhóm trước nhé', 3000); return; } contextMenu({ at, title: 'Chọn chuyến đi', items: gs.map(e => ({ icon: 'image', label: esc(e.title), note: TL.spanTxt(e.ms), act: () => startStory({ ids: e.ms.map(m => m.id), title: e.title, sub: TL.spanTxt(e.ms), people: e.kids.map(id => S.kids.find(k => k.id === id)).filter(Boolean) }) })) }); } },
     { icon: 'star', label: 'Tổng kết năm…', act: () => yearReview(at) },
+    { icon: 'print', label: '📕 Xuất hồi ký PDF <small class="cm-n">in thành sách</small>', act: () => { const chs = S.chapters || []; if (!chs.length) { exportMemoir(); return; } contextMenu({ at, title: 'Hồi ký PDF', items: [{ icon: 'book', label: '<b>Cả hành trình</b>', act: () => exportMemoir() }, { sep: 1 }, ...chs.slice().reverse().map(c => ({ label: `${c.ic} Chương ${c.num} · ${esc(c.title)}`, act: () => exportMemoir(c) }))] }); } },
     { icon: 'mail', label: '💌 Thư gửi tương lai <small class="cm-n">niêm phong tới ngày mở</small>', act: () => letters().open() },
     { sep: 1 },
     openVideoMaker && { icon: 'video', label: 'Video kỷ niệm <small class="cm-n">tự dựng MP4</small>', act: () => openVideoMaker() }
@@ -3183,7 +3199,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, letters, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, letters, exportMemoir, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));
