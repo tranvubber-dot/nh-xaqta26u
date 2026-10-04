@@ -46,6 +46,8 @@ export function initMap(A) {
     for (const e of A.events()) { const g = eventGeo(e); if (!g || !near(g)) continue; const T = typeOf(e.type); SB.addPin({ id: 'ev:' + e.key, lat: g.lat, lon: g.lon, html: pinHTML(T.ic, e.title, T.c), cls: 'ev', data: e }); }
     const home = ps.find(p => p.kind === 'home') || (me?.home?.lat ? me.home : null), at = home && near(home) ? home : c;
     if (me) SB.setWalker(`<div>${A.chibi(me)}</div>`, at.lat, at.lon);
+    // lộ trình chuyến đi: mỗi ngày một ghim đánh số
+    if (M.route) M.route.forEach((r, i) => { if (near(r)) SB.addPin({ id: 'rt:' + i, lat: r.lat, lon: r.lon, cls: 'ev', html: pinHTML(String(r.n), r.label, '#14b8a6'), data: r }); });
   }
   async function go(lat, lon, t) { title(t || ''); await SB.show(lat, lon, { title: t ? `Đang dựng sa bàn: ${t}` : 'Đang dựng sa bàn…' }); M.center = { lat, lon }; await drawPins(); }
   SB.onTap(async (ll) => {
@@ -64,6 +66,7 @@ export function initMap(A) {
       if (act === 'ev') { const evs = A.events().filter(e => !eventGeo(e)).slice(0, 40); if (!evs.length) { A.toast('Mọi kỷ niệm đều đã có nơi chốn rồi', 2000); return; } contextMenu({ at: el, title: 'Gắn kỷ niệm nào vào đây?', items: evs.map(e => ({ label: `${typeOf(e.type).ic} ${esc(e.title)}`, note: A.spanTxt(e.ms), act: async () => { const name = await reverseName(ll.lat, ll.lon); await A.setEventPlace(e, { lat: ll.lat, lon: ll.lon, name }); M.newPin = null; await drawPins(); A.toast(`Đã gắn “${e.title}” vào ${name || 'nơi này'}`, 2200); } })) }); return; }
       return;
     }
+    if (p.id.startsWith('rt:')) { SB.walkTo(p.lat, p.lon); const nx = M.route[(+p.id.slice(3) + 1) % M.route.length]; if (nx && distM(nx, p) > 560) setTimeout(() => go(nx.lat, nx.lon, nx.label), 900); return; }
     if (p.id.startsWith('isl:')) { const it = p.data; go(it.lat, it.lon, it.label); return; }
     if (p.id.startsWith('ev:')) { SB.walkTo(p.lat, p.lon); setTimeout(() => { close(); A.openEvent(p.data.key); }, 700); return; }
     if (p.id.startsWith('pl:')) { const pl = p.data; contextMenu({ at: el, title: `${PLACE_EMO[pl.kind]} ${esc(pl.name)}`, items: [
@@ -99,7 +102,7 @@ export function initMap(A) {
   function close() { V.classList.remove('open'); V.setAttribute('aria-hidden', 'true'); document.body.classList.remove('mapopen'); SB.stop(); M.pick = null; M.mode = 'view'; A.onClose?.(); }
   async function open(o = {}) {
     V.classList.add('open'); V.setAttribute('aria-hidden', 'false'); document.body.classList.add('mapopen'); SB.start(); A.onOpen?.();
-    M.mode = o.pick ? 'pick' : 'view'; M.pick = o.pick || null; M.newPin = null; RES.hidden = true; Q.value = '';
+    M.mode = o.pick ? 'pick' : 'view'; M.pick = o.pick || null; M.route = o.route || null; M.newPin = null; RES.hidden = true; Q.value = '';
     hint(o.pick ? 'Chạm vào chỗ diễn ra kỷ niệm để cắm ghim' : 'Chạm một chỗ để cắm ghim · kéo để xoay · chụm để phóng', 4500);
     let at = o.at; if (!at) { const ps = await places(); const h = ps.find(p => p.kind === 'home') || ps[0]; if (h) at = { lat: h.lat, lon: h.lon, name: h.name }; }
     if (!at) { at = await new Promise(res => { if (!navigator.geolocation) return res(null); navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lon: p.coords.longitude, name: 'Nơi bạn đang đứng' }), () => res(null), { timeout: 8000 }); }); }

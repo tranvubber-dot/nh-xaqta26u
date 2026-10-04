@@ -681,6 +681,11 @@ export function initTimeline(A) {
     EVP.querySelector('[data-a=play]').hidden = e.ms.length < 2;
     const dia = EVP.querySelector('.evp-dia'); dia.innerHTML = '';
     for (const d of e.diaries) { A.dbGet('blobs', 'd_' + d.id).then(b => { const u = b ? URL.createObjectURL(b) : ''; dia.insertAdjacentHTML('beforeend', `<button class="dia" data-diary="${d.id}">${u ? `<img src="${u}" alt="">` : ''}<span>${icon('book', 15)} Nhật ký ngày này</span></button>`); }); }
+    // trang CHUYẾN ĐI: ai đi cùng, những nơi đã qua, bản đồ lộ trình, kể chuyện, video
+    let TP = EVP.querySelector('.evp-trip'); if (!TP) { EVP.querySelector('.evp-days').insertAdjacentHTML('beforebegin', '<div class="evp-trip"></div>'); TP = EVP.querySelector('.evp-trip'); }
+    const trip = e.type === 'trip' || (e.group && e.days.length > 1), who = e.kids.map(kidById).filter(Boolean), names = [...new Set(e.ms.map(m => m.place?.name).filter(Boolean))], gps = e.ms.filter(m => m.gps || m.place);
+    TP.hidden = !trip; if (trip) TP.innerHTML = `<div class="tp-row">${who.length ? `<span class="tp-who">${who.map(k => `<img src="${A.avatar(k)}" alt="" title="${esc(k.name)}">`).join('')}<small>${who.length > 1 ? who.length + ' người đi cùng' : esc(isMe(who[0]) ? 'Bạn' : who[0].name)}</small></span>` : ''}${names.length ? `<span class="tp-pl">${icon('pin', 14, 2.2)}${esc(names.slice(0, 3).join(' → '))}</span>` : ''}</div>
+      <div class="tp-acts">${gps.length && A.openMap ? `<button data-a="route">${icon('map', 16, 2)}<span>Bản đồ chuyến đi</span></button>` : ''}${A.story ? `<button data-a="tstory">${icon('sparkle', 16, 2)}<span>Kể chuyện</span></button>` : ''}${A.makeVideo ? `<button data-a="tvideo">${icon('video', 16, 2)}<span>Video kỷ niệm</span></button>` : ''}</div>`;
     const ED = EVP.querySelector('.evp-days'); ED.innerHTML = e.days.length > 1 ? e.days.map((d, i) => `<button data-day="${d}">${i === 0 ? 'Ngày 1 · ' : ''}${A.dmy(A.parseYmd(d)).slice(0, 5)}</button>`).join('') : ''; ED.hidden = e.days.length < 2;
     if (EVP.classList.contains('open') && SP.open) buildStrip(e);
     if (!GRID.hidden) layoutGrid();
@@ -756,6 +761,9 @@ export function initTimeline(A) {
     else if (a === 'type') typeMenu(e, b);
     else if (a === 'geo') placeEvent(e);
     else if (a === 'voice') voiceMenu(e, b);
+    else if (a === 'route') { const byDay = new Map(); for (const m of e.ms) { const g = m.place || m.gps; if (!g) continue; const d = A.ymd(m.ts); if (!byDay.has(d)) byDay.set(d, { ...g, d }); } const route = [...byDay.values()].map((r, i) => ({ lat: r.lat, lon: r.lon, n: i + 1, label: `Ngày ${i + 1} · ${A.dmy(A.parseYmd(r.d)).slice(0, 5)}` })); A.openMap({ at: { lat: route[0].lat, lon: route[0].lon, name: e.title }, route }); }
+    else if (a === 'tstory') A.story({ ids: e.ms.map(m => m.id), title: e.title, sub: spanTxt(e.ms), people: e.kids.map(kidById).filter(Boolean) });
+    else if (a === 'tvideo') A.makeVideo?.({ ms: e.ms, title: e.title, sub: spanTxt(e.ms), people: e.kids.map(kidById).filter(Boolean), key: e.key });
     else if (b.dataset.day) jumpDay(b.dataset.day);
     else if (a === 'grid') showGrid(GRID.hidden, true);
   });

@@ -2784,11 +2784,25 @@ function storyHub(at) {
     me && chs.length && { icon: 'sparkle', label: 'Kể chuyện một chương đời…', act: () => contextMenu({ at, title: 'Chọn chương', items: chs.slice().reverse().map(c => ({ label: `${c.ic} Chương ${c.num} · ${esc(c.title)}`, note: new Date(c.ts).getFullYear() + (c.end ? '–' + new Date(c.end - 864e5).getFullYear() : ''), act: () => startStory({ chapter: c }) })) }) },
     ps.length > 1 && { icon: 'people', label: 'Kể chuyện về một người…', act: () => contextMenu({ at, title: 'Kể chuyện về ai?', items: ps.map(k => ({ img: P.avatarNow(k), color: k.color, label: esc(isMe(k) ? 'Bạn' : cap(k.name)), note: isMe(k) ? '' : roleName(k), act: () => startStory({ person: k }) })) }) },
     { icon: 'grid', label: 'Kể chuyện một chuyến đi / nhóm…', act: () => { const gs = TL.events.filter(e => e.group || e.type === 'trip').slice(0, 30); if (!gs.length) { toast('Chưa có chuyến đi hay nhóm nào — gộp nhiều ngày thành nhóm trước nhé', 3000); return; } contextMenu({ at, title: 'Chọn chuyến đi', items: gs.map(e => ({ icon: 'image', label: esc(e.title), note: TL.spanTxt(e.ms), act: () => startStory({ ids: e.ms.map(m => m.id), title: e.title, sub: TL.spanTxt(e.ms), people: e.kids.map(id => S.kids.find(k => k.id === id)).filter(Boolean) }) })) }); } },
+    { icon: 'star', label: 'Tổng kết năm…', act: () => yearReview(at) },
     { sep: 1 },
     openVideoMaker && { icon: 'video', label: 'Video kỷ niệm <small class="cm-n">tự dựng MP4</small>', act: () => openVideoMaker() }
   ] });
 }
 var openVideoMaker = null;
+// TỔNG KẾT NĂM: chọn ảnh tiêu biểu của năm (cột mốc, chuyến đi, sự kiện nhiều ảnh) → kể chuyện, hoặc lưu thành truyện tranh
+function yearPicks(y, n = 28) {
+  const evs = TL.events.filter(e => new Date(e.ts0).getFullYear() === y && !e.approx); const score = e => (e.mile ? 50 : 0) + (e.type === 'trip' ? 30 : e.type !== 'daily' ? 15 : 0) + Math.min(20, e.ms.length);
+  const ranked = evs.slice().sort((a, b) => score(b) - score(a)), out = [];
+  for (const e of ranked) { const imgs = e.ms.filter(m => m.type !== 'video'); const k = e.mile || e.type === 'trip' ? 3 : e.ms.length > 6 ? 2 : 1; for (const m of (imgs.length ? e.stack.filter(m => m.type !== 'video') : e.stack).slice(0, k)) if (!out.includes(m)) out.push(m); if (out.length >= n) break; }
+  return { ms: out.sort((a, b) => a.ts - b.ts), evs };
+}
+function yearReview(at) {
+  const ys = [...new Set(TL.events.filter(e => !e.approx).map(e => new Date(e.ts0).getFullYear()))].sort((a, b) => b - a); if (!ys.length) { toast('Chưa có ảnh nào', 1800); return; }
+  contextMenu({ at, title: 'Tổng kết năm', items: ys.slice(0, 20).map(y => { const evs = TL.events.filter(e => new Date(e.ts0).getFullYear() === y); return { icon: 'star', label: `Năm ${y}`, note: `${evs.reduce((t, e) => t + e.ms.length, 0)} khoảnh khắc`, act: () => contextMenu({ at, title: `Năm ${y}`, items: [
+    { icon: 'play', label: 'Xem tổng kết (kể chuyện)', act: () => { const { ms, evs: E } = yearPicks(y); const n = E.reduce((t, e) => t + e.ms.length, 0), trips = E.filter(e => e.type === 'trip').length, miles = E.filter(e => e.mile).length; startStory({ ids: ms.map(m => m.id), title: `Năm ${y} của ${LIFE() ? 'bạn' : KN()}`, sub: [`${n} khoảnh khắc`, `${E.length} ngày đáng nhớ`, trips ? `${trips} chuyến đi` : '', miles ? `${miles} cột mốc` : ''].filter(Boolean).join(' · '), people: LIFE() ? sortPeople(S.kids).slice(0, 8) : [S.kid] }); } },
+    { icon: 'book', label: 'Lưu thành truyện tranh', act: () => { const { ms } = yearPicks(y, 24); if (ms.length) makeDiary(ms); } }] }) }; }) });
+}
 // ---------- v1.7.0: Bản đồ đời tôi (sa bàn 3D chibi) ----------
 var MAPOPEN = false;
 const MAP = initMap({ dbGet: dbGetRaw, dbPut: dbPutRaw, metaGet, metaSet, prompt: prompt2, toast, get drive() { return DRV; }, me: () => ME() ? dispKid(ME()) : null,
