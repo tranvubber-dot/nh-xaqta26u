@@ -259,7 +259,7 @@ export function initTimeline(A) {
           <h3>${esc(e.title)}</h3>
           <div class="chips">${chips}</div>
         </div>
-        <div class="stk n${e.stack.length}">${e.stack.map((m, j) => `<div class="pol p${j}${m.type === 'video' ? ' v' : ''}"><img data-mid="${m.id}" alt="" decoding="async"></div>`).join('')}${e.nVid ? `<span class="vb">${icon('play', 11, 2.4)}</span>` : ''}</div>
+        <div class="stk n${e.stack.length}">${e.stack.map((m, j) => `<div class="pol p${j}${m.type === 'video' ? ' v' : ''}"><img data-mid="${m.id}" alt="" decoding="async" loading="lazy"></div>`).join('')}${e.nVid ? `<span class="vb">${icon('play', 11, 2.4)}</span>` : ''}</div>
       </div></article>`;
   }
   // tiêu đề chương đời (hành trình của bạn): màu riêng, ảnh bìa, số chương, khoảng năm + tuổi
@@ -268,7 +268,7 @@ export function initTimeline(A) {
     const span = y1 == null ? `từ ${y0}` : y1 > y0 ? `${y0} – ${y1}` : `${y0}`, ages = a0 == null ? '' : y1 == null ? ` · từ ${Math.max(0, a0)} tuổi` : ` · ${Math.max(0, a0)}–${Math.max(0, y1 - +me.birth.slice(0, 4))} tuổi`;
     const n = evs.reduce((t, e) => t + e.ms.length, 0), best = evs.slice().sort((a, b) => b.ms.length - a.ms.length)[0];
     const cov = c.cover && evs.flatMap(e => e.ms).find(m => m.id === c.cover) || best?.stack[0];
-    return `<section class="chap${empty ? ' empty' : ''}" data-ch="${esc(c.key)}" style="--cc:${c.c}">${cov ? `<div class="ch-cv"><img data-mid="${cov.id}" alt="" decoding="async"></div>` : ''}<div class="ch-tx"><small>Chương ${c.num} · ${span}${ages}</small><h2><span class="ch-ic">${c.ic}</span>${esc(c.title)}</h2>${empty ? `<button class="ch-add" data-a="addold" data-y="${y0}">${icon('plus', 15, 2.4)}<span>Thêm ảnh cũ của chương này</span></button>` : `<p>${n} khoảnh khắc · ${evs.length} ngày đáng nhớ</p>`}</div><button class="ch-more" data-a="chmenu" aria-label="Tuỳ chọn chương">${icon('more', 20, 2.2)}</button></section>`;
+    return `<section class="chap${empty ? ' empty' : ''}" data-ch="${esc(c.key)}" style="--cc:${c.c}">${cov ? `<div class="ch-cv"><img data-mid="${cov.id}" alt="" decoding="async" loading="lazy"></div>` : ''}<div class="ch-tx"><small>Chương ${c.num} · ${span}${ages}</small><h2><span class="ch-ic">${c.ic}</span>${esc(c.title)}</h2>${empty ? `<button class="ch-add" data-a="addold" data-y="${y0}">${icon('plus', 15, 2.4)}<span>Thêm ảnh cũ của chương này</span></button>` : `<p>${n} khoảnh khắc · ${evs.length} ngày đáng nhớ</p>`}</div><button class="ch-more" data-a="chmenu" aria-label="Tuỳ chọn chương">${icon('more', 20, 2.2)}</button></section>`;
   }
   function render(keep = true) {
     const kid = A.kid(); if (!kid) { IN.innerHTML = ''; return; }
@@ -414,7 +414,7 @@ export function initTimeline(A) {
       lastTop = top; A.onScroll?.(max > 0 ? top / max : 0);
     });
   }
-  TL.addEventListener('scroll', () => onScroll(), { passive: true });
+  let scrT = 0; TL.addEventListener('scroll', () => { if (!TL.classList.contains('scr')) TL.classList.add('scr'); clearTimeout(scrT); scrT = setTimeout(() => TL.classList.remove('scr'), 180); onScroll(); }, { passive: true });
   addEventListener('resize', () => { if (wide() !== st.wide) render(); else if (A.family()) drawLanes(); });
   // giãn cao su khi kéo quá đầu/cuối (iPhone đã có sẵn; máy tính dùng con lăn thì tự làm)
   if (!IOS) {
@@ -532,7 +532,7 @@ export function initTimeline(A) {
       for (const it of all) {
         const el = document.createElement('button'); el.className = 'sc' + (it.m.type === 'video' ? ' v' : ''); el.dataset.mid = it.m.id;
         el.style.width = it.w + 'px'; el.style.height = it.h + 'px'; el.style.setProperty('--pc', it.m.color || COL.get(it.m.id) || 'var(--pc0)');
-        el.innerHTML = `<span class="sc-f"><img alt="" decoding="async"></span>${it.m.type === 'video' ? `<span class="sc-v">${icon('play', 11, 2.6)} ${fmtD(it.m.dur)}</span>` : ''}<span class="sc-t">${e.days.length > 1 ? A.dmy(it.m.ts).slice(0, 5) + ' · ' : ''}${esc(it.m.title || timeVN(it.m.ts))}</span><i class="sc-sh"></i>`;
+        el.innerHTML = `<span class="sc-f"><img alt="" decoding="async" loading="lazy"></span>${it.m.type === 'video' ? `<span class="sc-v">${icon('play', 11, 2.6)} ${fmtD(it.m.dur)}</span>` : ''}<span class="sc-t">${e.days.length > 1 ? A.dmy(it.m.ts).slice(0, 5) + ' · ' : ''}${esc(it.m.title || timeVN(it.m.ts))}</span><i class="sc-sh"></i>`;
         ROWS.appendChild(el); const R = rng(it.m.id + r + it.x0);
         Object.assign(it, { el, row, tilt: (R() * 2 - 1) * 4.2, ph: R() * Math.PI * 2, bob: 4 + R() * 4, img: el.querySelector('img'), loaded: false, k: SP.cards.length });
         SP.cards.push(it);
@@ -703,7 +703,7 @@ export function initTimeline(A) {
     if (!GRID.hidden) layoutGrid();
   }
   // lưới gọn: ô vuông nhỏ 3 cột (khi cần chọn nhiều, đổi bìa…)
-  const cellHTML = (m, k) => `<button class="gi${m.type === 'video' ? ' v' : ''}" data-mid="${m.id}" style="--pc:${m.color || COL.get(m.id) || 'var(--pc0)'};--d:${Math.min(k % 6, 5) * 45}ms"><img data-mid="${m.id}" alt="" decoding="async">${m.type === 'video' ? `<span class="du">${icon('play', 10, 2.6)} ${fmtD(m.dur)}</span>` : ''}</button>`;
+  const cellHTML = (m, k) => `<button class="gi${m.type === 'video' ? ' v' : ''}" data-mid="${m.id}" style="--pc:${m.color || COL.get(m.id) || 'var(--pc0)'};--d:${Math.min(k % 6, 5) * 45}ms"><img data-mid="${m.id}" alt="" decoding="async" loading="lazy">${m.type === 'video' ? `<span class="du">${icon('play', 10, 2.6)} ${fmtD(m.dur)}</span>` : ''}</button>`;
   function layoutGrid() { const e = st.cur; if (!e) return; GRID.innerHTML = e.ms.map(cellHTML).join(''); GRID.querySelectorAll('.gi').forEach(el => gridIO.observe(el)); }
   function showGrid(on, scroll) {
     GRID.hidden = !on; EVP.classList.toggle('gridon', on); EVP.querySelector('.evp-gbtn span').textContent = on ? 'Ẩn lưới' : 'Xem dạng lưới';

@@ -2627,7 +2627,8 @@ function frame(dt) {
   Burst.update(dt);
   if (!tl) updateScrubKnob();
   if (tl && (perf.frames & 1) && !TEST) return; // nền dòng sự kiện vẽ 30 khung/giây để dành sức cho cuộn
-  if (tl && !TEST && (performance.now() - (S.tlScrollAt || 0) < 260 || COVER.test(document.body.className))) return; // đang cuộn / bị trang khác che kín → khỏi vẽ
+  if ((perf.frames & 7) === 0) S.anyModal = !!document.querySelector('.modal.open, #hs.open'); // sheet / hồ sơ đang mở → giữ khung cuối, khỏi vẽ nền
+  if (tl && !TEST && (performance.now() - (S.tlScrollAt || 0) < 180 || S.anyModal || COVER.test(document.body.className))) return; // đang cuộn (và 180 ms sau) / bị trang khác che kín → khỏi vẽ
   renderer.render(scene, camera);
 }
 const FPSM = { on: false, el: null, ts: [], tap: [], last: 0 };
