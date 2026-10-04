@@ -1743,6 +1743,8 @@ async function enterFamily() {
 $('#kidBtn').onclick = e => { e.stopPropagation(); openKidMenu(e.currentTarget); };
 $('#kidMenu').hidden = true;
 let kidEditing = null;
+let relBack = false; // thêm người thân từ trang hồ sơ → lưu/huỷ xong quay lại hồ sơ
+new MutationObserver(() => { if (relBack && !$('#mKid').classList.contains('open')) { relBack = false; setTimeout(() => { const me = ME(); if (me) P.openProfile(dispKid(me)); }, 450); } }).observe($('#mKid'), { attributes: true, attributeFilter: ['class'] });
 let kidDraft = null;
 const ROLE_G = { bo: 'm', ong: 'm', anh: 'm', chong: 'm', ma: 'f', ba: 'f', chi: 'f', vo: 'f' };
 const REL = [{ v: 'vc', t: 'Vợ/Chồng', sub: [['vo', 'Vợ'], ['chong', 'Chồng'], ['ny', 'Người yêu']] }, { v: 'ct', t: 'Con trai' }, { v: 'cg', t: 'Con gái' }, { v: 'bo', t: 'Bố' }, { v: 'ma', t: 'Mẹ' },
@@ -2798,7 +2800,7 @@ const LICH = initLich({ people: () => S.kids.map(dispKid), metaGet, metaSet, pro
 const nhacFor = kids => N.open((kids || [S.kid]).filter(Boolean).map(dispKid));
 
 // ---------- Hồ sơ bé, avatar ----------
-const P = initProfile({ people: () => S.kids.map(dispKid), family: () => !!S.family, dmy, eventsWith: id => (TL.events || []).filter(e => e.kids?.includes(id)), openEvent: key => { setMode('tl'); TL.openEvent(key); }, thumbURL: id => TL.thumbURL(id), addRel: () => openKid(null), sfx: (n, d) => window.SFX?.play(n, d), nhac: k => nhacFor([S.kids.find(x => x.id === k.id)]), metaGet, removeKid: async k => { const raw = S.kids.find(x => x.id === k.id); if (!raw) return; kidEditing = raw; $('#kidDel').click(); }, openBgSettings: () => openBgSettings(), contextMenu, dbGet, dbPut, allMoments: () => S.all || [], kidsOf, openModal, closeModal, toast, WD, noAccent, TEST, shareOrDownload,
+const P = initProfile({ people: () => S.kids.map(dispKid), family: () => !!S.family, dmy, eventsWith: id => (TL.events || []).filter(e => e.kids?.includes(id)), openEvent: key => { setMode('tl'); TL.openEvent(key); }, thumbURL: id => TL.thumbURL(id), addRel: () => { relBack = true; openKid(null); }, sfx: (n, d) => window.SFX?.play(n, d), nhac: k => nhacFor([S.kids.find(x => x.id === k.id)]), metaGet, removeKid: async k => { const raw = S.kids.find(x => x.id === k.id); if (!raw) return; kidEditing = raw; $('#kidDel').click(); }, openBgSettings: () => openBgSettings(), contextMenu, dbGet, dbPut, allMoments: () => S.all || [], kidsOf, openModal, closeModal, toast, WD, noAccent, TEST, shareOrDownload,
   editKid: k => openKid(S.kids.find(x => x.id === k.id)), rawKid: id => S.kids.find(x => x.id === id), dispKid: id => dispKid(S.kids.find(x => x.id === id)),
   saveKid: async k => { await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); buildGalaxy(); } });
 

@@ -119,17 +119,14 @@ export function familySceneHTML(people, faces = new Map(), { me = null } = {}) {
   for (const p of people) { const r = role(p); if (r === 'me' || r === 'vo' || r === 'chong' || r === 'ny') mid.push(p); else if (isChild(p)) front.push(p); else back.push(p); }
   mid.sort((a, b) => (role(a) === 'me' ? 0 : 1) - (role(b) === 'me' ? 0 : 1));
   const out = [], n = people.length, k = n <= 3 ? 1 : n <= 5 ? .9 : n <= 7 ? .8 : .7;
-  const fig = (p, x, bottom, h, z, i) => out.push(`<div class="fs-p" style="left:${Math.max(10, Math.min(90, x)).toFixed(1)}%;bottom:${bottom}%;height:${(h * k).toFixed(1)}%;z-index:${z};--i:${i};--b:${((i * 0.37) % 1).toFixed(2)}s;--w:${(0.15 + (i * 0.53) % 1 * .5).toFixed(2)}s"><div class="fs-b">${chibiWaveSVG(p, { face: faces.get(p.id) || '' })}</div></div>`);
-  let i = 0;
-  // giữa: Tôi (+ bạn đời)
-  const mx = mid.length === 1 ? [50] : mid.length === 2 ? [39, 61] : mid.map((_, j) => 50 + (j - (mid.length - 1) / 2) * 16);
-  // sau: chia hai bên
-  const L = back.filter((_, j) => j % 2 === 0), R = back.filter((_, j) => j % 2 === 1), span = Math.max(1, Math.max(L.length, R.length));
-  const step = Math.min(13, 26 / span), side = mid.length > 1 ? 19 : 30;
-  L.forEach((p, j) => fig(p, side - j * step, 26, 58, 1, i++)); R.forEach((p, j) => fig(p, 100 - side + j * step, 26, 58, 1, i++));
-  mid.forEach((p, j) => fig(p, mx[j], 14, 70, 2, i++));
-  // trước: con, cháu (nhỏ hơn)
-  const fx = front.map((_, j) => 50 + (j - (front.length - 1) / 2) * Math.min(15, 60 / Math.max(1, front.length)));
-  front.forEach((p, j) => fig(p, fx[j], 2, 46, 3, i++));
+  const fig = (p, x, bottom, h, z, i) => out.push(`<div class="fs-p" style="left:${Math.max(4, Math.min(96, x)).toFixed(1)}%;bottom:${bottom}%;height:${(h * k).toFixed(1)}%;z-index:${z};--i:${i};--b:${((i * 0.37) % 1).toFixed(2)}s;--w:${(0.15 + (i * 0.53) % 1 * .5).toFixed(2)}s"><div class="fs-b">${chibiWaveSVG(p, { face: faces.get(p.id) || '' })}</div></div>`);
+  // xếp thành MỘT HÀNG như ảnh chụp gia đình — không ai đứng che thân người khác:
+  // [ông bà/bố mẹ bên trái] Tôi · các con · bạn đời [ông bà/bố mẹ bên phải]; con nhỏ hơn, người lớn tuổi lùi nhẹ ra sau
+  const L = back.filter((_, j) => j % 2 === 0).reverse(), R = back.filter((_, j) => j % 2 === 1);
+  const row = [...L.map(p => [p, 'b']), ...(mid[0] ? [[mid[0], 'm']] : []), ...front.map(p => [p, 'f']), ...mid.slice(1).map(p => [p, 'm']), ...R.map(p => [p, 'b'])];
+  const H = { m: 72, b: 64, f: 48 }, OV = .8, WR = .75 * 10 / 16; // bề ngang hình = cao × 0.75 × (10/16) theo khung 16:10
+  let tot = row.reduce((t, [, r], j) => t + H[r] * WR * (j ? OV : 1), 0); const kk = Math.min(1, 96 / tot) / k; // co cả hàng cho vừa khung
+  let x = (100 - tot * Math.min(1, 96 / tot)) / 2, i = 0;
+  row.forEach(([p, r], j) => { const w = H[r] * WR * Math.min(1, 96 / tot); if (j) x -= w * (1 - OV); fig(p, x + w / 2, r === 'b' ? 9 : r === 'm' ? 4 : 2, H[r] * kk, r === 'b' ? 1 : r === 'm' ? 2 : 3, i++); x += w; });
   return `<div class="fam-scene${n === 1 ? ' solo' : ''}" role="img" aria-label="Cả nhà đang vẫy tay chào">${out.join('')}</div>`;
 }

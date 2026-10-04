@@ -18,7 +18,9 @@ self.addEventListener('fetch', e => {
   const fresh = req.mode === 'navigate' || /\.(html|js|mjs|webmanifest)$/.test(p) || p.endsWith('/');
   if (fresh) {
     // mạng trước (để luôn có bản mới), mất mạng thì lấy bản đã lưu
-    e.respondWith(fetch(req).then(r => { if (r.ok) { const cp = r.clone(); caches.open(CACHE).then(c => c.put(req, cp)); } return r; })
+    // cache:'no-cache' = luôn hỏi lại máy chủ (GitHub Pages cho bộ đệm HTTP 10 phút → không có dòng này thì cập nhật bị trễ)
+    const net = req.mode === 'navigate' ? fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : fetch(new Request(req, { cache: 'no-cache' }));
+    e.respondWith(net.then(r => { if (r.ok) { const cp = r.clone(); caches.open(CACHE).then(c => c.put(req, cp)); } return r; })
       .catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match('index.html'))));
   } else {
     e.respondWith(caches.match(req, { ignoreSearch: true }).then(r => r || fetch(req).then(res => { if (res.ok) { const cp = res.clone(); caches.open(CACHE).then(c => c.put(req, cp)); } return res; })));

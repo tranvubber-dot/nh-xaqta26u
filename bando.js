@@ -261,7 +261,7 @@ export function initMap(A) {
       if (flyIn) { // bay từ toàn cảnh xuống vị trí hiện tại (nếu đã cho phép) hoặc Nhà mình
         let st = 'prompt'; try { st = (await navigator.permissions?.query({ name: 'geolocation' }))?.state || 'prompt'; } catch (e) { }
         const go = (p, t) => { title(t); map?.flyTo({ center: LL(p), zoom: 15.4, pitch: 52, bearing: -18, duration: 3600, curve: 1.5, essential: true }); };
-        if (st === 'granted' && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { if (!map) return; M.here = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }; setAccuracy(); refresh(); go(M.here, 'Bạn đang ở đây'); }, () => at && go(at, at.name || ''), { timeout: 8000 });
+        if (st !== 'denied' && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { if (!map) return; M.here = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }; setAccuracy(); refresh(); go(M.here, 'Bạn đang ở đây'); }, () => at && go(at, at.name || ''), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
         else if (at) setTimeout(() => go(at, at.name || ''), 500);
         else if (A.events().some(e => eventGeo(e))) setTimeout(showAll, 500);
       }
