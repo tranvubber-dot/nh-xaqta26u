@@ -10,7 +10,7 @@ import { birthIntro, showOutro } from './modau.js';
 import { initDrive } from './drive.js';
 import { GOOGLE_CLIENT_ID } from './config.js';
 
-const VERSION = '1.4.3';
+const VERSION = '1.5.0';
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
 const MUTE = Q.has('im');
