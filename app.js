@@ -2049,12 +2049,13 @@ async function shareOrDownload(file, name) {
 const ADD = { rows: [], busy: false, pending: 0, kids: [] };
 const okFile = f => /^(image|video)\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp|gif|mov|mp4|m4v|webm|3gp)$/i.test(f.name);
 function renderAddKids() {
-  const box = $('#addKids'); if (!box) return; box.hidden = S.kids.length < 2;
-  box.innerHTML = `<span>Ảnh của:</span>` + S.kids.map(k => `<button data-k="${k.id}" class="${ADD.kids.includes(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${P.avatarNow(k)}" alt="">${esc(cap(k.name))}</button>`).join('');
+  const box = $('#addKids'); if (!box) return; const me = ME(), rel = sortPeople(S.kids).filter(k => !me || !isMe(k)); box.hidden = me ? !rel.length : S.kids.length < 2;
+  // v1.8.0: chọn nhanh "Ai có mặt?" bằng chip avatar người thân (nhiều người); không chọn ai = chỉ mình bạn
+  box.innerHTML = `<span>${me ? 'Ai có mặt?' : 'Ảnh của:'}</span>` + rel.map(k => `<button data-k="${k.id}" class="${ADD.kids.includes(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${P.avatarNow(k)}" alt="">${esc(cap(k.name))}</button>`).join('') + (me ? `<small class="ak-me">${ADD.kids.some(id => id !== me.id) ? '' : 'chưa chọn = chỉ mình bạn'}</small>` : '');
 }
 function openAdd(opt = {}) {
   if (!S.kid) return;
-  if (!ADD.rows.length) ADD.kids = LIFE() ? [ME().id] : S.family ? [] : [S.kid.id]; renderAddKids();
+  if (!ADD.rows.length) ADD.kids = ME() ? [] : S.family ? [] : [S.kid.id]; renderAddKids();
   if (opt.approx) { ADD.ao = { on: true, prec: opt.approx.prec || 'y', y: opt.approx.y, x: null }; aoUi(); } else if (!ADD.rows.length) { ADD.ao = { on: false, prec: 'y', y: null, x: null }; aoUi(); }
   if (S.mode === 'show') stopShow();
   openModal($('#mAdd')); refreshAddBtn();
@@ -2214,7 +2215,8 @@ $('#drop').addEventListener('dragleave', () => $('#drop').classList.remove('over
 $('#addSave').onclick = saveAdd;
 async function saveAdd() {
   const rows = ADD.rows.filter(r => r.ready && !r.bad && !r.dup); if (!rows.length || ADD.busy) { if (!ADD.busy && ADD.rows.some(r => r.dup)) { toast('Các tệp này đã có trong app rồi — không cần thêm lại', 2600); $('#mAdd').classList.remove('open'); resetAdd(); } return; }
-  if (!ADD.kids.length) { const ks = $('#addKids'); ks.classList.remove('need'); void ks.offsetWidth; ks.classList.add('need'); toast(ME() ? 'Ảnh này có ai? Chạm avatar để chọn nhé' : 'Ảnh này của bé nào? Chạm avatar để chọn nhé', 2600); return; }
+  const KIDS = ME() ? (ADD.kids.filter(id => id !== ME().id).length ? ADD.kids.filter(id => id !== ME().id) : [ME().id]) : ADD.kids;
+  if (!KIDS.length) { const ks = $('#addKids'); ks.classList.remove('need'); void ks.offsetWidth; ks.classList.add('need'); toast(ME() ? 'Ảnh này có ai? Chạm avatar để chọn nhé' : 'Ảnh này của bé nào? Chạm avatar để chọn nhé', 2600); return; }
   ADD.gname = ($('#addGrp')?.value || '').trim(); ADD.busy = true; refreshAddBtn(); $('#addProg').style.display = 'block';
   await askPersist();
   const ids = [];
@@ -2223,7 +2225,7 @@ async function saveAdd() {
       const r = rows[i], id = uid(), f = r.file;
       await dbPut('blobs', f, 'o_' + id);
       await dbPut('blobs', r.th.blob, 't_' + id);
-      const m = { id, fp: r.fp, tv: 2, kidId: ADD.kids[0], kidIds: ADD.kids.slice(), ts: r.ts, ...(r.approx ? { approx: r.approx, dateSrc: 'approx' } : {}), ...(r.gps ? { gps: r.gps } : {}), title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
+      const m = { id, fp: r.fp, tv: 2, kidId: KIDS[0], kidIds: KIDS.slice(), ts: r.ts, ...(r.approx ? { approx: r.approx, dateSrc: 'approx' } : {}), ...(r.gps ? { gps: r.gps } : {}), title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
       await dbPut('moments', m); S.all.push(m); ids.push(id);
       $('#addProg i').style.width = ((i + 1) / rows.length * 100) + '%';
     }
@@ -2802,14 +2804,16 @@ function openKidMenu(a) {
     !me && { icon: 'sparkle', label: 'Tạo hồ sơ của tôi <small class="cm-n">hành trình cả đời</small>', act: () => openKid(null, { role: 'me' }) }] });
 }
 // chọn bé cho một hoặc nhiều ảnh
-function pickKids(ms) {
-  const M = $('#mKids'), box = M.querySelector('.mk-k'); let sel = new Set(ms.flatMap(kidsOf));
-  M.querySelector('.mk-l').textContent = ms.length > 1 ? `Áp dụng cho ${ms.length} ảnh/video đã chọn.` : 'Chạm avatar để gắn hoặc bỏ gắn.';
-  const draw = () => { box.innerHTML = S.kids.map(k => `<button data-k="${k.id}" class="${sel.has(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${P.avatarNow(k)}" alt="">${esc(cap(k.name))}</button>`).join(''); };
+function pickKids(ms, title) {
+  const M = $('#mKids'), box = M.querySelector('.mk-k'), me = ME(); let sel = new Set(ms.flatMap(kidsOf).filter(id => !me || id !== me.id));
+  M.querySelector('h2').textContent = title || (me ? 'Ai có mặt?' : 'Ai có trong ảnh này?');
+  M.querySelector('.mk-l').textContent = (ms.length > 1 ? `Áp dụng cho ${ms.length} ảnh/video. ` : '') + (me ? 'Chạm avatar người thân để gắn hoặc bỏ gắn. Không chọn ai = chỉ mình bạn.' : 'Chạm avatar để gắn hoặc bỏ gắn.');
+  const ppl = me ? sortPeople(S.kids).filter(k => !isMe(k)) : S.kids;
+  const draw = () => { box.innerHTML = ppl.map(k => `<button data-k="${k.id}" class="${sel.has(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${P.avatarNow(k)}" alt="">${esc(cap(k.name))}</button>`).join('') || '<p class="hint">Chưa có người thân — thêm trong hồ sơ của bạn › Gia đình của bạn.</p>'; };
   draw(); openModal(M);
   return new Promise(res => {
-    const click = e => { const b = e.target.closest('[data-k]'); if (!b) return; const id = b.dataset.k; if (sel.has(id)) { if (sel.size < 2) { toast('Ảnh cần có ít nhất 1 người', 1400); return; } sel.delete(id); } else sel.add(id); haptic(5); draw(); };
-    const ok = () => { fin(); res([...sel]); };
+    const click = e => { const b = e.target.closest('[data-k]'); if (!b) return; const id = b.dataset.k; if (sel.has(id)) { if (sel.size < 2 && !me) { toast('Ảnh cần có ít nhất 1 người', 1400); return; } sel.delete(id); } else sel.add(id); haptic(5); draw(); };
+    const ok = () => { fin(); res(sel.size ? [...sel] : me ? [me.id] : null); };
     const ob = new MutationObserver(() => { if (!M.classList.contains('open')) { fin(); res(null); } });
     function fin() { ob.disconnect(); box.removeEventListener('click', click); M.querySelector('.mk-ok').onclick = null; M.classList.remove('open'); }
     box.addEventListener('click', click); M.querySelector('.mk-ok').onclick = ok; ob.observe(M, { attributes: true });
@@ -3131,7 +3135,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], VID, makeVideo, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));

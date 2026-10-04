@@ -872,6 +872,7 @@ export function initTimeline(A) {
     if (e.group) { contextMenu({ el, at, title: esc(e.title) + ' · ' + esc(spanTxt(e.ms)), items: [
       el && { icon: 'image', label: 'Mở nhóm', act: () => openEvent(e.key, el) },
       e.ms.length > 1 && { icon: 'play', label: 'Chiếu nhóm này', act: () => playEvent(e) },
+      A.family() && kidsAll().length > 1 && { icon: 'people', label: 'Ai có mặt trong nhóm?', act: async () => { const ids = await A.pickKids(e.ms, 'Ai có mặt? · ' + e.title); if (!ids) return; await A.setKidsMany(e.ms, ids); refreshAll(e.key); A.toast('Đã cập nhật người có mặt', 1400); } },
       A.makeVideo && e.ms.length >= 3 && { icon: 'video', label: '🎬 Tạo video kỷ niệm', act: () => A.makeVideo({ ms: e.ms, title: e.title, sub: spanTxt(e.ms), people: e.kids.map(kidById).filter(Boolean), key: e.key, group: e.group }) },
       A.story && { icon: 'sparkle', label: 'Kể chuyện chuyến đi (bay qua dải ngân hà)', act: () => A.story({ ids: e.ms.map(m => m.id), title: e.title, sub: spanTxt(e.ms), people: e.kids.map(kidById).filter(Boolean) }) },
       { icon: 'book', label: e.diaries.length ? 'Xem nhật ký' : 'Tạo nhật ký từ nhóm (mỗi ngày một chương)', act: () => e.diaries.length ? A.openDiary(e.diaries[0].id) : A.makeDiary(e.ms.filter(m => m.type !== 'video').length ? e.ms.filter(m => m.type !== 'video') : e.ms) },
@@ -894,6 +895,7 @@ export function initTimeline(A) {
       { icon: 'book', label: e.diaries.length ? 'Xem nhật ký' : 'Tạo nhật ký từ sự kiện', act: () => e.diaries.length ? A.openDiary(e.diaries[0].id) : A.makeDiary(e.ms.filter(m => m.type !== 'video').length ? e.ms.filter(m => m.type !== 'video') : e.ms) },
       { sep: 1 },
       { icon: 'edit', label: 'Đổi tên, ghi chú', act: () => { st.cur = st.cur || e; renameEvent(e); } },
+      A.family() && kidsAll().length > 1 && { icon: 'people', label: (() => { const ps = e.kids.map(kidById).filter(k => k && !isMe(k)); return ps.length ? `Ai có mặt? · ${esc(ps.slice(0, 3).map(k => cap(k.name)).join(', '))}${ps.length > 3 ? '…' : ''}` : 'Ai có mặt? · chỉ mình bạn'; })(), act: async () => { const ids = await A.pickKids(e.ms, 'Ai có mặt? · ' + e.title); if (!ids) return; await A.setKidsMany(e.ms, ids); refreshAll(e.key); A.toast('Đã cập nhật người có mặt', 1400); } },
       { icon: 'plus', label: 'Thêm ảnh vào sự kiện', act: () => { st.cur = st.cur || e; st.addTo = e; $('#evFiles').click(); } },
       { icon: 'check', label: 'Chọn nhiều ảnh', act: async () => { await ensure(); showGrid(true, true); startSel('ev'); } },
       { icon: 'grid', label: GRID.hidden ? 'Xem dạng lưới' : 'Ẩn lưới', act: async () => { await ensure(); showGrid(GRID.hidden, true); } },
@@ -990,7 +992,7 @@ export function initTimeline(A) {
     contextMenu({ el, at, title: esc(m.title || `${timeVN(m.ts)} · ${A.dmy(m.ts)}`), items: [
       !inViewer && { icon: 'image', label: 'Xem lớn', act: () => openViewer(e.ms, e.ms.indexOf(m), gridRect) },
       { icon: 'edit', label: 'Sửa tên, ngày, giờ, ghi chú', act: () => openEditM(m) },
-      kidsAll().length > 1 && { icon: 'baby', label: 'Ai có trong ảnh này?', act: async () => { const ids = await A.pickKids([m]); if (ids) { await A.setKidsMany([m], ids); if (inViewer) fillInfo(); refreshAll(st.cur?.key); A.toast('Đã cập nhật người trong ảnh', 1200); } } },
+      kidsAll().length > 1 && { icon: 'baby', label: A.family() ? 'Ai có mặt trong ảnh này?' : 'Ai có trong ảnh này?', act: async () => { const ids = await A.pickKids([m]); if (ids) { await A.setKidsMany([m], ids); if (inViewer) fillInfo(); refreshAll(st.cur?.key); A.toast('Đã cập nhật người trong ảnh', 1200); } } },
       { icon: 'download', label: 'Lưu về máy', act: () => A.saveOriginal(m) },
       A.voice && { icon: 'mic', label: m.voice ? 'Lời kể của ảnh này' : 'Ghi giọng kể cho ảnh này', act: () => A.voice.open(m, { title: m.title || e?.title || '', key: e?.key }) },
       { sep: 1 },
