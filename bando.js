@@ -14,10 +14,17 @@ async function nomi(path) { // tôn trọng giới hạn 1 yêu cầu / giây c�
   const r = await fetch(NOMI + path, { headers: { 'Accept-Language': 'vi' } }); if (!r.ok) throw new Error('Không tìm được địa chỉ (' + r.status + ')');
   const j = await r.json(); nomiCache.set(path, j); return j;
 }
-export async function searchPlace(q) { return (await nomi(`/search?format=jsonv2&limit=6&accept-language=vi&q=${encodeURIComponent(q)}`)).map(x => ({ lat: +x.lat, lon: +x.lon, name: x.name || x.display_name.split(',')[0], sub: x.display_name })); }
+// dự phòng khi Nominatim không vào được (một số mạng ở Việt Nam chặn tên miền này): Photon của Komoot, cũng dữ liệu OpenStreetMap
+const PHOTON = 'https://photon.komoot.io';
+const phName = p => [p.name, p.street && p.housenumber ? p.housenumber + ' ' + p.street : p.street, p.district || p.suburb, p.city || p.state].filter(Boolean);
+export async function searchPlace(q) {
+  try { return (await nomi(`/search?format=jsonv2&limit=6&accept-language=vi&q=${encodeURIComponent(q)}`)).map(x => ({ lat: +x.lat, lon: +x.lon, name: x.name || x.display_name.split(',')[0], sub: x.display_name })); }
+  catch (e) { const r = await fetch(`${PHOTON}/api/?limit=6&lang=default&q=${encodeURIComponent(q)}`); if (!r.ok) throw new Error('Không tìm được địa chỉ — kiểm tra mạng rồi thử lại'); const j = await r.json(); return (j.features || []).map(f => { const n = phName(f.properties); return { lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], name: n[0] || q, sub: n.join(', ') + ' · Photon' }; }); }
+}
 export async function reverseName(lat, lon) {
   try { const j = await nomi(`/reverse?format=jsonv2&zoom=17&accept-language=vi&lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`); const a = j.address || {};
-    return [j.name || a.amenity || a.road, a.suburb || a.quarter || a.village || a.town, a.city || a.state].filter(Boolean).slice(0, 2).join(', ') || j.display_name?.split(',').slice(0, 2).join(',') || ''; } catch (e) { return ''; }
+    return [j.name || a.amenity || a.road, a.suburb || a.quarter || a.village || a.town, a.city || a.state].filter(Boolean).slice(0, 2).join(', ') || j.display_name?.split(',').slice(0, 2).join(',') || ''; }
+  catch (e) { try { const r = await fetch(`${PHOTON}/reverse?lang=default&lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}`); const f = (await r.json()).features?.[0]; return f ? phName(f.properties).slice(0, 2).join(', ') : ''; } catch (e2) { return ''; } }
 }
 // vị trí của một sự kiện: nơi bạn đặt tay > toạ độ GPS trung bình của ảnh
 export function eventGeo(e) {
@@ -49,7 +56,7 @@ export function initMap(A) {
     // lộ trình chuyến đi: mỗi ngày một ghim đánh số
     if (M.route) M.route.forEach((r, i) => { if (near(r)) SB.addPin({ id: 'rt:' + i, lat: r.lat, lon: r.lon, cls: 'ev', html: pinHTML(String(r.n), r.label, '#14b8a6'), data: r }); });
   }
-  async function go(lat, lon, t) { title(t || ''); await SB.show(lat, lon, { title: t ? `Đang dựng sa bàn: ${t}` : 'Đang dựng sa bàn…' }); M.center = { lat, lon }; await drawPins(); }
+  async function go(lat, lon, t, o = {}) { title(t || ''); await SB.show(lat, lon, { title: t ? `Đang dựng sa bàn: ${t}` : 'Đang dựng sa bàn…' }); M.center = { lat, lon }; M.here = o.here ? { lat, lon } : M.here && distM(M.here, { lat, lon }) < 600 ? M.here : null; await drawPins(); if (M.here) { SB.addPin({ id: 'here', lat: M.here.lat, lon: M.here.lon, cls: 'here', html: pinHTML('📍', 'Bạn đang ở đây', '#ff5f9e') }); SB.setWalker(`<div>${A.me() ? A.chibi(A.me()) : ''}</div>`, M.here.lat, M.here.lon); SB.focus(M.here.lat, M.here.lon, 70); } }
   SB.onTap(async (ll) => {
     haptic(10); if (M.newPin) SB.removePin(M.newPin.id);
     const id = 'new' + Date.now(), pick = M.mode === 'pick';
@@ -75,14 +82,15 @@ export function initMap(A) {
   });
   // tìm địa chỉ
   const Q = V.querySelector('#mpQ'), RES = V.querySelector('.mp-res'); let qt = 0;
-  Q.addEventListener('input', () => { clearTimeout(qt); const v = Q.value.trim(); if (v.length < 3) { RES.hidden = true; return; } qt = setTimeout(async () => { try { const rs = await searchPlace(v); RES.innerHTML = rs.length ? rs.map((r, i) => `<button data-i="${i}">${esc(r.name)}<small>${esc(r.sub)}</small></button>`).join('') + '<button disabled style="font-size:11px;color:#9a8aa0">Tìm bằng Nominatim · © OpenStreetMap</button>' : '<button disabled>Không thấy nơi nào</button>'; RES.hidden = false; RES._r = rs; } catch (e) { A.toast(e.message, 2500); } }, 700); });
+  Q.addEventListener('input', () => { clearTimeout(qt); const v = Q.value.trim(); if (v.length < 3) { RES.hidden = true; return; } qt = setTimeout(async () => { try { const rs = await searchPlace(v); RES.innerHTML = rs.length ? rs.map((r, i) => `<button data-i="${i}">${esc(r.name)}<small>${esc(r.sub)}</small></button>`).join('') + '<button disabled style="font-size:11px;color:#9a8aa0">Tìm bằng Nominatim / Photon · © OpenStreetMap</button>' : '<button disabled>Không thấy nơi nào</button>'; RES.hidden = false; RES._r = rs; RES._q = v; } catch (e) { A.toast(e.message, 2500); } }, 700); });
+  Q.addEventListener('keydown', async e => { if (e.key !== 'Enter') return; e.preventDefault(); clearTimeout(qt); const v = Q.value.trim(); if (v.length < 2) return; Q.blur(); try { const rs = RES._r?.length && RES._q === v ? RES._r : await searchPlace(v); RES.hidden = true; if (!rs.length) { A.toast('Không tìm thấy “' + v + '” — thử gõ kèm tên tỉnh, thành phố', 3000); return; } go(rs[0].lat, rs[0].lon, rs[0].name); } catch (er) { A.toast(er.message, 2500); } });
   RES.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (!b) return; const r = RES._r[+b.dataset.i]; RES.hidden = true; Q.value = r.name; Q.blur(); go(r.lat, r.lon, r.name); });
   V.querySelector('.mp-back').onclick = () => close();
   V.querySelector('.mp-more').onclick = e => contextMenu({ at: e.currentTarget, title: 'Bản đồ', items: [
     { icon: 'info', label: 'Về dữ liệu bản đồ', act: () => A.toast('Bản đồ dùng dữ liệu OpenStreetMap: khu vực bạn xem được tải từ máy chủ OSM. Toạ độ kỷ niệm chỉ lưu trong máy và Google Drive của bạn.', 6500) }] });
   V.querySelector('.mp-bar').addEventListener('click', async e => {
-    const b = e.target.closest('[data-m]'); if (!b) return; haptic(8);
-    if (b.dataset.m === 'me') { if (!navigator.geolocation) { A.toast('Máy này không cho lấy vị trí', 2000); return; } navigator.geolocation.getCurrentPosition(p => go(p.coords.latitude, p.coords.longitude, 'Nơi bạn đang đứng'), () => A.toast('Bạn chưa cho phép lấy vị trí — tìm địa chỉ ở ô trên cũng được', 3200), { enableHighAccuracy: false, timeout: 12000 }); }
+    e.stopPropagation(); const b = e.target.closest('[data-m]'); if (!b) return; haptic(8);
+    if (b.dataset.m === 'me') { if (!navigator.geolocation) { A.toast('Máy này không cho lấy vị trí', 2000); return; } navigator.geolocation.getCurrentPosition(p => go(p.coords.latitude, p.coords.longitude, 'Nơi bạn đang đứng', { here: true }), () => A.toast('Bạn chưa cho phép lấy vị trí — tìm địa chỉ ở ô trên cũng được', 3200), { enableHighAccuracy: false, timeout: 12000 }); }
     else if (b.dataset.m === 'home') { const h = (await places()).find(p => p.kind === 'home'); if (h) go(h.lat, h.lon, h.name); else A.toast('Chưa có “Nhà mình” — chạm một chỗ trên sa bàn rồi chọn Lưu nơi quan trọng › Nhà mình', 3800); }
     else if (b.dataset.m === 'islands') islands(b);
   });
@@ -99,7 +107,7 @@ export function initMap(A) {
     for (const a of L) { const ad = await unpackArea(await A.dbGet('blobs', 'osm:' + a.key)); const pl = ps.find(p => areaOf(p.lat, p.lon).key === a.key); items.push({ lat: a.lat, lon: a.lon, label: a.labels[0] || 'Một nơi', A: ad, emo: pl ? PLACE_EMO[pl.kind] : '🧳' }); }
     title('Những nơi trong đời bạn'); M.newPin = null; await SB.showArchipelago(items); hint('Chạm tên một hòn đảo để bay tới', 3500);
   }
-  function close() { V.classList.remove('open'); V.setAttribute('aria-hidden', 'true'); document.body.classList.remove('mapopen'); SB.stop(); M.pick = null; M.mode = 'view'; A.onClose?.(); }
+  function close() { const stop = ev => { ev.stopPropagation(); ev.preventDefault(); }; document.addEventListener('click', stop, true); setTimeout(() => document.removeEventListener('click', stop, true), 450); V.classList.remove('open'); V.setAttribute('aria-hidden', 'true'); document.body.classList.remove('mapopen'); SB.stop(); M.pick = null; M.mode = 'view'; A.onClose?.(); }
   async function open(o = {}) {
     V.classList.add('open'); V.setAttribute('aria-hidden', 'false'); document.body.classList.add('mapopen'); SB.start(); A.onOpen?.();
     M.mode = o.pick ? 'pick' : 'view'; M.pick = o.pick || null; M.route = o.route || null; M.newPin = null; RES.hidden = true; Q.value = '';

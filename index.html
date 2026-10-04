@@ -1062,7 +1062,7 @@ html.wk .ob-card { -webkit-backdrop-filter: none; backdrop-filter: none; backgro
 .sb-clouds i:nth-child(1) { top: -10%; } .sb-clouds i:nth-child(2) { top: 20%; transition-delay: .08s; } .sb-clouds i:nth-child(3) { top: 45%; transition-delay: .16s; } .sb-clouds i:nth-child(4) { top: 65%; transition-delay: .05s; } .sb-clouds i:nth-child(5) { top: 85%; transition-delay: .12s; }
 #sbv.cloudy .sb-clouds i { transform: translateX(-10vw) scale(1.4); }
 /* màn Bản đồ đời tôi */
-#mapv { position: fixed; inset: 0; z-index: 34; opacity: 0; pointer-events: none; transition: opacity .35s; }
+#mapv { position: fixed; inset: 0; z-index: 64; isolation: isolate; opacity: 0; pointer-events: none; transition: opacity .35s; }
 #mapv.open { opacity: 1; pointer-events: auto; }
 .mp-top { position: absolute; z-index: 6; left: 0; right: 0; top: 0; padding: calc(var(--safe-t) + 10px) 12px 0; display: flex; gap: 8px; align-items: center; }
 .mp-top .glassbtn { flex: none; }
@@ -1071,7 +1071,7 @@ html.wk .ob-card { -webkit-backdrop-filter: none; backdrop-filter: none; backgro
 .mp-res { position: absolute; left: 0; right: 0; top: 50px; border-radius: 18px; background: #fff; color: #3d1b35; box-shadow: 0 14px 34px rgba(40,20,60,.25); overflow: hidden; }
 .mp-res button { display: block; width: 100%; text-align: left; padding: 10px 14px; border: none; border-bottom: 1px solid #f1e8f3; border-radius: 0; background: #fff; color: #3d1b35; font: 700 13.5px var(--font); height: auto; } .mp-res small { display: block; font-weight: 600; color: #8a6a8e; font-size: 12px; }
 .mp-bar { position: absolute; z-index: 6; left: 12px; right: 12px; bottom: calc(var(--safe-b) + 34px); display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-.mp-bar button { height: 44px; padding: 0 14px; border-radius: 22px; background: rgba(255,255,255,.95); color: #3d1b35; border: none; font: 800 13.5px var(--font); box-shadow: 0 6px 18px rgba(40,20,60,.18); display: inline-flex; align-items: center; gap: 6px; }
+.mp-bar button { touch-action: manipulation; height: 44px; padding: 0 14px; border-radius: 22px; background: rgba(255,255,255,.95); color: #3d1b35; border: none; font: 800 13.5px var(--font); box-shadow: 0 6px 18px rgba(40,20,60,.18); display: inline-flex; align-items: center; gap: 6px; }
 .mp-title { position: absolute; z-index: 6; left: 0; right: 0; top: calc(var(--safe-t) + 62px); text-align: center; pointer-events: none; } .mp-title b { display: inline-block; padding: 5px 14px; border-radius: 16px; background: rgba(255,255,255,.88); color: #3d1b35; font: 800 14px var(--font); box-shadow: 0 4px 12px rgba(40,20,60,.15); }
 .mp-hint { position: absolute; z-index: 6; left: 50%; bottom: calc(var(--safe-b) + 150px); transform: translateX(-50%); padding: 7px 14px; border-radius: 16px; background: rgba(61,27,53,.82); color: #fff; font: 700 13px var(--font); white-space: nowrap; pointer-events: none; transition: opacity .4s; }
 .chip.geo { color: var(--text); } .hc.geo { border: none; cursor: pointer; color: inherit; background: rgba(255,255,255,.14); font-weight: 800; }
@@ -1114,6 +1114,8 @@ html.big .ch-ic, html.big .tl-cb, html.big .hs-cb, html.big .lc-cb, html.big .la
 .evp-trip { margin: 4px 16px 10px; padding: 12px 14px; border-radius: 20px; background: linear-gradient(135deg, rgba(20,184,166,.22), rgba(127,211,255,.14)); border: 1px solid rgba(20,184,166,.35); }
 .tp-row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; } .tp-who { display: flex; align-items: center; } .tp-who img { width: 30px; height: 30px; border-radius: 50%; margin-right: -8px; box-shadow: 0 0 0 2px #fff; } .tp-who small { margin-left: 14px; font-weight: 800; font-size: 13px; }
 .tp-pl { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 13.5px; } .tp-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; } .tp-acts button { height: 38px; padding: 0 12px; font-size: 13px; }
+body.mapopen #tabbar, body.mapopen #fsc, body.mapopen #tbar { visibility: hidden; pointer-events: none; }
+.sb-pin.here .pi { animation: pinPulse 1.2s ease-in-out infinite; }
 </style>
 </head>
 <body data-theme="night" class="v12">

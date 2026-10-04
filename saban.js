@@ -266,21 +266,22 @@ export function initSaban() {
   // ---------- chạm: kéo xoay, chụm phóng, hai ngón nghiêng / kéo ----------
   function bind() {
     const P = new Map(); let g = null, downT = 0, moved = 0;
-    canvas.addEventListener("pointerdown", e => { try { canvas.setPointerCapture(e.pointerId); } catch (er) { } P.set(e.pointerId, { x: e.clientX, y: e.clientY }); cam.want = null; downT = performance.now(); moved = 0; g = snap(); });
+    canvas.addEventListener("pointerdown", e => { if (e.isPrimary || P.size >= 2) P.clear(); try { canvas.setPointerCapture(e.pointerId); } catch (er) { } P.set(e.pointerId, { x: e.clientX, y: e.clientY }); cam.want = null; downT = performance.now(); moved = 0; g = snap(); });
     const snap = () => { const a = [...P.values()]; return a.length >= 2 ? { two: true, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y), mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2, dist: cam.dist, phi: cam.phi, tg: cam.target.clone() } : a.length ? { x: a[0].x, y: a[0].y, az: cam.az, phi: cam.phi, tg: cam.target.clone() } : null; };
     canvas.addEventListener('pointermove', e => {
       if (!P.has(e.pointerId) || !g) return; const prev = P.get(e.pointerId); P.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved += Math.hypot(e.clientX - prev.x, e.clientY - prev.y);
       const a = [...P.values()];
       if (g.two && a.length >= 2) { const d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y), mx = (a[0].x + a[1].x) / 2, my = (a[0].y + a[1].y) / 2;
         cam.dist = Math.max(14, Math.min(fitDist() * 1.3, g.dist * g.d / Math.max(20, d)));
-        const dy = my - g.my, dx = mx - g.mx; if (Math.abs(dy) > Math.abs(dx) * 1.4 && Math.abs(d - g.d) < 40) cam.phi = Math.max(.32, Math.min(1.2, g.phi + dy * .005)); // hai ngón kéo dọc = nghiêng
+        const dy = my - g.my, dx = mx - g.mx; if (Math.abs(dy) > Math.abs(dx) * 1.4 && Math.abs(d - g.d) < 40) cam.phi = Math.max(.5, Math.min(1.2, g.phi + dy * .005)); // hai ngón kéo dọc = nghiêng
         else { const k = cam.dist / 600, ca = Math.cos(cam.az), sa = Math.sin(cam.az); cam.target.set(g.tg.x - (dx * ca + dy * sa) * k * 1.4, 0, g.tg.z - (-dx * sa + dy * ca) * k * 1.4); clampT(); } }
       else if (!g.two && e.buttons === 2 || e.shiftKey) { const k = cam.dist / 600, ca = Math.cos(cam.az), sa = Math.sin(cam.az), dx = e.clientX - g.x, dy = e.clientY - g.y; cam.target.set(g.tg.x - (dx * ca + dy * sa) * k * 1.4, 0, g.tg.z - (-dx * sa + dy * ca) * k * 1.4); clampT(); }
-      else if (!g.two) { cam.az = g.az - (e.clientX - g.x) * .008; cam.phi = Math.max(.32, Math.min(1.2, g.phi - (e.clientY - g.y) * .004)); }
+      else if (!g.two) { cam.az = g.az - (e.clientX - g.x) * .008; cam.phi = Math.max(.5, Math.min(1.2, g.phi - (e.clientY - g.y) * .004)); }
       kick();
     });
     const up = e => { const wasTap = P.size === 1 && moved < 9 && performance.now() - downT < 350; P.delete(e.pointerId); g = snap(); if (wasTap && e.type === 'pointerup') tap(e.clientX, e.clientY); };
-    canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up); canvas.addEventListener('lostpointercapture', e => { P.delete(e.pointerId); g = P.size ? g : null; });
+    addEventListener('blur', () => { P.clear(); g = null; }); document.addEventListener('visibilitychange', () => { P.clear(); g = null; });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(14, Math.min(fitDist() * 1.3, cam.dist * Math.exp(e.deltaY * .0012))); kick(); }, { passive: false });
     PINS.addEventListener('click', e => { const el = e.target.closest('[data-pin]'); if (!el) return; const p = pins.find(x => x.id === el.dataset.pin); if (p) pinTap?.(p, el, e); });
@@ -321,10 +322,11 @@ export function initSaban() {
     try {
       const { key, A } = await loadArea(lat, lon, { onProg: t => { LOAD.querySelector('small').textContent = t; } }); if (tok !== building) return false;
       LOAD.querySelector('small').textContent = 'Đang dựng nhà cửa, đường phố…';
+      if (island) { root.remove(island); island.userData.dispose(); island = null; R.renderLists?.dispose?.(); }
       const grp = await buildIsland(A, { yieldFn: async f => { LOAD.querySelector('small').textContent = `Đang dựng nhà cửa… ${Math.round(f * 100)}%`; await sleep(0); } }); if (tok !== building) { grp.userData.dispose(); return false; }
       if (island) { root.remove(island); island.userData.dispose(); } island = grp; root.add(island); cur = { key, A }; clearPins(); if (walker) { walker.el.remove(); walker = null; }
       cam.target.set(0, 0, 0);
-      const fd = fitDist(); cam.want = { t0: performance.now(), ms: 1400, az0: cam.az + 1.2, az: cam.az, d0: fd * 1.6, d: fd, p0: 1.1, p: .86, t0v: cam.target.clone(), tv: cam.target.clone() };
+      cam.phi = .86; const fd = fitDist(); cam.want = { t0: performance.now(), ms: 1400, az0: cam.az + 1.2, az: cam.az, d0: fd * 1.6, d: fd, p0: 1.1, p: .86, t0v: cam.target.clone(), tv: cam.target.clone() };
       LOAD.hidden = true; setTimeout(() => host.classList.remove('cloudy'), 250); kick(); return true;
     } catch (e) { LOAD.querySelector('small').textContent = e.message || String(e); host.classList.remove('cloudy'); throw e; }
   }

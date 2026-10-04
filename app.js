@@ -1593,7 +1593,9 @@ let toastT = 0;
 function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms); }
 function openModal(m) { m.classList.add('open'); haptic(5); }
 function closeModal(m) { if (m.id === 'mKid' && !S.kids.length) return; if (m.id === 'mAdd' && ADD.busy) return; m.classList.remove('open'); if (m.id === 'mAdd') resetAdd(); if (m.id === 'mAsk') askDone?.(false); }
-$$('.modal').forEach(m => { m.addEventListener('pointerdown', e => { if (e.target === m) m.dataset.down = 1; }); m.addEventListener('click', e => { if (e.target === m && m.dataset.down) closeModal(m); m.dataset.down = ''; }); m.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(m))); });
+// nút [data-close] và chạm nền tối: uỷ quyền ở document để cả các hộp tạo sau (dòng thời gian, hồ sơ, giọng kể, lịch, video…) đều đóng được
+document.addEventListener('pointerdown', e => { const m = e.target.classList?.contains('modal') ? e.target : null; if (m) m.dataset.down = 1; }, true);
+document.addEventListener('click', e => { const b = e.target.closest?.('.modal [data-close]'); if (b) { closeModal(b.closest('.modal')); return; } const m = e.target.classList?.contains('modal') ? e.target : null; if (m && m.dataset.down) closeModal(m); document.querySelectorAll('.modal[data-down]').forEach(x => delete x.dataset.down); });
 let askDone = null;
 // hộp nhập một dòng chữ (đổi tên…): trả về chuỗi hoặc null nếu huỷ
 function prompt2(title, val = '', max = 60, type = 'text') {
