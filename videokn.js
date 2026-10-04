@@ -97,9 +97,10 @@ export function pickMoments(ms, n) {
   const sorted = ms.slice().sort((a, b) => a.ts - b.ts), keep = [];
   for (const m of sorted) { m._s = score(m); const dup = m.sc && keep.find(k => k.sc && Math.abs(k.ts - m.ts) < 600e3 && hamming(k.sc.dh, m.sc.dh) <= 10); if (dup) { if (m._s > dup._s) keep[keep.indexOf(dup)] = m; } else keep.push(m); }
   if (keep.length <= n) return keep;
+  const vids = keep.filter(m => m.type === 'video').slice(0, 2);
   // gom theo khoảnh khắc (cách nhau > 2 giờ), lấy đều mỗi nhóm theo điểm
   const groups = []; for (const m of keep) { const g = groups[groups.length - 1]; if (g && m.ts - g[g.length - 1].ts < 2 * 3600e3) g.push(m); else groups.push([m]); }
-  const out = new Set(); let r = 0; while (out.size < n && r < 50) { for (const g of groups) { const c = g.filter(m => !out.has(m)).sort((a, b) => b._s - a._s)[0]; if (c && out.size < n) out.add(c); } r++; }
+  const out = new Set(vids); let r = 0; while (out.size < n && r < 50) { for (const g of groups) { const c = g.filter(m => !out.has(m)).sort((a, b) => b._s - a._s)[0]; if (c && out.size < n) out.add(c); } r++; }
   return [...out].sort((a, b) => a.ts - b.ts);
 }
 
@@ -175,10 +176,11 @@ export function createRenderer(engine, SB, assets) {
   async function scene(s, t, f) {
     const [a, b] = span(s), p = cl((t - a) / (b - a)), e = ease.sine(p), k = s.kb || { s0: 1.04, s1: 1.12, x0: .5, y0: .5, x1: .5, y1: .5 };
     let info = s.item ? tex.get(s.item.id) : null, imgA = info?.a || 1, glt = info?.t, fy = info?.fy || 0;
+    if (s.kind === 'saban') { const v = tex.get('saban'); glt = v?.t; imgA = v?.a || outA; fy = 0; }
     if (s.kind === 'clip') { const c = clips.get(s); if (c) { const fr = await c.frame(t); if (fr) { if (!c.tex) c.tex = E.texFrom(fr, false); else E.updTex(c.tex, fr, false); glt = c.tex; imgA = fr.width / fr.height; fy = 0; } } }
-    const mode = s.kind === 'title' || s.kind === 'end' ? 1 : T.mode, cardS = s.kind === 'title' || s.kind === 'end' ? 0 : 1;
+    const mode = s.kind === 'title' || s.kind === 'end' ? 1 : s.kind === 'saban' ? 0 : T.mode, cardS = s.kind === 'title' || s.kind === 'end' ? 0 : 1;
     let punch = 1; if (T.punch && s.kind !== 'title' && s.kind !== 'end') { const lt = t - s.t0 + .04; punch = lt < 0 ? 1 : lt < .12 ? .92 + .26 * ease.p4out(lt / .12) : lt < .42 ? 1.18 - .18 * ease.sine((lt - .12) / .3) : 1; }
-    E.drawTo(f, E.P.photo, P => { E.bind(0, glt || null); gl.uniform1i(P.u('tImg'), 0); gl.uniform1f(P.u('imgA'), imgA); gl.uniform1f(P.u('outA'), outA); gl.uniform1f(P.u('mode'), mode); gl.uniform1f(P.u('rot'), (s.rot || 0) * (1 - .4 * e)); gl.uniform1f(P.u('cardS'), cardS * (mode === 2 ? .94 + .06 * ease.outBack(cl((t - a) / .7)) : 1)); gl.uniform1f(P.u('dim'), mode === 1 && !cardS ? .55 : .72); gl.uniform1f(P.u('punch'), punch); gl.uniform1f(P.u('fy'), fy); gl.uniform3f(P.u('kb'), mode === 0 ? k.s0 + (k.s1 - k.s0) * e : 1 + .05 * e, (mode === 0 ? k.x0 + (k.x1 - k.x0) * e : .5), (mode === 0 ? k.y0 + (k.y1 - k.y0) * e : .5)); gl.uniform2f(P.u('off'), ...(s.off || [0, 0])); });
+    E.drawTo(f, E.P.photo, P => { E.bind(0, glt || null); gl.uniform1i(P.u('tImg'), 0); gl.uniform1f(P.u('imgA'), imgA); gl.uniform1f(P.u('outA'), outA); gl.uniform1f(P.u('mode'), mode); gl.uniform1f(P.u('rot'), (s.rot || 0) * (1 - .4 * e)); gl.uniform1f(P.u('cardS'), cardS * (mode === 2 ? .94 + .06 * ease.outBack(cl((t - a) / .7)) : 1)); gl.uniform1f(P.u('dim'), mode === 1 && !cardS ? .55 : .72); gl.uniform1f(P.u('punch'), punch); gl.uniform1f(P.u('fy'), fy); gl.uniform3f(P.u('kb'), s.kind === 'saban' ? 1 : mode === 0 ? k.s0 + (k.s1 - k.s0) * e : 1 + .05 * e, (mode === 0 ? k.x0 + (k.x1 - k.x0) * e : .5), (mode === 0 ? k.y0 + (k.y1 - k.y0) * e : .5)); gl.uniform2f(P.u('off'), ...(s.off || [0, 0])); });
   }
   // ---------- chữ (canvas 2D, chỉ tải lên GPU khi khác khung trước) ----------
   let lastKey = '';
@@ -186,6 +188,7 @@ export function createRenderer(engine, SB, assets) {
   const seg = s => { try { return [...new Intl.Segmenter('vi', { granularity: 'grapheme' }).segment(s.normalize('NFC'))].map(x => x.segment); } catch (e) { return [...s]; } };
   function wrap(x, text, maxW) { const ws = text.split(/\s+/), lines = []; let cur = ''; for (const w of ws) { const t2 = cur ? cur + ' ' + w : w; if (x.measureText(t2).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t2; } if (cur) lines.push(cur); return lines; }
   function shadowText(x, s, X, Y, col = '#fff') { x.lineJoin = 'round'; x.strokeStyle = 'rgba(30,10,30,.55)'; x.lineWidth = Math.max(4, parseInt(x.font.split(' ')[1]) * .1); x.strokeText(s, X, Y); x.fillStyle = col; x.fillText(s, X, Y); }
+  const a0 = sc => span(sc)[0];
   function texts(t) {
     const x = E.tx, s = SB.scenes[sceneAt(t)], key = [], U = Math.min(W, H) / 1080, safeT = H * .14, safeB = H * .2;
     const ops = [];
@@ -199,6 +202,9 @@ export function createRenderer(engine, SB, assets) {
           if (SB.sub) { const st = cl((lt - .7) / .5); x.globalAlpha = ease.sine(st) * out; x.font = F(700, 44 * U); shadowText(x, SB.sub, W / 2, y0 + lines.length * lh + 10 * U, '#ffe1ee'); x.globalAlpha = 1; }
           const n = avatars.length; if (n) { const sz = (n > 5 ? 120 : 150) * U, gap = sz * .92, x0 = W / 2 - (n - 1) * gap / 2, yy = H * .66; avatars.forEach((im, i) => { const st = lt - .9 - i * .12, sp = spring(st); if (st <= 0) return; x.save(); x.globalAlpha = out; x.translate(x0 + i * gap, yy); x.scale(sp, sp); x.drawImage(im, -sz / 2, -sz * .66, sz, sz * (im.height / im.width)); x.restore(); }); }
         });
+      } else if (sc.kind === 'saban') {
+        key.push('S', Math.round(lt * 30)); const o = Math.min(ease.sine(cl((lt - .4) / .6)), cl((sc.t1 - t) / .5));
+        ops.push(() => { x.textAlign = 'center'; x.globalAlpha = o; x.font = F(800, 64 * U); shadowText(x, SB.title, W / 2, safeT + 60 * U); x.font = F(700, 38 * U); if (SB.sub) shadowText(x, SB.sub, W / 2, safeT + 116 * U, '#ffe1ee'); x.globalAlpha = 1; });
       } else if (sc.kind === 'end') {
         key.push('E', Math.round(lt * 30));
         ops.push(() => { const st = cl(lt / .7), e = ease.outExpo(st); x.textAlign = 'center'; x.globalAlpha = e; x.font = F(800, 74 * U); shadowText(x, 'Hành Trình Của Bạn', W / 2, H * .47 + (1 - e) * 30 * U, '#fff');
@@ -207,7 +213,9 @@ export function createRenderer(engine, SB, assets) {
       } else if ((sc.kind === 'photo' || sc.kind === 'clip') && sc.newDay && sc.item) {
         const st = cl(lt / .5), o = Math.min(ease.sine(st), cl((sc.t1 - t) / .4)); if (o <= .01) continue; key.push('D', SB.scenes.indexOf(sc), Math.round(o * 30));
         ops.push(() => { const d = new Date(sc.item.ts), cap = sc.item.approx ? sc.item.approxTxt : `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`, pl = sc.item.place || ''; x.globalAlpha = o; x.textAlign = 'left';
-          if (T.mode === 2) { x.font = F(700, 46 * U); x.fillStyle = '#5a4a3a'; x.textAlign = 'center'; x.fillText([cap, pl].filter(Boolean).join(' · '), W / 2, H * .5 + Math.min(W * .8 / 1.114, H * .64 / 1.354) * .5 * 1.08 + 8 * U); }
+          if (T.mode === 2) { // chữ viết trên viền dưới dày của polaroid
+            const a = tex.get(sc.item.id)?.a || .75, cw = 1.114, chh = 1 / a + .354, w = Math.min(outA * .8 / cw, .64 / chh), yo = ((.297 - .057) * w / 2 - w / a / 2 - w * chh / 2) / 2 + (sc.off?.[1] || 0);
+            x.save(); x.translate(W * (.5 + (sc.off?.[0] || 0) / outA), H * (.5 - yo)); x.rotate(-(sc.rot || 0) * (1 - .4 * ease.sine(cl((t - a0(sc)) / (sc.t1 - a0(sc)))))); x.font = F(700, Math.min(44, 30 + w * 30) * U); x.fillStyle = '#5a4636'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText([cap, pl].filter(Boolean).join(' · '), 0, 0, W * w * .9); x.restore(); }
           else { x.font = F(800, 52 * U); shadowText(x, cap, 64 * U, H - safeB - (pl ? 60 : 0) * U); if (pl) { x.font = F(700, 38 * U); shadowText(x, '📍 ' + pl, 64 * U, H - safeB, '#ffe9c4'); } }
           x.globalAlpha = 1; });
       }
@@ -298,5 +306,31 @@ export async function recordFallback({ canvas, renderer, SB, audio, onProg, sign
   await new Promise(res => { const f = async () => { const t = ac.currentTime - st; if (t >= SB.dur || signal?.aborted) { res(); return; } await renderer.prepare(t, true); await renderer.drawAt(Math.max(0, t), Math.round(t * 30)); onProg?.({ p: t / SB.dur }); requestAnimationFrame(f); }; requestAnimationFrame(f); });
   rec.stop(); await new Promise(r => rec.onstop = r); ac.close(); const type = (rec.mimeType || 'video/mp4').split(';')[0];
   return { file: new File(chunks, 'video-ky-niem.' + (type.includes('webm') ? 'webm' : 'mp4'), { type }) };
+}
+// ---------- mở đầu "Sa bàn": máy quay bay theo lộ trình trên sa bàn 3D chibi, rồi vào ảnh ----------
+export async function sabanIntro({ area, route, W, H, chibiImg }) {
+  const THREE = await import('./lib/three.module.min.js'), SBM = await import('./saban.js');
+  const cv = document.createElement('canvas'), R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true }); R.setPixelRatio(1); R.setSize(W, H, false); R.outputColorSpace = THREE.SRGBColorSpace;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color('#bfe6ff'); scene.fog = new THREE.Fog('#bfe6ff', 240, 600);
+  scene.add(new THREE.HemisphereLight('#e3f3ff', '#f6d8ae', .9)); const d = new THREE.DirectionalLight('#fff1dc', 1.6); d.position.set(40, 90, 30); scene.add(d); scene.add(new THREE.AmbientLight('#ffffff', .35));
+  const sea = new THREE.Mesh(new THREE.CircleGeometry(600, 48), new THREE.MeshBasicMaterial({ color: '#a8dcff' })); sea.rotation.x = -Math.PI / 2; sea.position.y = -9.2; scene.add(sea);
+  const isl = await SBM.buildIsland(area); scene.add(isl);
+  const [la0, lo0] = area.c, toXZ = (lat, lon) => new THREE.Vector3((lon - lo0) * 111320 * Math.cos(la0 * Math.PI / 180) / 10, 0, -(lat - la0) * 110540 / 10);
+  let pts = route.map(r => toXZ(r.lat, r.lon)).filter(p => Math.hypot(p.x, p.z) < 50);
+  if (!pts.length) pts = [new THREE.Vector3()];
+  if (pts.length === 1) { const c = pts[0]; pts = [0, 1, 2, 3].map(k => c.clone().add(new THREE.Vector3(Math.cos(k * 1.6) * 14, 0, Math.sin(k * 1.6) * 14))); }
+  for (let it = 0; it < 3 && pts.length > 2; it++) { const n = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { n.push(pts[i].clone().lerp(pts[i + 1], .25), pts[i].clone().lerp(pts[i + 1], .75)); } n.push(pts[pts.length - 1]); pts = n; } // Chaikin 3 lượt
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal'), cam = new THREE.PerspectiveCamera(42, W / H, .5, 1400);
+  const mkSprite = (img, s) => { const t = new THREE.Texture(img); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthWrite: false })); sp.scale.set(s, s * img.height / img.width, 1); return sp; };
+  const pinC = document.createElement('canvas'); pinC.width = pinC.height = 128; { const x = pinC.getContext('2d'); x.fillStyle = '#ff5f9e'; x.beginPath(); x.arc(64, 50, 40, Math.PI, 0); x.lineTo(64, 124); x.closePath(); x.fill(); x.fillStyle = '#fff'; x.beginPath(); x.arc(64, 50, 16, 0, 7); x.fill(); }
+  const pins = route.slice(0, 8).map(r => { const s = mkSprite(pinC, 3.2); s.position.copy(toXZ(r.lat, r.lon)); s.position.y = 1.8; scene.add(s); return s; });
+  const me = chibiImg ? mkSprite(chibiImg, 2.6) : null; if (me) scene.add(me);
+  return async (lt, len) => {
+    const p = cl(lt / Math.max(.1, len - .3)), u = ease.sine(p), q = curve.getPointAt(Math.min(1, u)), ahead = curve.getPointAt(Math.min(1, u + .08));
+    const back = q.clone().sub(ahead).setY(0).normalize(), dist = 46 - 14 * ease.sine(p); cam.position.copy(q).addScaledVector(back, dist * .5).add(new THREE.Vector3(0, dist * 1.05, 0)); cam.lookAt(q.clone().lerp(ahead, .5));
+    pins.forEach((pp, i) => { const k = spring(lt * 1.2 - i * .25); pp.scale.set(3.2 * k, 3.2 * k * 1, 1); });
+    if (me) { me.position.copy(q); me.position.y = 1.6 + Math.abs(Math.sin(lt * 9)) * .35; }
+    if (isl.userData.water) isl.userData.water.uniforms.uT.value = lt; R.render(scene, cam); return cv;
+  };
 }
 export { renderMusic, userMusic, spring, ease };
