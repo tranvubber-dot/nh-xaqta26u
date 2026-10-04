@@ -135,7 +135,7 @@ export function initTimeline(A) {
   }
   // cột mốc của người lớn trong hành trình: sinh nhật của bạn, ngày gặp / cưới / kỷ niệm cưới, sinh nhật người thân (kèm tuổi)
   function lifeMilestone(p, days, present) {
-    const N = cap(p.name), out = [], me = A.me(), bd = p.birth ? new Date(p.birth + 'T12:00:00') : null;
+    const N = cap(p.name), out = [], me = A.me(), bd = p.birth && !p.birthApprox ? new Date(p.birth + 'T12:00:00') : null;
     const same = (d, ymd) => { const x = new Date(ymd + 'T12:00:00'); return d.getMonth() === x.getMonth() && d.getDate() === x.getDate(); };
     for (const ds of days) {
       const d = new Date(ds + 'T12:00:00');
@@ -222,6 +222,13 @@ export function initTimeline(A) {
       if (life) e.chapter = chapterAt(chs, e.ts0);
     }
     evs.sort((a, b) => b.ts0 - a.ts0);
+    // công việc theo thời gian của bạn → cột mốc "Việc làm đầu tiên", "Công việc mới", "Nghỉ hưu" ở sự kiện đầu tiên của năm đó
+    const meP = !ctx && (life || isMe(kid)) ? A.me?.() : null;
+    if (meP?.jobs?.length) { let n = 0; for (const j of meP.jobs.filter(j => j.from).sort((a, b) => +a.from - +b.from)) {
+      const study = /học sinh|sinh viên/i.test(j.job), retire = /nghỉ hưu|hưu/i.test(j.job); if (study) continue;
+      const e = evs.filter(x => !x.group && !x.approx && new Date(x.ts0).getFullYear() === +j.from).sort((a, b) => a.ts0 - b.ts0).find(x => !x.mile || x.mile.p < 5); if (!e) { if (!retire) n++; continue; }
+      e.mile = { k: retire ? 'retire' : 'job', p: 5, label: retire ? 'Nghỉ hưu' : n === 0 ? `Việc làm đầu tiên · ${j.job}` : `Công việc mới · ${j.job}`, ic: 'star', emo: retire ? '🌅' : '💼' }; if (!retire) n++;
+      if (!M.titles[e.key]) e.title = e.mile.label; if (!e.typeSet) e.type = 'mile'; } }
     if (ctx) return evs;
     if (fam && st.filter) evs = evs.filter(e => e.kids.some(id => st.filter.has(id)));
     if (st.hidePreg) evs = evs.filter(e => !e.preg);
@@ -294,8 +301,8 @@ export function initTimeline(A) {
       out.push(card(e, i++));
     }
     closeY();
-    if (life && st.filter == null && !st.range && evs.length) out.push(...flushCh(null));
-    if (evs.length) out.push(`<div class="tl-end">${icon('star', 18, 1.8)}<span>${life ? 'Ngày bạn chào đời — hành trình bắt đầu từ đây' : isChild(kid) || isMe(kid) ? `Hành trình của ${esc(who)} bắt đầu từ đây` : `Hành trình cùng ${esc(kid.name)} bắt đầu từ đây`}</span></div>`);
+    if (life && st.filter == null && !st.range) out.push(...flushCh(null));
+    if (evs.length) out.push(`<div class="tl-end">${life && A.chibi ? `<span class="tl-cb">${A.chibi(me)}</span>` : icon('star', 18, 1.8)}<span>${life ? me?.birthApprox ? `Năm ${me.birth.slice(0, 4)} bạn chào đời — hành trình bắt đầu từ đây` : 'Ngày bạn chào đời — hành trình bắt đầu từ đây' : isChild(kid) || isMe(kid) ? `Hành trình của ${esc(who)} bắt đầu từ đây` : `Hành trình cùng ${esc(kid.name)} bắt đầu từ đây`}</span></div>`);
     if (evs.length && evs.length < 6 && !fam) out.push(`<button class="tl-more" data-a="add"><i>${icon('plus', 26, 2.2)}</i><b>Thêm khoảnh khắc tiếp theo</b><span>Ảnh, video của ${esc(who)} — app tự xếp vào đúng ngày</span></button>`);
     if (evs.length && !fam) out.push('<div class="rail2" aria-hidden="true"><i></i></div>');
     out.splice(1, 0, bdayBanner());
@@ -350,7 +357,7 @@ export function initTimeline(A) {
   // banner sinh nhật: 7 ngày trước sinh nhật (và đúng ngày)
   function bdays() {
     const KS = A.family() ? kidsAll() : [A.kid()], t = new Date(), today = new Date(t.getFullYear(), t.getMonth(), t.getDate()), out = [];
-    for (const k of KS) { if (!k?.birth) continue; const [y, m, d] = k.birth.split('-').map(Number); let nb = new Date(today.getFullYear(), m - 1, d); if (nb < today) nb = new Date(today.getFullYear() + 1, m - 1, d); const days = Math.round((nb - today) / 864e5), turn = nb.getFullYear() - y; if (turn >= 1 && days <= 7) out.push({ k, days, turn, last: new Date(nb.getFullYear() - 1, m - 1, d).getTime() }); }
+    for (const k of KS) { if (!k?.birth || k.birthApprox) continue; const [y, m, d] = k.birth.split('-').map(Number); let nb = new Date(today.getFullYear(), m - 1, d); if (nb < today) nb = new Date(today.getFullYear() + 1, m - 1, d); const days = Math.round((nb - today) / 864e5), turn = nb.getFullYear() - y; if (turn >= 1 && days <= 7) out.push({ k, days, turn, last: new Date(nb.getFullYear() - 1, m - 1, d).getTime() }); }
     return out;
   }
   function bdayBanner() {
@@ -841,6 +848,7 @@ export function initTimeline(A) {
     if (e.group) { contextMenu({ el, at, title: esc(e.title) + ' · ' + esc(spanTxt(e.ms)), items: [
       el && { icon: 'image', label: 'Mở nhóm', act: () => openEvent(e.key, el) },
       e.ms.length > 1 && { icon: 'play', label: 'Chiếu nhóm này', act: () => playEvent(e) },
+      A.story && { icon: 'sparkle', label: 'Kể chuyện chuyến đi (bay qua dải ngân hà)', act: () => A.story({ ids: e.ms.map(m => m.id), title: e.title, sub: spanTxt(e.ms), people: e.kids.map(kidById).filter(Boolean) }) },
       { icon: 'book', label: e.diaries.length ? 'Xem nhật ký' : 'Tạo nhật ký từ nhóm (mỗi ngày một chương)', act: () => e.diaries.length ? A.openDiary(e.diaries[0].id) : A.makeDiary(e.ms.filter(m => m.type !== 'video').length ? e.ms.filter(m => m.type !== 'video') : e.ms) },
       { sep: 1 },
       { icon: 'edit', label: 'Sửa nhóm: tên, ghi chú, chọn ngày / ảnh', act: () => openGroupPicker({ group: e.group }) },
@@ -911,6 +919,8 @@ export function initTimeline(A) {
       { icon: 'edit', label: 'Đổi tên chương', act: async () => { const t = await A.prompt('Tên chương', c.title, 40); if (t?.trim()) { ed.title = t.trim(); await save('Đã đổi tên chương'); } } },
       { icon: 'calendar', label: `Đổi ngày bắt đầu (${A.dmy(c.ts)})`, act: async () => { const v = await A.prompt('Chương bắt đầu từ ngày', c.start, 10, 'date'); if (v && A.parseYmd(v)) { ed.start = v; await save('Đã đổi ngày bắt đầu chương'); } } },
       { icon: 'palette', label: 'Đổi màu chương', act: () => contextMenu({ at, title: 'Màu chương', items: CH_COLORS.map(col => ({ label: `<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${col};vertical-align:-4px;margin-right:8px"></span>${col === c.c ? 'Đang dùng' : 'Chọn màu này'}`, on: col === c.c, act: async () => { ed.c = col; await save('Đã đổi màu chương'); } })) }) },
+      { icon: 'play', label: 'Kể chuyện chương này', act: () => A.story?.({ chapter: c }) },
+      { icon: 'book', label: 'Tạo truyện tranh chương này', act: () => { const ms = st.events.filter(e => e.chapter?.key === c.key).flatMap(e => e.ms).filter(m => m.type !== 'video').sort((a, b) => a.ts - b.ts); if (!ms.length) { A.toast('Chương này chưa có ảnh', 1800); return; } A.makeDiary(ms); } },
       { icon: 'plus', label: 'Thêm ảnh cũ của chương này', act: () => A.addOld(new Date(c.ts).getFullYear()) },
       { sep: 1 },
       { icon: 'sparkle', label: 'Thêm chương mới…', act: async () => { const t = await A.prompt('Tên chương mới (vd “Du học”, “Những năm ở Sài Gòn”)', '', 40); if (!t?.trim()) return; const v = await A.prompt('Chương bắt đầu từ ngày', A.ymd(Date.now()), 10, 'date'); if (!v || !A.parseYmd(v)) return; cfg.custom.push({ id: Date.now().toString(36), title: t.trim(), start: v, c: CH_COLORS[(cfg.custom.length + 8) % CH_COLORS.length], ic: '✨' }); await save('Đã thêm chương “' + t.trim() + '”'); } },

@@ -64,6 +64,8 @@ export function chaptersOf(me, people, cfg, now = Date.now()) {
   for (const c of CHAPTERS) {
     let start = null;
     if (c.age != null) start = addYears(me.birth, c.age);
+    if (c.k === 'nghiep') { const j = (me.jobs || []).filter(j => j.from && !/học sinh|sinh viên|nghỉ hưu/i.test(j.job)).map(j => j.from).sort()[0]; if (j) start = `${j}-01-01`; }
+    if (c.k === 'vang') { const r = (me.jobs || []).find(j => j.from && /nghỉ hưu|hưu/i.test(j.job)); if (r) start = `${r.from}-01-01`; }
     else if (c.k === 'yeu') start = firstOf(people.filter(isPartner).map(p => p.since || p.wed));
     else if (c.k === 'chame') start = firstOf(people.filter(p => roleOf(p) === 'con').map(p => p.birth));
     const e = E[c.k] || {};

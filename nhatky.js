@@ -120,6 +120,18 @@ const BANK = {
     lon: ['Hôm nay vui ghê!', 'Con kể mẹ nghe nè…', 'Để con tự làm!', 'Con thương mẹ nhất!', 'Đi chơi nữa đi bố ơi!', 'Chụp con đẹp nha!'],
     chung: ['Cả nhà ơi, ra đây mà xem!', 'Cười cái nào!', 'Ôi đáng yêu quá trời!', 'Ai mà cute thế này?', 'Lưu lại khoảnh khắc này nè!', 'Hôm nay trời đẹp quá trời!', '{Con} của mẹ đáng yêu ghê!', 'Ai là {be} của nhà mình nè?']
   },
+  // v1.6.0: lời cho người lớn và gia đình, theo loại kỷ niệm
+  adult: ['Kỷ niệm đáng nhớ ghê!', 'Nhớ mãi ngày hôm nay', 'Cả nhà mình đây rồi!', 'Cười lên nào!', 'Thanh xuân là đây!', 'Cảm ơn vì đã ở bên nhau', 'Ngày bình yên…', 'Để dành kể cho con cháu nghe', 'Tuổi trẻ mà!', 'Vui hết cỡ luôn!', 'Đẹp như một thước phim'],
+  thinkA: ['Nhớ hồi đó ghê…', 'Thời gian trôi nhanh thật…', 'Ước gì dừng lại được lúc này', 'Sau này xem lại chắc vui lắm', 'Hôm nay thật đáng nhớ'],
+  theme: {
+    trip: ['Lên đường thôi!', 'Đẹp quá trời!', 'Chụp thêm tấm nữa nào!', 'Đi đâu cũng có nhau', 'Ở lại thêm chút nữa nhé', 'Check-in nào!'],
+    tet: ['Chúc mừng năm mới!', 'Tết sum vầy', 'Lì xì đỏ thắm nè!', 'An khang thịnh vượng!', 'Bánh chưng xanh, câu đối đỏ'],
+    bday: ['Chúc mừng sinh nhật!', 'Thổi nến nào!', 'Thêm một tuổi mới', 'Ước điều gì đây ta?', 'Bánh kem ngon ghê!'],
+    wed: ['Trăm năm hạnh phúc!', 'Ngày trọng đại', 'Mãi bên nhau nha', 'Thương nhau nhiều hơn nữa'],
+    meet: ['Đông vui quá!', 'Lâu lắm mới gặp đủ', 'Nâng ly nào!', 'Cả nhà đông đủ rồi'],
+    school: ['Bạn bè thân thương', 'Ngày tựu trường!', 'Học hành chăm chỉ nha', 'Tạm biệt mái trường'],
+    mile: ['Một cột mốc mới!', 'Cố gắng đã được đền đáp', 'Từ hôm nay mọi thứ khác rồi', 'Tự hào ghê!']
+  },
   meal: ['Ngon quá đi!', 'Thêm một miếng nữa!', 'Măm măm!', 'Con ăn hết rồi nè!'],
   sleep: ['Ngủ ngon nha con…', 'Mơ đẹp nhé!', 'Suỵt… bé đang ngủ'],
   shout: ['Xin chàooo!', 'Yeahhh!', 'Oaaa!', 'Tuyệt quá!', 'Cố lên!', 'Đi thôiii!', 'Wow!'],
@@ -157,9 +169,10 @@ export function autoText(d, ctx) {
       const meal = ses === 'trua' || (ses === 'toi' && h < 20), night = ses === 'khuya' || h >= 21;
       const side = flat % 2 ? .28 : .72; flat++;
       if (r < .16 && shouts < 1) { p.bubbles.push(mkBubble(pick('shout', BANK.shout), 'shout', side, R)); shouts++; p.fx = 'focus'; }
-      else if (r < .3) p.bubbles.push(mkBubble(night ? pick('sleep', BANK.sleep) : pick('think', BANK.think), 'think', side, R));
+      else if (r < .3) p.bubbles.push(mkBubble(night && !ctx.adult ? pick('sleep', BANK.sleep) : ctx.adult ? pick('thinkA', BANK.thinkA) : pick('think', BANK.think), 'think', side, R));
       else if (r < .88) {
-        const pool = R() < .38 ? BANK.say.chung : meal && R() < .4 ? BANK.meal : BANK.say[g] || BANK.say.chung;
+        const th = ctx.type && BANK.theme[ctx.type];
+        const pool = th && R() < .5 ? th : ctx.adult ? (meal && R() < .3 ? BANK.meal : BANK.adult) : R() < .38 ? BANK.say.chung : meal && R() < .4 ? BANK.meal : BANK.say[g] || BANK.say.chung;
         p.bubbles.push(mkBubble(gtok(pick('say' + pool[0], pool), ctx.gender), 'say', side, R));
       }
       if (sfxN < 1 && (R() < .4 || !p.bubbles.length)) {
@@ -609,7 +622,7 @@ export function initDiary(A) {
     const fn = ks.length === 1 && ks[0]?.fullName ? ks[0].fullName : '';
     return { title: d.title, short: `${d.title} · ${A.dmy(a)}`, sub, fn, chap: multi ? chapLine : () => null };
   }
-  const ctxFor = d => ({ gender: A.kid()?.gender, months: kidMonths(A.kid(), d.ts), ts: mid => momById(mid)?.ts, close: mid => CLOSE.get(mid), src: mid => SRC.get(mid + ':s') || SRC.get(mid) || null });
+  const ctxFor = d => ({ gender: A.kid()?.gender, months: kidMonths(A.kid(), d.ts), adult: !!A.adultView?.(), type: A.typeFor?.(d.pages.flatMap(p => p.panels.map(q => q.mid))), ts: mid => momById(mid)?.ts, close: mid => CLOSE.get(mid), src: mid => SRC.get(mid + ':s') || SRC.get(mid) || null });
   // ảnh cận mặt: tỉ lệ màu da ở giữa ảnh nhỏ
   const CLOSE = new Map();
   async function closeness(mid) {

@@ -1,6 +1,12 @@
 // Hành Trình Của Bạn — hồ sơ bé, avatar (ảnh cắt tròn hoặc hình vẽ sẵn), màu riêng của từng bé.
 import { icon, animateSpring, haptic, fmtLong, clamp, REDUCED } from './ui.js';
-import { profileOf, LUNAR_MONTH, MENH_TA } from './hoso-data.js';
+import { profileOf, LUNAR_MONTH, MENH_TA, napAm, canChi, CHI, CON } from './hoso-data.js';
+import { SIGN, GIAP_L, MENH_L, NUM, lifePath, jobLine, giapPair, signPair, ELEMENT_TXT } from './docvi.js';
+import { chibiAvatarSVG, chibiSVG, svgURL, mountChibiEditor } from './chibi.js';
+import { isChild, isMe, isPartner, roleOf, roleName } from './doi.js';
+// người lớn (hoặc ai đã tự chọn nhân vật) dùng chibi; bé từ các bản cũ giữ hình vẽ cũ
+export const useChibi = k => !!k?.chibi || (!!k?.role && !isChild(k));
+export const drawnAvatar = k => useChibi(k) ? svgURL(chibiAvatarSVG(k)) : avatarSVG(k);
 
 export const KID_COLORS = ['#4f9dff', '#2fc6c0', '#7c86ff', '#55c8f5', '#54cf8e', '#ff76ad', '#b483ff', '#ff8a78', '#ffc24f', '#e07cf0'];
 const BOY = ['#4f9dff', '#2fc6c0', '#7c86ff', '#55c8f5', '#54cf8e'], GIRL = ['#ff76ad', '#b483ff', '#e07cf0', '#ff8a78', '#ffc24f'];
@@ -43,6 +49,12 @@ export function initProfile(A) {
   <input type="file" accept="image/*" hidden class="avf">
   <div class="foot"><button data-close>Huỷ</button><button class="primary" data-a="ok">Lưu avatar</button></div>
 </div></div>
+<div class="modal" id="mChibi"><div class="card glass" style="width:min(460px,100%)"><h2>Nhân vật của <span class="cbn"></span></h2><div class="ce" id="ceBox"></div><div class="foot"><button data-close>Huỷ</button><button class="primary" data-a="cbok">Lưu nhân vật</button></div></div></div>
+<div class="modal" id="mJob"><div class="card glass" style="width:min(440px,100%)"><h2 class="jb-t">Công việc</h2>
+  <label class="f">Nghề / công việc<input id="jbJob" maxlength="60" placeholder="Ví dụ: Kỹ sư phần mềm"></label><div class="jb-sug"></div>
+  <label class="f">Nơi làm <small class="opt">tuỳ chọn</small><input id="jbAt" maxlength="60" placeholder="Ví dụ: Công ty ABC, Hà Nội"></label>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label class="f">Từ năm<input id="jbFrom" inputmode="numeric" maxlength="4" placeholder="2015"></label><label class="f">Đến năm<input id="jbTo" inputmode="numeric" maxlength="4" placeholder="để trống = đang làm"></label></div>
+  <div class="foot"><button id="jbDel" class="danger">Xoá</button><button data-close>Huỷ</button><button class="primary" id="jbOk">Lưu</button></div></div></div>
 <div class="modal" id="mGen"><div class="card glass" style="width:min(420px,100%)"><h2 class="gn-t"></h2><p class="lead">Để app chọn màu và lời trong nhật ký cho hợp với bé. Đổi lại được trong thông tin bé.</p>
   <div class="dbig"><button class="primary" data-g="m" style="background:linear-gradient(135deg,#4f9dff,#2fc6c0)">Bé trai</button><button class="primary" data-g="f">Bé gái</button></div>
   <div class="foot"><button data-close>Để sau</button></div></div></div>`);
@@ -55,14 +67,14 @@ export function initProfile(A) {
     return raster(kid);
   }
   // avatar vẽ sẵn: rasterize một lần thành PNG để hàng trăm viên tuổi không phải giải mã SVG mỗi lần
-  const RS = new Map(), rkey = k => `${k.id}:${k.color}:${k.gender}:${k.avStyle || 0}`;
+  const RS = new Map(), rkey = k => `${k.id}:${k.color}:${k.gender}:${k.avStyle || 0}:${k.role || ''}:${k.chibi ? JSON.stringify(k.chibi) : ''}`;
   async function raster(kid) {
     const key = rkey(kid); if (RS.has(key)) return RS.get(key);
-    const im = new Image(); im.src = avatarSVG(kid); await im.decode().catch(() => { });
+    const im = new Image(); im.src = drawnAvatar(kid); await im.decode().catch(() => { });
     const c = document.createElement('canvas'); c.width = c.height = 128; c.getContext('2d').drawImage(im, 0, 0, 128, 128);
-    const b = await new Promise(r => c.toBlob(r, 'image/png')); const u = b ? URL.createObjectURL(b) : avatarSVG(kid); RS.set(key, u); return u;
+    const b = await new Promise(r => c.toBlob(r, 'image/png')); const u = b ? URL.createObjectURL(b) : drawnAvatar(kid); RS.set(key, u); return u;
   }
-  const avatarNow = kid => { if (!kid) return ''; if (kid.avatar) { const u = AV.get(kid.id + ':' + kid.avatar); if (u) return u; } return RS.get(rkey(kid)) || avatarSVG(kid); };
+  const avatarNow = kid => { if (!kid) return ''; if (kid.avatar) { const u = AV.get(kid.id + ':' + kid.avatar); if (u) return u; } return RS.get(rkey(kid)) || drawnAvatar(kid); };
   async function warm(kids) { for (const k of kids) { if (k.avatar) await avatarURL(k); else await raster(k); } }
 
   // ---------- trình cắt avatar tròn ----------
@@ -77,6 +89,7 @@ export function initProfile(A) {
   }
   function renderStyles() {
     const k = C.kid; if (!k) return; const box = M.querySelector('.avst');
+    if (useChibi(k) || k.role) { box.innerHTML = `<button data-a="tochibi" class="tochibi"><img src="${svgURL(chibiAvatarSVG(k))}" alt=""><span>Dùng nhân vật chibi</span></button>`; return; }
     box.innerHTML = [0, 1, 2].map(i => `<button data-st="${i}" class="${C.style === i ? 'on' : ''}"><img src="${avatarSVG(k, i)}" alt=""></button>`).join('');
   }
   async function openAvatar(kid, done, src) {
@@ -100,6 +113,7 @@ export function initProfile(A) {
     const pk = e.target.closest('.avpick [data-mid]'); if (pk) { const m = A.allMoments().find(x => x.id === pk.dataset.mid); const b = (!m.heic && m.type === 'image' && await A.dbGet('blobs', 'o_' + m.id)) || await A.dbGet('blobs', 't_' + m.id); M.querySelector('.avpick').hidden = true; await setSrc(b); return; }
     const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
     if (a === 'file') M.querySelector('.avf').click();
+    else if (a === 'tochibi') { A.closeModal(M); const done = C.done; setTimeout(() => openChibi(C.kid, done), 120); }
     else if (a === 'kid') {
       const g = M.querySelector('.avpick'); g.hidden = !g.hidden; if (g.hidden) return;
       const ms = A.allMoments().filter(m => m.type === 'image' && A.kidsOf(m).includes(C.kid.id)).sort((x, y) => y.ts - x.ts).slice(0, 60);
@@ -145,6 +159,7 @@ export function initProfile(A) {
   const birthTimeTxt = t => { const [h, m] = t.split(':').map(Number); return `${h}:${String(m).padStart(2, '0')} ${h < 11 ? 'sáng' : h < 13 ? 'trưa' : h < 18 ? 'chiều' : 'tối'}`; };
   const birthStats = k => [k.weight ? `${String(k.weight).replace('.', ',')} kg` : '', k.length ? `${String(k.length).replace('.', ',')} cm` : '', k.place ? k.place : ''].filter(Boolean);
   async function openProfile(kid) {
+    if (kid && !isChild(kid) && kid.role) return openAdult(kid);
     if (!kid?.birth) return; document.querySelector('.confetti')?.remove();
     const nh = await A.metaGet?.('nhac:' + kid.id);
     const P = profileOf(kid.birth), age = ageParts(kid.birth), z = P.zodiac, col = kid.color || '#ff8fbf', av = await avatarURL(kid);
@@ -170,10 +185,16 @@ export function initProfile(A) {
       </div>
       <div class="hs-acts"><button class="primary" data-a="img">${icon('download', 18, 2)}<span>Lưu thẻ hồ sơ thành ảnh</span></button></div>`;
     HS.classList.add('open'); HS.setAttribute('aria-hidden', 'false'); document.body.classList.add('hsopen'); HS.querySelector('.hs-sc').scrollTop = 0;
-    HS._kid = kid; HS._p = P; HS._age = age;
+    HS._kid = kid; HS._p = P; HS._age = age; HS._adult = false;
     if (age.today) setTimeout(() => confetti(col), 500);
   }
-  HS.querySelector('.hs-more').onclick = e => { const k = HS._kid; if (!k) return; A.contextMenu({ at: e.currentTarget, title: esc(k.name), items: [
+  HS.querySelector('.hs-more').onclick = e => { const k = HS._kid; if (!k) return; if (HS._adult) { A.contextMenu({ at: e.currentTarget, title: esc(isMe(k) ? 'Hồ sơ của bạn' : k.name), items: [
+    { icon: 'edit', label: 'Sửa thông tin', act: () => { closeProfile(); A.editKid(k); } },
+    { icon: 'smile', label: 'Đổi nhân vật chibi', act: () => openChibi(A.rawKid(k.id)) },
+    { icon: 'image', label: 'Dùng ảnh làm avatar', act: () => openAvatar(A.rawKid(k.id), async kk => { await A.saveKid(kk); openProfile(A.dispKid(kk.id)); }) },
+    { icon: 'download', label: 'Lưu thẻ Đọc vị thành ảnh', act: () => saveAdultCard(k) },
+    { sep: 1 }, { icon: 'trash', label: isMe(k) ? 'Xoá hồ sơ của bạn…' : `Xoá ${esc(k.name)}…`, danger: true, act: () => A.removeKid(k) }] }); return; }
+    A.contextMenu({ at: e.currentTarget, title: esc(k.name), items: [
     { icon: 'edit', label: 'Sửa tên, ngày sinh, giới tính, màu', act: () => { closeProfile(); A.editKid(k); } },
     { icon: 'smile', label: 'Đổi avatar', act: () => HS.querySelector('[data-a=av]').click() },
     { icon: 'image', label: 'Đổi hình nền', act: () => { closeProfile(); A.openBgSettings(); } },
@@ -187,6 +208,11 @@ export function initProfile(A) {
   HS.addEventListener('click', async e => {
     const b = e.target.closest('[data-a]'); if (!b) return; const k = HS._kid;
     if (b.dataset.a === 'edit') { closeProfile(); A.editKid(k); }
+    else if (b.dataset.a === 'chibi') openChibi(A.rawKid(k.id));
+    else if (b.dataset.a === 'aimg') saveAdultCard(k);
+    else if (b.dataset.a === 'flip') { const c = b.closest('.fc'); c.classList.toggle('on'); haptic(8); }
+    else if (b.dataset.a === 'job') openJob(A.rawKid(k.id), b.dataset.i != null ? +b.dataset.i : null);
+    else if (b.dataset.a === 'addbd') { closeProfile(); A.editKid(k); }
     else if (b.dataset.a === 'av') openAvatar(A.rawKid(k.id), async kk => { await A.saveKid(kk); openProfile(A.dispKid(kk.id)); });
     else if (b.dataset.a === 'img') saveCard(k);
     else if (b.dataset.a === 'bg') { closeProfile(); A.openBgSettings(); }
@@ -198,6 +224,91 @@ export function initProfile(A) {
     if (REDUCED) return; const box = document.createElement('div'); box.className = 'confetti'; const cols = [col, '#ffd27f', '#ff8fbf', '#9fe1cb', '#c3a6ff', '#ffffff'];
     for (let i = 0; i < 90; i++) { const p = document.createElement('i'); const x = (Math.random() - .5) * 120, r = Math.random() * 720 - 360; p.style.cssText = `left:${50 + (Math.random() - .5) * 30}%;background:${cols[i % cols.length]};--x:${x}vw;--r:${r}deg;--d:${1.6 + Math.random() * 1.6}s;--w:${6 + Math.random() * 7}px;animation-delay:${Math.random() * .25}s`; box.appendChild(p); }
     document.body.appendChild(box); haptic(30); setTimeout(() => box.remove(), 3800);
+  }
+  // ---------- ĐỌC VỊ BẢN THÂN (người lớn): cung hoàng đạo, con giáp + mệnh, thần số học, nghề, hợp nhau ----------
+  function readingOf(k) {
+    if (!k?.birth) return null; const exact = !k.birthApprox, y = +k.birth.slice(0, 4);
+    if (!exact) { const chi = CHI[(y + 8) % 12]; return { exact, y, chi, con: CON[(y + 8) % 12], canChi: canChi(y), nap: napAm(y) }; }
+    const P = profileOf(k.birth); return { exact, y, P, chi: P.chi, con: P.con, canChi: P.canChi, nap: P.nap, z: P.zodiac, sign: SIGN[P.zodiac.ten], num: lifePath(k.birth) };
+  }
+  const curJob = k => (k.jobs || []).find(j => !j.to) || (k.jobs || []).slice(-1)[0] || null;
+  async function openAdult(kid) {
+    document.querySelector('.confetti')?.remove(); const R = readingOf(kid), col = kid.color || '#ff8fbf', me = isMe(kid), job = curJob(kid);
+    HS.style.setProperty('--kc', col); HS.style.setProperty('--kc2', mix(col, '#ffffff', .45)); HS._adult = true; HS._kid = kid;
+    const hero = kid.avatar ? `<div class="hs-av"><img src="${await avatarURL(kid)}" alt=""><i></i></div>` : `<div class="hs-cb">${chibiSVG(kid, { w: 150 })}</div>`;
+    const born = kid.birth ? (kid.birthApprox ? `sinh năm ${kid.birth.slice(0, 4)}` : `sinh ${fmtLong(new Date(kid.birth + 'T12:00:00').getTime())}`) : '';
+    const L = R?.P?.lunar, lun = L ? `Âm lịch ${L.d}/${L.m}${L.leap ? ' nhuận' : ''} · ${R.canChi}` : R ? `Năm ${R.canChi}` : '';
+    const fc = (cls, front, back) => `<section class="fc ${cls}" data-a="flip"><div class="fc-in"><div class="fc-f">${front}<small class="fc-h">chạm để lật ${icon('chevronRight', 12, 2.4)}</small></div><div class="fc-b">${back}</div></div></section>`;
+    const cards = [];
+    if (R?.exact) {
+      const S = R.sign;
+      cards.push(fc('big', `<h3><span class="zk">${R.z.kh}</span>Cung hoàng đạo</h3><div class="v">${R.z.ten}</div><p>Nguyên tố ${R.z.nt} · ${ELEMENT_TXT[R.z.nt]}</p><p class="pa">${esc(S.tc)}</p><div class="chips">${S.manh.map(c => `<span class="chip">${c}</span>`).join('')}</div>`,
+        `<h3>${icon('sparkle', 16)}${R.z.ten} · sâu hơn</h3><p class="pa"><b>Làm việc:</b> ${esc(S.viec)}</p><p class="pa"><b>Tình cảm, gia đình:</b> ${esc(S.tinh)}</p><p class="pa"><b>Điều nên lưu ý:</b> ${esc(S.luu)}</p>`));
+    }
+    if (R) {
+      const G = GIAP_L[R.chi], M = MENH_L[R.nap.hanh];
+      cards.push(fc('', `<h3>${icon('star', 16)}Con giáp</h3><div class="v">Tuổi ${R.chi}</div><p>${R.canChi} · con ${R.con}</p>`, `<h3>Tuổi ${R.chi}</h3><p class="pa">${esc(G.tc)}</p><p>Con số may mắn: <b>${G.so.join(', ')}</b></p>`));
+      cards.push(fc('', `<h3>${icon('sparkle', 16)}Mệnh</h3><div class="v sm">${R.nap.ten}</div><p>hành <b>${R.nap.hanh}</b></p><div class="mau">${M.ma.map(c => `<i style="background:${c}"></i>`).join('')}</div>`, `<h3>Mệnh ${R.nap.hanh}</h3><p class="pa">${esc(M.tc)}</p><p>Màu hợp: <b>${M.mau.join(', ')}</b></p>`));
+    }
+    if (R?.exact && R.num) { const N = NUM[R.num]; cards.push(fc('big num', `<h3>${icon('sparkle', 16)}Thần số học · số chủ đạo</h3><div class="nb"><b>${R.num}</b><span>${esc(N.t)}</span></div><p class="pa">${esc(N.tc)}</p>`, `<h3>Số ${R.num} · gợi ý cho bạn</h3><p class="pa">${esc(N.goi)}</p><p class="note">Số chủ đạo = cộng dồn mọi chữ số của ngày sinh dương lịch (giữ 11, 22, 33).</p>`)); }
+    if (R?.exact) cards.push(`<section class="t"><h3>${icon('heart', 16)}Đá & hoa tháng sinh</h3><div class="v sm"><i class="gem" style="background:${R.P.daMau}"></i>${R.P.da}</div><p>Hoa: <b>${R.P.hoa}</b></p></section>`);
+    if (R && !R.exact) cards.push(`<section class="t big invite"><h3>${icon('calendar', 16)}Thêm ngày sinh để xem nhiều hơn</h3><p class="pa">Bạn mới nhập năm sinh, nên app tính con giáp theo năm dương lịch (sinh tháng 1–2 có thể thuộc tuổi năm trước). Bổ sung ngày, tháng sinh để xem <b>cung hoàng đạo</b> và <b>thần số học</b>.</p><button data-a="addbd" class="primary">${icon('edit', 16)}<span>Bổ sung ngày sinh</span></button></section>`);
+    if (!R) cards.push(`<section class="t big invite"><h3>${icon('calendar', 16)}Chưa có ngày sinh</h3><p class="pa">Thêm ngày sinh (hoặc chỉ năm sinh) để xem con giáp, mệnh, cung hoàng đạo và thần số học.</p><button data-a="addbd" class="primary">${icon('edit', 16)}<span>Thêm ngày sinh</span></button></section>`);
+    // công việc theo thời gian
+    const jobs = (kid.jobs || []).map((j, i) => ({ ...j, i })).sort((a, b) => (+a.from || 0) - (+b.from || 0));
+    cards.push(`<section class="t big jobs"><h3>${icon('star', 16)}Công việc</h3>${jobs.length ? `<div class="jl">${jobs.map(j => `<button data-a="job" data-i="${j.i}"><b>${esc(j.job)}</b><span>${[j.at, j.from ? (j.to ? `${j.from} – ${j.to}` : `từ ${j.from}`) : (j.to ? `đến ${j.to}` : 'hiện tại')].filter(Boolean).map(esc).join(' · ')}</span></button>`).join('')}</div>` : '<p>Chưa có — thêm nghề theo từng giai đoạn, app tự đánh dấu cột mốc “Việc làm đầu tiên”.</p>'}
+      ${R?.exact && job ? `<p class="pa jline">✨ ${esc(jobLine(R.z.ten, R.z.nt, job.job))}</p>` : ''}<button data-a="job" class="jb-add">${icon('plus', 16, 2.2)}<span>Thêm công việc</span></button></section>`);
+    // hợp nhau: bạn ↔ bạn đời, con (hoặc người này ↔ bạn)
+    const pairs = [], others = A.people ? A.people() : [], me0 = others.find(isMe);
+    const withs = me ? others.filter(o => !isMe(o) && (isPartner(o) || roleOf(o) === 'con')) : (me0 ? [me0] : []);
+    for (const o of withs) { const Ro = readingOf(o); if (!R || !Ro) continue; const gp = giapPair(R.chi, Ro.chi); pairs.push(`<div class="pr"><img src="${avatarNow(o)}" alt=""><div><b>${esc(isMe(o) ? 'Bạn' : o.name)}${isMe(o) ? '' : ` · ${roleName(o)}`}</b><p>${'💗'.repeat(gp.lv)} ${esc(gp.t)}</p>${R.exact && Ro.exact ? `<p>${esc(signPair(R.z, Ro.z))}</p>` : ''}</div></div>`); }
+    if (pairs.length) cards.push(`<section class="t big pairs"><h3>${icon('heart', 16)}Hợp nhau</h3>${pairs.join('')}</section>`);
+    HI.innerHTML = `<div class="hs-hero">${hero}<h1>${esc(me ? kid.name : kid.name)}</h1>${kid.fullName ? `<div class="hs-fn">${esc(kid.fullName)}</div>` : ''}
+        <p>${esc([me ? 'Hồ sơ của bạn' : roleName(kid), born].filter(Boolean).join(' · '))}</p>${lun ? `<p class="hs-lun">${esc(lun)}${job ? ` · ${esc(job.job)}` : ''}</p>` : ''}
+        <div class="hs-tools"><button data-a="edit">${icon('edit', 18)}<span>Sửa thông tin</span></button><button data-a="chibi">${icon('smile', 18)}<span>Đổi nhân vật</span></button></div></div>
+      <h2 class="hs-dv">✨ Đọc vị bản thân</h2>
+      <div class="hs-grid adult">${cards.join('')}</div><p class="hs-note">Mang tính tham khảo cho vui · không bàn chuyện vận hạn, tương lai</p>
+      <div class="hs-acts"><button class="primary" data-a="aimg">${icon('download', 18, 2)}<span>Lưu thẻ Đọc vị thành ảnh</span></button></div>`;
+    HS.classList.add('open'); HS.setAttribute('aria-hidden', 'false'); document.body.classList.add('hsopen'); HS.querySelector('.hs-sc').scrollTop = 0;
+  }
+  // chọn nhân vật chibi
+  const MC = $('#mChibi'); let CE = null, CK = null;
+  function openChibi(k, done) { CK = k; MC.querySelector('.cbn').textContent = isMe(k) ? 'bạn' : k.name; CE = mountChibiEditor($('#ceBox'), k); MC._done = done; A.openModal(MC); }
+  MC.querySelector('[data-a=cbok]').onclick = async () => { const k = CK; if (!k) return; k.chibi = CE.get(); k.avatar = 0; A.closeModal(MC); haptic(12); if (MC._done) MC._done(k); else { await A.saveKid(k); if (HS.classList.contains('open')) openProfile(A.dispKid(k.id)); } };
+  // công việc theo thời gian: { job, at, from, to }
+  const MJ = $('#mJob'); let JK = null, JI = null;
+  const JOBS = ['Học sinh', 'Sinh viên', 'Nhân viên văn phòng', 'Kinh doanh', 'Kỹ sư', 'Giáo viên', 'Bác sĩ', 'Nội trợ', 'Nghỉ hưu', 'Tự do'];
+  function openJob(k, i) {
+    JK = k; JI = i; const j = i != null ? k.jobs[i] : {}; MJ.querySelector('.jb-t').textContent = i != null ? 'Sửa công việc' : 'Thêm công việc';
+    $('#jbJob').value = j.job || ''; $('#jbAt').value = j.at || ''; $('#jbFrom').value = j.from || ''; $('#jbTo').value = j.to || ''; $('#jbDel').hidden = i == null;
+    MJ.querySelector('.jb-sug').innerHTML = JOBS.map(t => `<button type="button" data-j="${t}">${t}</button>`).join(''); A.openModal(MJ);
+  }
+  MJ.querySelector('.jb-sug').onclick = e => { const b = e.target.closest('[data-j]'); if (b) { $('#jbJob').value = b.dataset.j; haptic(5); } };
+  const yr = v => { v = String(v || '').replace(/\D/g, ''); return v.length === 4 ? v : null; };
+  $('#jbOk').onclick = async () => { const job = $('#jbJob').value.trim(); if (!job) { A.toast('Bạn nhập nghề / công việc nhé'); return; } const j = { job, at: $('#jbAt').value.trim() || null, from: yr($('#jbFrom').value), to: yr($('#jbTo').value) }; JK.jobs = (JK.jobs || []).slice(); if (JI != null) JK.jobs[JI] = j; else JK.jobs.push(j); A.closeModal(MJ); await A.saveKid(JK); openProfile(A.dispKid(JK.id)); };
+  $('#jbDel').onclick = async () => { if (JI == null) return; JK.jobs = JK.jobs.filter((_, i) => i !== JI); A.closeModal(MJ); await A.saveKid(JK); openProfile(A.dispKid(JK.id)); };
+  // thẻ Đọc vị 1080×1920
+  async function saveAdultCard(kid) {
+    const R = readingOf(kid), col = kid.color || '#ff8fbf', W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d'), F = (w, s) => `${w} ${s}px Quicksand, sans-serif`;
+    const g = x.createLinearGradient(0, 0, W * .4, H); g.addColorStop(0, mix(col, '#ffffff', .6)); g.addColorStop(.6, mix(col, '#ffffff', .85)); g.addColorStop(1, mix(col, '#e8dcff', .7)); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    for (let i = 0; i < 80; i++) { x.fillStyle = `rgba(255,255,255,${.25 + Math.random() * .5})`; x.beginPath(); x.arc(Math.random() * W, Math.random() * H, 2 + Math.random() * 5, 0, 7); x.fill(); }
+    const rr = (X, Y, w, h, r) => { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); };
+    const im = new Image(); im.src = kid.avatar ? await avatarURL(kid) : svgURL(chibiSVG(kid, { w: 360 })); await im.decode().catch(() => { });
+    if (kid.avatar) { x.save(); x.beginPath(); x.arc(W / 2, 300, 170, 0, 7); x.clip(); x.drawImage(im, W / 2 - 170, 130, 340, 340); x.restore(); } else x.drawImage(im, W / 2 - 180, 70, 360, 480);
+    x.textAlign = 'center'; x.fillStyle = '#3d1b35'; x.font = F(700, 96); x.fillText(kid.name, W / 2, 640, W - 100);
+    x.fillStyle = mix(col, '#000000', .35); x.font = F(700, 38); x.fillText('✨ Đọc vị bản thân', W / 2, 705);
+    const tiles = []; if (R?.exact) tiles.push([`${R.z.kh} Cung hoàng đạo`, R.z.ten, SIGN[R.z.ten].manh.slice(0, 2).join(' · ')]);
+    if (R) { tiles.push(['Con giáp', `Tuổi ${R.chi}`, R.canChi]); tiles.push(['Mệnh', R.nap.hanh, R.nap.ten]); }
+    if (R?.exact && R.num) tiles.push(['Số chủ đạo', String(R.num), NUM[R.num].t.replace(/^Số bậc thầy \d+ · /, '')]);
+    tiles.forEach((t, i) => { const cx = 70 + (i % 2) * 480, cy = 760 + Math.floor(i / 2) * 230; rr(cx, cy, 460, 205, 40); x.fillStyle = 'rgba(255,255,255,.74)'; x.fill(); x.textAlign = 'left'; x.fillStyle = mix(col, '#000000', .3); x.font = F(700, 32); x.fillText(t[0], cx + 34, cy + 58, 400); x.fillStyle = '#3d1b35'; x.font = F(700, 52); x.fillText(t[1], cx + 34, cy + 125, 400); x.fillStyle = '#7d5a75'; x.font = F(600, 29); x.fillText(t[2], cx + 34, cy + 172, 400); });
+    const para = R?.exact ? SIGN[R.z.ten].tc : R ? GIAP_L[R.chi].tc : '', job = curJob(kid), jl = R?.exact && job ? jobLine(R.z.ten, R.z.nt, job.job) : '';
+    let y0 = 760 + Math.ceil(tiles.length / 2) * 230 + 40; x.textAlign = 'left'; x.fillStyle = '#3d1b35'; x.font = F(600, 36);
+    const wrap = (txt, yy, lh = 52) => { const ws = txt.split(' '); let line = ''; for (const w of ws) { if (x.measureText(line + w).width > W - 160) { x.fillText(line, 80, yy); yy += lh; line = ''; } line += w + ' '; } if (line) { x.fillText(line, 80, yy); yy += lh; } return yy; };
+    if (para) y0 = wrap(para, y0) + 20; if (jl) { x.fillStyle = mix(col, '#000000', .3); x.font = F(700, 34); y0 = wrap('✨ ' + jl, y0); }
+    x.textAlign = 'center'; x.fillStyle = '#7d5a75'; x.font = F(600, 28); x.fillText('Mang tính tham khảo cho vui · Hành Trình Của Bạn', W / 2, H - 60);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92)), name = `DocVi-${A.noAccent(kid.name)}.jpg`;
+    await A.shareOrDownload(new File([blob], name, { type: 'image/jpeg' }), name); if (!A.TEST) A.toast('Đã lưu thẻ Đọc vị', 1800);
+    return blob;
   }
   // ---------- lưu thẻ hồ sơ thành ảnh (khổ dọc 1080×1920) ----------
   async function saveCard(kid) {
@@ -224,5 +335,5 @@ export function initProfile(A) {
     await A.shareOrDownload(new File([blob], name, { type: 'image/jpeg' }), name); if (!A.TEST) A.toast('Đã lưu thẻ hồ sơ', 1800);
     return blob;
   }
-  return { birthTimeTxt, birthStats, confetti, avatarURL, avatarNow, warm, openAvatar, openProfile, closeProfile, askGender, saveCard, ageParts, isOpen: () => HS.classList.contains('open') };
+  return { birthTimeTxt, birthStats, confetti, avatarURL, avatarNow, warm, openAvatar, openProfile, closeProfile, askGender, saveCard, saveAdultCard, openChibi, openJob, readingOf, ageParts, isOpen: () => HS.classList.contains('open') };
 }

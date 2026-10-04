@@ -972,6 +972,66 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
 .mb.ab { background: rgba(148,163,184,.25); }
 .hc.ty { border: none; background: color-mix(in srgb, var(--tc) 30%, rgba(255,255,255,.12)); color: inherit; font-weight: 800; cursor: pointer; }
 .lane.me { width: 4px; }
+
+/* v1.6.0: Đọc vị bản thân + chibi */
+.hs-cb { width: 150px; margin: 0 auto; filter: drop-shadow(0 10px 24px color-mix(in srgb, var(--kc) 55%, transparent)); animation: hsPop var(--sp-wobbly-ms) var(--sp-wobbly) .1s backwards, cbBob 3.6s ease-in-out 1s infinite; }
+@keyframes cbBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.hs-lun { font-size: 13.5px; margin-top: 4px !important; color: var(--muted) !important; }
+.hs-dv { margin: 26px 0 0; text-align: center; font-size: 22px; }
+.hs-note { text-align: center; font-size: 12px; color: var(--muted); font-style: italic; margin: 12px 0 0; }
+.fc { perspective: 1200px; cursor: pointer; animation: hsPop .6s cubic-bezier(.34,1.56,.64,1) backwards; }
+.fc.big { grid-column: 1 / -1; }
+.fc-in { position: relative; display: grid; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.34,1.45,.64,1); }
+.fc.on .fc-in { transform: rotateY(180deg); }
+.fc-f, .fc-b { grid-area: 1 / 1; padding: 16px; border-radius: 24px; background: linear-gradient(165deg, var(--gl1), var(--gl2)); border: 1px solid var(--glb); box-shadow: inset 0 1px 0 var(--glh), var(--sh); -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.fc-b { transform: rotateY(180deg); background: linear-gradient(165deg, color-mix(in srgb, var(--kc) 22%, var(--gl1)), var(--gl2)); }
+.fc-h { display: inline-flex; align-items: center; gap: 2px; margin-top: 8px; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.hs-grid .mau { display: flex; gap: 6px; margin-top: 8px; } .hs-grid .mau i { width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.6), 0 2px 6px rgba(0,0,0,.2); }
+.nb { display: flex; align-items: center; gap: 14px; } .nb b { font-size: 58px; line-height: 1; font-weight: 800; color: var(--kc); text-shadow: 0 0 22px color-mix(in srgb, var(--kc) 60%, transparent); } .nb span { font-size: 19px; font-weight: 800; }
+.jl { display: grid; gap: 6px; } .jl button { display: flex; flex-direction: column; align-items: flex-start; text-align: left; height: auto; padding: 10px 14px; border-radius: 16px; } .jl button span { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.jb-add { margin-top: 10px; height: 40px; } .jline { margin-top: 10px !important; }
+.jb-sug, .ob-sug { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; } .jb-sug button, .ob-sug button { padding: 6px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 700; height: auto; }
+.pairs .pr { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); } .pairs .pr:first-of-type { border-top: none; } .pairs .pr img { width: 44px; height: 44px; border-radius: 50%; flex: none; }
+.pairs .pr p { margin: 4px 0 0; font-size: 14px; }
+.invite .primary { margin-top: 10px; height: 44px; }
+.tochibi { display: flex; align-items: center; gap: 10px; height: auto !important; padding: 8px 14px 8px 8px; border-radius: 20px; } .tochibi img { width: 56px; height: 56px; border-radius: 50%; }
+.ce { display: grid; gap: 10px; } .ce-pv { display: grid; place-items: center; padding: 6px; border-radius: 22px; background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--kc, #ff8fbf) 30%, transparent), transparent 70%); }
+.ce-pv svg { transform-origin: 50% 90%; } .ce-r > b { display: block; font-size: 12.5px; color: var(--sub); margin-bottom: 6px; }
+.ce-h { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; } .ce-h button { padding: 2px; border-radius: 50%; aspect-ratio: 1; height: auto; } .ce-h button img { width: 100%; display: block; border-radius: 50%; } .ce-h button.on { box-shadow: 0 0 0 3px var(--kc, #ff8fbf); transform: scale(1.08); }
+.ce-s { display: flex; flex-wrap: wrap; gap: 7px; } .ce-s i { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; box-shadow: 0 0 0 2px rgba(255,255,255,.5), 0 2px 6px rgba(0,0,0,.2); transition: transform .3s cubic-bezier(.34,1.56,.64,1); } .ce-s i.on { transform: scale(1.18); box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--kc, #ff8fbf); }
+.ce-a { display: flex; flex-wrap: wrap; gap: 6px; } .ce-a button { padding: 6px 11px; border-radius: 999px; font-size: 12.5px; height: auto; } .ce-a button.on, .jb-sug button.on { background: var(--kc, #ff8fbf); color: #fff; }
+@media (max-width: 420px) { .ce-h { grid-template-columns: repeat(4, 1fr); } }
+
+/* v1.6.0: màn làm quen */
+#onb { position: fixed; inset: 0; z-index: 70; pointer-events: none; opacity: 0; transition: opacity .4s; }
+#onb.open { opacity: 1; pointer-events: auto; }
+.ob-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 10%, #ffb3d6 0%, transparent 55%), radial-gradient(ellipse at 90% 60%, #b9a6ff 0%, transparent 55%), radial-gradient(ellipse at 10% 90%, #9fe1cb 0%, transparent 50%), linear-gradient(180deg, #2a1a52, #120c2e); overflow: hidden; }
+.ob-bg i { position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%; filter: blur(60px); opacity: .35; animation: obFloat 14s ease-in-out infinite alternate; }
+.ob-bg i:nth-child(1) { background: #ff8fbf; left: -10%; top: -10%; } .ob-bg i:nth-child(2) { background: #ffd27f; right: -15%; top: 30%; animation-delay: -5s; } .ob-bg i:nth-child(3) { background: #7fd6ff; left: 20%; bottom: -20%; animation-delay: -9s; }
+@keyframes obFloat { to { transform: translate(6vmax, -4vmax) scale(1.15); } }
+.ob-sc { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(var(--safe-t) + 18px) 16px calc(var(--safe-b) + 24px); display: flex; flex-direction: column; align-items: center; }
+.ob-x { position: absolute; z-index: 2; top: calc(var(--safe-t) + 10px); right: 12px; }
+.ob-cb { width: 112px; min-height: 150px; margin: 4px auto 4px; transition: transform .5s cubic-bezier(.34,1.56,.64,1); filter: drop-shadow(0 10px 20px rgba(0,0,0,.25)); } .ob-cb.mini { transform: scale(.6); min-height: 80px; height: 90px; }
+.ob-chat { width: min(520px, 100%); display: flex; flex-direction: column; gap: 6px; }
+.ob-b { max-width: 82%; padding: 8px 14px; border-radius: 18px; font-size: 14px; font-weight: 700; color: #fff; }
+.ob-b.q { align-self: flex-start; background: rgba(255,255,255,.14); border-bottom-left-radius: 6px; } .ob-b.a { align-self: flex-end; background: linear-gradient(135deg, #ff8fbf, #ffb36b); border-bottom-right-radius: 6px; }
+.ob-q { width: min(520px, 100%); margin-top: 12px; }
+.ob-card { padding: 20px 18px; border-radius: 28px; color: #fff; background: linear-gradient(165deg, rgba(255,255,255,.2), rgba(255,255,255,.08)); border: 1px solid rgba(255,255,255,.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 20px 50px rgba(10,0,40,.35); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+html.wk .ob-card { -webkit-backdrop-filter: none; backdrop-filter: none; background: linear-gradient(165deg, rgba(70,45,120,.92), rgba(40,25,80,.95)); }
+.ob-card h2 { margin: 0 0 6px; font-size: 24px; } .ob-card p { margin: 0 0 12px; font-size: 15px; line-height: 1.55; color: rgba(255,255,255,.88); }
+.ob-in { display: block; width: 100%; font: 700 18px var(--font); color: #2a1640; background: rgba(255,255,255,.94); border: none; border-radius: 16px; padding: 13px 15px; outline: none; min-height: 50px; }
+.ob-card .primary { margin-top: 12px; width: 100%; height: 50px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.ob-card .primary.big { height: 56px; font-size: 18px; }
+.ob-row { display: flex; gap: 8px; } .ob-row .ob-skip { margin-top: 12px; height: 50px; flex: 0 0 auto; padding: 0 18px; } .ob-row .primary { flex: 1; }
+.ob-tuoi { min-height: 22px; margin-top: 8px; font-weight: 800; color: #ffd27f; font-size: 15px; }
+.ob-more { margin-top: 8px; } .ob-more summary { cursor: pointer; font-weight: 700; font-size: 13.5px; color: rgba(255,255,255,.85); list-style: none; } .ob-more summary small { font-weight: 600; opacity: .75; } .ob-more .ob-in { margin-top: 8px; }
+.ob-sug button { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.25); } .ob-sug button.on { background: #fff; color: #7a3d63; }
+.ob-alt { display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(255,255,255,.3); } .ob-alt button { height: auto; min-height: 42px; text-align: left; justify-content: flex-start; padding: 8px 12px; border-radius: 14px; font-size: 13.5px; background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.2); }
+.ob-alt .g { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #fff; color: #4285f4; font-weight: 800; margin-right: 6px; }
+.ob-done { display: grid; place-items: center; margin: -6px 0 6px; }
+.ob-card .ce-r > b { color: rgba(255,255,255,.85); } .ob-card .ce-a button, .ob-card .seg button { color: #fff; } .ob-card .seg { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.2); } .ob-card .ce-pv { display: none; }
+.tl-cb { display: inline-block; width: 46px; margin-right: 4px; vertical-align: middle; animation: cbBob 3.6s ease-in-out infinite; }
+.lc-cb { display: inline-block; animation: lcPop .6s 1s cubic-bezier(.34,1.56,.64,1) backwards, cbBob 3.4s 1.6s ease-in-out infinite; filter: drop-shadow(0 8px 20px rgba(255,140,200,.5)); }
 </style>
 </head>
 <body data-theme="night" class="v12">
@@ -1038,7 +1098,7 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
 
 <div class="modal" id="mAdd"><div class="card glass">
   <h2>Thêm khoảnh khắc</h2>
-  <p class="lead">Chọn nhiều ảnh, video một lúc. App tự đọc ngày chụp và tính tuổi của con — bạn sửa lại được nếu chưa đúng.</p>
+  <p class="lead">Chọn nhiều ảnh, video một lúc. App tự đọc ngày chụp và tính tuổi — bạn sửa lại được nếu chưa đúng. Ảnh cũ chụp lại từ ảnh giấy thì chọn “ảnh cũ” bên dưới.</p>
   <div id="drop"><span class="big">📸</span>Kéo thả ảnh, video vào đây<br>hoặc bấm để chọn</div>
   <input type="file" id="fileIn" accept="image/*,video/*" multiple hidden>
   <div class="addold" id="addOld"><label class="ao-t"><input type="checkbox" id="aoOn" class="ck"><span>📜 Ảnh cũ chụp lại từ ảnh giấy <small>không có ngày chụp — chỉ nhớ khoảng thời gian</small></span></label>
