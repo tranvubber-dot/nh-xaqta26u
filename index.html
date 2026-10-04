@@ -852,6 +852,40 @@ button.hs-scene { display: block; width: 100%; border: none; background: none; p
 .mm-e i { display: block; aspect-ratio: 1; border-radius: 11px; background: var(--field) center / cover; }
 .mm-e b { font-size: 12.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } .mm-e small { font-size: 11.5px; color: var(--sub); font-weight: 600; }
 .rchips.sub { margin-top: 6px; } .rchips.sub[hidden] { display: none; } .rchips.sub button { font-size: 13px; padding: 5px 11px; height: auto; }
+/* v1.8.0 — tab BẢN ĐỒ: thanh tab vẫn hiện, bản đồ chừa chỗ cho thanh tab; ảnh bay lơ lửng quanh nơi đã chụp */
+body.maptab #tabbar { visibility: visible !important; pointer-events: auto !important; z-index: 70; opacity: 1; transform: none; }
+body.maptab #mapv { bottom: calc(var(--tabh, 62px) + 16px + var(--safe-b)); }
+@media (max-width: 767px) { body.maptab #mapv { bottom: var(--tabh); } }
+#mapv.tab .mp-back { display: none; }
+#mapv.tab .mp-bar { bottom: 18px; } #mapv.tab .mp-hint { bottom: 86px; } #mapv.tab .maplibregl-ctrl-bottom-right { bottom: 0; }
+.mk-fl, .mk-cl { border: none; background: none; padding: 0; height: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.mk-fl .fl-in, .mk-cl .fl-in { display: block; position: relative; transform-origin: 50% 100%; animation: flPop .55s cubic-bezier(.34,1.56,.64,1) var(--dl, 0ms) both; }
+.mk-fl .fl-in { width: 64px; height: 108px; }
+.fl-sh { position: absolute; left: 50%; bottom: 0; width: 26px; height: 8px; margin-left: -13px; border-radius: 50%; background: rgba(30,15,40,.32); animation: flSh 3.2s cubic-bezier(.45,0,.55,1) var(--ph, 0s) infinite alternate; }
+.fl-th { position: absolute; left: 50%; bottom: 4px; width: 1.5px; height: 44px; margin-left: -.75px; background: linear-gradient(rgba(255,255,255,.95), rgba(255,255,255,.35)); box-shadow: 0 0 2px rgba(40,20,60,.35); }
+.fl-b { position: absolute; left: 3px; top: 0; width: 58px; height: 58px; border-radius: 17px; padding: 3px; background: linear-gradient(160deg, #fff, #ffeef6); box-shadow: 0 0 0 2px var(--c, #ff8fbf), 0 10px 22px rgba(40,20,60,.35); animation: flBob 3.2s cubic-bezier(.45,0,.55,1) var(--ph, 0s) infinite alternate; will-change: transform; }
+.fl-b img { display: block; width: 100%; height: 100%; border-radius: 14px; object-fit: cover; background: #ffe3ec; }
+@keyframes flPop { from { transform: translateY(18px) scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes flBob { from { transform: translateY(0) rotate(-3deg); } to { transform: translateY(-8px) rotate(3deg); } }
+@keyframes flSh { from { transform: scale(1); opacity: .9; } to { transform: scale(.78); opacity: .6; } }
+.mk-cl .fl-in { width: 72px; height: 72px; } .cl-st { position: absolute; inset: 0; }
+.cl-st i { position: absolute; left: 8px; top: 8px; width: 56px; height: 56px; border-radius: 15px; border: 3px solid #fff; background: #ffd9ea center / cover; box-shadow: 0 6px 16px rgba(40,20,60,.3); }
+.cl-st i:nth-child(1) { transform: rotate(-9deg) translate(-5px, 2px); } .cl-st i:nth-child(2) { transform: rotate(7deg) translate(5px, -1px); } .cl-st i:nth-child(3) { transform: rotate(-1deg); }
+.mk-cl b { position: absolute; right: -2px; top: -4px; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px; display: grid; place-items: center; background: linear-gradient(135deg, #ff8fbf, #ffb36b); color: #fff; font: 800 13px var(--font); box-shadow: 0 0 0 2.5px #fff, 0 4px 10px rgba(40,20,60,.3); }
+.mk-here .mk-cb.fs-b { width: 50px; height: auto; animation: fsBob 2.4s cubic-bezier(.45,0,.55,1) infinite; } .mk-here .mk-cb svg { width: 100%; height: auto; display: block; overflow: visible; }
+.mk-orb { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; animation: orbSpin 14s linear infinite; }
+.mk-orb i { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; transform: rotate(var(--a)) translateX(58px) rotate(calc(var(--a) * -1)); }
+.mk-orb img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid #fff; box-shadow: 0 4px 10px rgba(40,20,60,.3); animation: orbCounter 14s linear infinite; background: #ffe3ec; }
+@keyframes orbSpin { to { transform: rotate(360deg); } } @keyframes orbCounter { to { transform: rotate(-360deg); } }
+.mp-pv { position: absolute; z-index: 8; left: 12px; right: 12px; bottom: 16px; max-width: 460px; margin: 0 auto; display: flex; gap: 12px; padding: 12px; border-radius: 22px; background: rgba(255,255,255,.97); color: #3d1b35; box-shadow: 0 16px 40px rgba(40,20,60,.3); }
+.mp-pv[hidden] { display: none; } .mp-pvi { flex: none; width: 96px; height: 96px; border-radius: 16px; overflow: hidden; background: #ffe3ec; } .mp-pvi img { width: 100%; height: 100%; object-fit: cover; }
+.mp-pvt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; } .mp-pvt small { font-size: 12px; font-weight: 700; color: #8a6a80; } .mp-pvt b { font-size: 16px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding-right: 26px; }
+.mp-pva { display: flex; gap: 0; min-height: 4px; } .mp-pva img { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; margin-right: -5px; object-fit: cover; }
+.mp-pvo { margin-top: auto; height: 38px; padding: 0 14px; border-radius: 13px; align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.mp-pvx { position: absolute; right: 8px; top: 8px; width: 32px; height: 32px; padding: 0; border-radius: 50%; border: none; display: grid; place-items: center; background: #f4e8f0; color: #3d1b35; }
+.mp-tip { position: absolute; z-index: 7; left: 12px; right: 70px; bottom: 16px; max-width: 420px; padding: 12px 14px; border-radius: 18px; background: rgba(255,255,255,.96); color: #3d1b35; box-shadow: 0 10px 28px rgba(40,20,60,.22); display: grid; gap: 8px; font-size: 14px; }
+.mp-tip[hidden] { display: none; } .mp-tip button { height: 38px; border-radius: 12px; border: none; background: linear-gradient(135deg, #ff8fbf, #ffb36b); color: #fff; font: 800 13.5px var(--font); }
+@media (prefers-reduced-motion: reduce) { .fl-b, .fl-sh, .mk-orb, .mk-orb img { animation: none; } }
 /* v1.8.0 — chống giật khi cuộn: đang cuộn thì dừng mọi hoạt ảnh lặp trong dòng thời gian (dải chảy, viền phát sáng, sao lấp lánh) */
 #tl.scr .lane i, #tl.scr .mb .ic, #tl.scr .ev.mile .cd::after, #tl.scr .ch-ic, #tl.scr .tl-cb, #tl.scr .rail2 i::before, #tl.scr .rhead, #tl.scr .bdb, #tl.scr .tl-more i, #tl.scr .avs i { animation-play-state: paused !important; }
 .chap, .otd, .bdb { content-visibility: auto; contain-intrinsic-size: auto 150px; }

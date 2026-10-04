@@ -12,7 +12,7 @@ import { GOOGLE_CLIENT_ID } from './config.js';
 import { ROLES, roleOf, isMe, isChild, isPartner, isElder, roleName, showsAge, findMe, sortPeople, sinceOf, anchorOf, chaptersOf, chapterAt, approxLabel, approxTs, SEASONS, PRECS } from './doi.js';
 import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 import { initOnboarding } from './lamquen.js';
-import { chibiSVG } from './chibi.js';
+import { chibiSVG, chibiWaveSVG } from './chibi.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
@@ -2865,6 +2865,8 @@ let gxHint = false;
 function storyHub(at) {
   const me = ME(), chs = S.chapters || [], ps = sortPeople(S.kids);
   contextMenu({ at, title: 'Kể chuyện', items: [
+    { icon: 'play', label: '<b>▶ Chiếu cả hành trình</b> <small class="cm-n">nhạc + bay qua dải ngân hà</small>', act: () => { TL.closeViewer(); TL.closeEvent(); $('#bShow').click(); } },
+    { sep: 1 },
     { icon: 'book', label: 'Truyện tranh <small class="cm-n">nhật ký từ ảnh thật</small>', act: () => $('#bDiary').click() },
     { sep: 1 },
     me && { icon: 'play', label: 'Kể chuyện đời tôi <small class="cm-n">từ ngày chào đời</small>', act: () => startStory({ life: true }) },
@@ -2908,17 +2910,19 @@ function yearReview(at) {
 }
 // ---------- v1.7.0: Bản đồ đời tôi (bản đồ đường phố 3D thực tế, MapLibre + OpenFreeMap) ----------
 var MAPOPEN = false;
-const MAP = initMap({ theme: () => S.theme, chapters: () => S.chapters || [], thumbURL: async id => { const b = await dbGet('blobs', 't_' + id); return b ? URL.createObjectURL(b) : ''; }, dbGet: dbGetRaw, dbPut: dbPutRaw, metaGet, metaSet, prompt: prompt2, toast, get drive() { return DRV; }, me: () => ME() ? dispKid(ME()) : null,
+const MAP = initMap({ theme: () => S.theme, chapters: () => S.chapters || [], thumbURL: async id => id ? TL.thumbURL(id) : '', sfx: (n, d) => window.SFX?.play(n, d), chibiWave: p => chibiWaveSVG(p, { w: 60 }), goTab: t => goTab(t), personAv: id => { const k = S.kids.find(x => x.id === id); return k && !isMe(k) ? P.avatarNow(k) : ''; }, dbGet: dbGetRaw, dbPut: dbPutRaw, metaGet, metaSet, prompt: prompt2, toast, get drive() { return DRV; }, me: () => ME() ? dispKid(ME()) : null,
   chibi: k => chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }), events: () => TL.events, spanTxt: ms => TL.spanTxt(ms),
   openEvent: key => { if (document.body.classList.contains('galaxy')) exitGalaxy(); TL.openEvent(key); },
   setEventPlace: async (e, pl) => setPlace(e.ms, pl),
-  onOpen: () => { MAPOPEN = true; }, onClose: () => { MAPOPEN = false; } });
+  onOpen: () => { MAPOPEN = true; }, onClose: () => { MAPOPEN = false; if (document.querySelector('#tabbar [data-t=map].on')) tabOn('tl'); } });
 async function setPlace(ms, pl) { for (const m of ms) { if (pl) m.place = { lat: pl.lat, lon: pl.lon, name: pl.name || '' }; else delete m.place; await dbPut('moments', m); } await afterDataChange(); }
 // Nhà mình từ màn làm quen: tìm toạ độ khu vực đã gõ, cắm ghim (chỉnh lại được trên bản đồ)
 async function homeFromName(name) {
   try { const r = (await searchPlace(name))[0]; if (!r) return; const ps = (await metaGet('sy:places')) || []; if (ps.some(p => p.kind === 'home')) return; ps.push({ id: Date.now().toString(36), kind: 'home', name: 'Nhà mình', area: name, lat: r.lat, lon: r.lon }); await metaSet('sy:places', ps); toast(`Đã cắm 🏡 Nhà mình ở ${r.name} trên bản đồ — mở “Bản đồ đời tôi” để chỉnh cho đúng`, 4200); } catch (e) { }
 }
-function tabOn(t) { $$('#tabbar [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === t)); const i = ['tl', 'diary', 'add', 'show', 'set'].indexOf(t); if (i >= 0) $('#tabbar').style.setProperty('--i', i); }
+const TABS = ['tl', 'map', 'add', 'diary', 'set'];
+function tabOn(t) { $$('#tabbar [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === t)); const i = TABS.indexOf(t); if (i >= 0) $('#tabbar').style.setProperty('--i', i); }
+function goTab(t) { $('#tabbar [data-t="' + t + '"]')?.click(); }
 function enterGalaxy() {
   TL.closeViewer(); TL.closeEvent(); $('#kidMenu').hidden = true;
   document.body.classList.add('galaxy'); setMode('overview'); cam.k = 1.25; tabOn('gx'); haptic(10);
@@ -2929,11 +2933,14 @@ function exitGalaxy(mid) {
   if (mid) { const k = TL.keyOfMid(mid); if (k) setTimeout(() => TL.scrollToKey(k), 420); }
 }
 function initBars() {
-  $('#tabbar').innerHTML = `<button data-t="tl" class="on">${icon('timeline', 25, 1.8)}<span>Kỷ niệm</span></button><button data-t="diary">${icon('book', 25, 1.8)}<span>Kể chuyện</span></button><button data-t="add" class="big" aria-label="Thêm ảnh, video"><i>${icon('plus', 30, 2.4)}</i></button><button data-t="show">${icon('play', 25, 1.8)}<span>Chiếu</span></button><button data-t="set">${icon('gear', 25, 1.8)}<span>Cài đặt</span></button><i class="chi-bao" aria-hidden="true"></i>`;
+  $('#tabbar').innerHTML = `<button data-t="tl" class="on">${icon('timeline', 25, 1.8)}<span>Kỷ niệm</span></button><button data-t="map">${icon('map', 25, 1.8)}<span>Bản đồ</span></button><button data-t="add" class="big" aria-label="Thêm ảnh, video"><i>${icon('plus', 30, 2.4)}</i></button><button data-t="diary">${icon('book', 25, 1.8)}<span>Kể chuyện</span></button><button data-t="set">${icon('gear', 25, 1.8)}<span>Cài đặt</span></button><i class="chi-bao" aria-hidden="true"></i>`;
   $('#tabbar').addEventListener('click', e => {
-    const b = e.target.closest('[data-t]'); if (!b) return; const t = b.dataset.t; haptic(6);
-    { const TB = $('#tabbar'), idx = ['tl', 'diary', 'add', 'show', 'set'].indexOf(t); TB.style.setProperty('--i', idx); clearInterval(TB._back); TB._back = setInterval(() => { if (document.querySelector('.modal.open, .cm, #onb.open, #mapv.open, #dv.open, .dv.open') || document.body.classList.contains('showing')) return; clearInterval(TB._back); const on = TB.querySelector('.on')?.dataset.t; TB.style.setProperty('--i', Math.max(0, ['tl', 'diary', 'add', 'show', 'set'].indexOf(on))); }, 450); }
-    if (t === 'tl') { if (document.body.classList.contains('galaxy')) exitGalaxy(); else if (TL.isOpen()) { TL.closeViewer(); TL.closeEvent(); } else TL.scroller.scrollTo({ top: 0, behavior: 'smooth' }); }
+    const b = e.target.closest('[data-t]'); if (!b) return; const t = b.dataset.t; haptic(6); window.SFX?.play('pip');
+    // v1.8.0: tab Bản đồ là một tab thật (thanh tab vẫn hiện); rời tab thì đóng bản đồ (giải phóng bộ nhớ, dừng hoạt ảnh)
+    if (t === 'map') { if (MAP.isTab?.()) return; TL.closeViewer(); TL.closeEvent(); if (document.body.classList.contains('galaxy')) exitGalaxy(); $$('#tabbar [data-t]').forEach(x => x.classList.toggle('on', x === b)); $('#tabbar').style.setProperty('--i', 1); MAP.open({ tab: true }); return; }
+    if (MAP.isTab?.() && t !== 'add') { MAP.close(); $$('#tabbar [data-t]').forEach(x => x.classList.toggle('on', x.dataset.t === 'tl')); }
+    { const TB = $('#tabbar'), idx = TABS.indexOf(t); TB.style.setProperty('--i', idx); clearInterval(TB._back); TB._back = setInterval(() => { if (document.querySelector('.modal.open, .cm, #onb.open, #mapv.open, #dv.open, .dv.open') || document.body.classList.contains('showing')) return; clearInterval(TB._back); const on = TB.querySelector('.on')?.dataset.t; TB.style.setProperty('--i', Math.max(0, TABS.indexOf(on))); }, 450); }
+    if (t === 'tl') { tabOn('tl'); if (document.body.classList.contains('galaxy')) exitGalaxy(); else if (TL.isOpen()) { TL.closeViewer(); TL.closeEvent(); } else TL.scroller.scrollTo({ top: 0, behavior: 'smooth' }); }
     else if (t === 'diary') storyHub(b);
     else if (t === 'add') { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); if (!S.kids.length || !(S.all || []).length) { openAdd(); return; } contextMenu({ at: b, title: 'Thêm vào dòng thời gian', items: [
       { icon: 'image', label: 'Thêm ảnh, video', act: () => openAdd() },

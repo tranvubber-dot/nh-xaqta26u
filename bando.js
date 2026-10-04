@@ -69,7 +69,9 @@ export function initMap(A) {
     <div class="mp-top"><button class="glassbtn mp-back" aria-label="Đóng">${icon('back', 22, 2)}</button><div class="mp-q">${icon('pin', 18, 2)}<input id="mpQ" placeholder="Tìm địa chỉ, tên nơi…" autocomplete="off" enterkeyhint="search"><div class="mp-res" hidden></div></div><button class="glassbtn mp-more" aria-label="Tuỳ chọn">${icon('more', 22, 2)}</button></div>
     <div class="mp-flt" hidden></div><div class="mp-title"><b></b></div><div class="mp-hint">Chạm một chỗ trên bản đồ để cắm ghim</div>
     <div class="mp-bar"><button data-m="me" aria-label="Vị trí của tôi">${icon('pin', 20, 2.2)}<span>Vị trí của tôi</span></button><button data-m="home" aria-label="Nhà mình">🏡<span>Nhà mình</span></button><button data-m="all" aria-label="Những nơi đã đến">🧭<span>Những nơi đã đến</span></button><button data-m="play" hidden>${icon('play', 17, 2.2)}<span>Phát lộ trình</span></button></div>
-    <div class="mp-load" hidden><i></i><b>Đang mở bản đồ…</b></div></div>`);
+    <div class="mp-load" hidden><i></i><b>Đang mở bản đồ…</b></div>
+    <div class="mp-pv" hidden><button class="mp-pvx" aria-label="Đóng">${icon('close', 18, 2.4)}</button><div class="mp-pvi"><img alt=""></div><div class="mp-pvt"><small></small><b></b><div class="mp-pva"></div><button class="primary mp-pvo">${icon('image', 16, 2.2)}<span>Mở kỷ niệm</span></button></div></div>
+    <div class="mp-tip" hidden><b>📍 Gắn nơi chốn cho kỷ niệm để thấy chúng bay quanh bản đồ</b><button class="mp-tipb">Chọn kỷ niệm chưa có nơi</button></div></div>`);
   const V = document.getElementById('mapv'), BOX = V.querySelector('.mp-map'), Q = V.querySelector('#mpQ'), RES = V.querySelector('.mp-res');
   let ML = null, map = null, M = { mode: 'view', pick: null, route: null, markers: [], evMk: new Map(), newMk: null, here: null, flt: null, theme: null, playing: 0 };
   const places = async () => (await A.metaGet('sy:places')) || [];
@@ -81,24 +83,73 @@ export function initMap(A) {
   function mk(el, ll, anchor = 'bottom') { const m = new ML.Marker({ element: el, anchor }).setLngLat(ll).addTo(map); M.markers.push(m); el.animate?.([{ transform: 'translateY(-26px) scale(.4)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 520, easing: 'cubic-bezier(.34,1.56,.64,1)', composite: 'add' }); return m; }
   const placeEl = p => { const el = document.createElement('button'); el.className = 'mk-pl'; el.innerHTML = `<span class="mk-c">${PLACE_EMO[p.kind] || '📍'}</span><b>${esc(p.name || KINDS.find(k => k.k === p.kind)?.t || '')}</b>`; el.onclick = ev => { ev.stopPropagation(); placeMenu(p, el); }; return el; };
   function clearMarkers() { M.markers.forEach(m => m.remove()); M.markers = []; M.evMk.forEach(m => m.remove()); M.evMk.clear(); }
-  async function drawPlaces() { for (const p of await places()) mk(placeEl(p), LL(p)); const me = A.me(); if (M.here) { const el = document.createElement('div'); el.className = 'mk-here'; el.innerHTML = `<i></i>${me ? `<span class="mk-cb">${A.chibi(me)}</span>` : ''}<b>Bạn đang ở đây</b>`; mk(el, LL(M.here), 'center'); } }
-  // kỷ niệm: nguồn GeoJSON có gom cụm; điểm lẻ hiện bằng marker ảnh thu nhỏ tròn
+  async function drawPlaces() { for (const p of await places()) mk(placeEl(p), LL(p)); const me = A.me(); M.hereEl = null; if (M.here) { const el = document.createElement('div'); el.className = 'mk-here'; el.innerHTML = `<i></i>${me ? `<span class="mk-cb fs-b">${A.chibiWave ? A.chibiWave(me) : A.chibi(me)}</span>` : ''}<b>Bạn đang ở đây</b>`; mk(el, LL(M.here), 'center'); M.hereEl = el; orbit(); } }
+  // v1.8.0 — kỷ niệm là ẢNH BAY LƠ LỬNG: thẻ ảnh viền trắng nhấp nhô (CSS transform trên phần tử con, không đụng layout),
+  // sợi chỉ + bóng mờ chỉ đúng điểm chụp. Xa thì gom cụm (chồng ảnh + số), gần thì tách; ảnh trùng chỗ toả ra vòng tròn.
+  // Tối đa 40 marker DOM, chỉ tạo cho điểm trong khung nhìn; mới hiện thì "pop" lần lượt kèm tiếng pop.
+  const MAXMK = 40;
   function evFeatures() {
-    const fs = []; for (const e of A.events()) { const g = eventGeo(e); if (!g) continue; const y = new Date(e.ts0).getFullYear(); if (M.flt && !M.flt(e, y)) continue; fs.push({ type: 'Feature', geometry: { type: 'Point', coordinates: LL(g) }, properties: { key: e.key, mid: e.stack[0]?.id || '', t: e.title, c: typeOf(e.type).c } }); }
+    const fs = []; for (const e of A.events()) { const g = eventGeo(e); if (!g) continue; const y = new Date(e.ts0).getFullYear(); if (M.flt && !M.flt(e, y)) continue; fs.push({ type: 'Feature', geometry: { type: 'Point', coordinates: LL(g) }, properties: { key: e.key, mid: e.stack[0]?.id || '', t: e.title, c: typeOf(e.type).c, ts: e.ts0 } }); }
     return { type: 'FeatureCollection', features: fs };
   }
+  let popN = 0, popT = 0;
+  const popDelay = () => { const now = performance.now(); if (now - popT > 900) popN = 0; popT = now; const d = Math.min(popN, 12) * 70; popN++; A.sfx?.('pop', d); return d; };
+  function flEl(p) {
+    const el = document.createElement('button'); el.className = 'mk-fl'; el.style.setProperty('--c', p.c); el.style.setProperty('--ph', ((p.ts / 7919) % 3.2).toFixed(2) + 's'); el.style.setProperty('--dl', popDelay() + 'ms');
+    el.innerHTML = `<span class="fl-in"><span class="fl-sh"></span><span class="fl-th"></span><span class="fl-b"><img alt=""></span></span>`; el.setAttribute('aria-label', p.t);
+    A.thumbURL?.(p.mid).then(u => { if (u) el.querySelector('img').src = u; });
+    el.onclick = ev => { ev.stopPropagation(); preview(p.key); }; return el;
+  }
+  function clEl(f, n) {
+    const el = document.createElement('button'); el.className = 'mk-cl'; el.style.setProperty('--dl', popDelay() + 'ms');
+    el.innerHTML = `<span class="fl-in"><span class="cl-st"><i></i><i></i><i></i></span><b>${n}</b></span>`; el.setAttribute('aria-label', n + ' kỷ niệm');
+    const src = map.getSource('evs'); src.getClusterLeaves(f.properties.cluster_id, 3, 0).then(ls => { const is = [...el.querySelectorAll('.cl-st i')]; is.slice(0, 3 - ls.length).forEach(i => i.remove()); const left = [...el.querySelectorAll('.cl-st i')].reverse(); ls.forEach((l, i) => A.thumbURL?.(l.properties.mid).then(u => { if (u && left[i]) left[i].style.backgroundImage = `url('${u}')`; })); }).catch(() => { });
+    el.onclick = async ev => { ev.stopPropagation(); haptic(6); const z = await src.getClusterExpansionZoom(f.properties.cluster_id); map.easeTo({ center: f.geometry.coordinates, zoom: z + .4, duration: 700 }); }; return el;
+  }
   function addEvLayers() {
-    map.addSource('evs', { type: 'geojson', data: evFeatures(), cluster: true, clusterRadius: 46, clusterMaxZoom: 16 });
-    map.addLayer({ id: 'evc', type: 'circle', source: 'evs', filter: ['has', 'point_count'], paint: { 'circle-color': '#ff8fbf', 'circle-radius': ['step', ['get', 'point_count'], 18, 5, 22, 15, 28], 'circle-stroke-width': 3, 'circle-stroke-color': '#fff', 'circle-opacity': .95 } });
-    map.addLayer({ id: 'evc-n', type: 'symbol', source: 'evs', filter: ['has', 'point_count'], layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['Noto Sans Bold'], 'text-size': 14, 'text-allow-overlap': true }, paint: { 'text-color': '#fff' } });
-    map.on('click', 'evc', async e => { const f = e.features[0]; const z = await map.getSource('evs').getClusterExpansionZoom(f.properties.cluster_id); map.easeTo({ center: f.geometry.coordinates, zoom: z + .3 }); });
-    const sync = () => { if (!map?.getSource('evs')) return; const seen = new Set();
-      for (const f of map.querySourceFeatures('evs')) { const p = f.properties; if (p.cluster || seen.has(p.key)) continue; seen.add(p.key);
-        if (!M.evMk.has(p.key)) { const el = document.createElement('button'); el.className = 'mk-ev'; el.style.setProperty('--c', p.c); el.innerHTML = `<img alt=""><b>${esc(p.t)}</b>`; A.thumbURL?.(p.mid).then(u => { if (u) el.querySelector('img').src = u; }); el.onclick = ev => { ev.stopPropagation(); close(); A.openEvent(p.key); };
-          const m = new ML.Marker({ element: el, anchor: 'bottom' }).setLngLat(f.geometry.coordinates).addTo(map); M.evMk.set(p.key, m); } }
-      for (const [k, m] of M.evMk) if (!seen.has(k)) { m.remove(); M.evMk.delete(k); } };
+    map.addSource('evs', { type: 'geojson', data: evFeatures(), cluster: true, clusterRadius: 52, clusterMaxZoom: 16 });
+    map.addLayer({ id: 'evs-x', type: 'circle', source: 'evs', paint: { 'circle-radius': 1, 'circle-opacity': 0, 'circle-stroke-opacity': 0 } }); // lớp vô hình: nguồn chỉ nạp ô dữ liệu khi có lớp dùng nó
+    const sync = () => {
+      if (!map?.getSource('evs')) return; const seen = new Set(), bb = map.getBounds(), want = [];
+      for (const f of map.querySourceFeatures('evs')) { const p = f.properties, id = p.cluster ? 'c:' + p.cluster_id : p.key; if (seen.has(id)) continue; seen.add(id); if (!bb.contains(f.geometry.coordinates)) continue; want.push({ id, f }); }
+      want.sort((x, y) => (y.f.properties.point_count || 1) - (x.f.properties.point_count || 1) || (y.f.properties.ts || 0) - (x.f.properties.ts || 0));
+      const keep = new Set(want.slice(0, MAXMK).map(w => w.id));
+      for (const [k, m] of M.evMk) if (!keep.has(k)) { m.remove(); M.evMk.delete(k); }
+      for (const { id, f } of want.slice(0, MAXMK)) if (!M.evMk.has(id)) { const el = f.properties.cluster ? clEl(f, f.properties.point_count) : flEl(f.properties); M.evMk.set(id, new ML.Marker({ element: el, anchor: 'bottom' }).setLngLat(f.geometry.coordinates).addTo(map)); }
+      fan(); orbit();
+    };
     map.on('moveend', sync); map.on('sourcedata', e => { if (e.sourceId === 'evs' && e.isSourceLoaded) sync(); }); M.syncEv = sync;
   }
+  // ảnh lẻ đứng gần nhau trên màn hình (< 40 px): toả ra một vòng tròn quanh điểm chung cho khỏi chồng
+  function fan() {
+    const singles = [...M.evMk.entries()].filter(([k]) => !k.startsWith('c:')).map(([k, m]) => ({ m, p: map.project(m.getLngLat()) })), used = new Set();
+    for (const a of singles) { if (used.has(a)) continue; const g = singles.filter(b => !used.has(b) && Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y) < 40); g.forEach(b => used.add(b));
+      if (g.length < 2) { a.m.setOffset([0, 0]); continue; } const r = 26 + g.length * 5; g.forEach((b, i) => { const ang = i / g.length * Math.PI * 2 - Math.PI / 2; b.m.setOffset([Math.round(Math.cos(ang) * r), Math.round(Math.sin(ang) * r * .7)]); }); }
+  }
+  // kỷ niệm quanh đây (≤ 2 km quanh vị trí hiện tại): bay vòng quanh chibi "Bạn đang ở đây"
+  function orbit() {
+    const el = M.hereEl; if (!el || !M.here) return; let o = el.querySelector('.mk-orb'); const near = A.events().map(e => ({ e, g: eventGeo(e) })).filter(x => x.g && distM(x.g, M.here) < 2000).slice(0, 6);
+    if (!near.length) { o?.remove(); return; } if (o && o.dataset.n === String(near.length)) return; o?.remove();
+    o = document.createElement('span'); o.className = 'mk-orb'; o.dataset.n = near.length;
+    o.innerHTML = near.map((x, i) => `<i style="--a:${(i / near.length * 360).toFixed(0)}deg"><img alt="" data-mid="${x.e.stack[0]?.id || ''}"></i>`).join(''); el.appendChild(o);
+    o.querySelectorAll('img').forEach(im => A.thumbURL?.(im.dataset.mid).then(u => { if (u) im.src = u; }));
+  }
+  // thẻ xem trước khi chạm ảnh: ảnh, tên sự kiện, ngày, người được gắn → "Mở kỷ niệm"
+  const PV = V.querySelector('.mp-pv');
+  function preview(key) {
+    const e = A.events().find(x => x.key === key); if (!e) return; haptic(8); PV._key = key;
+    PV.querySelector('small').textContent = A.spanTxt ? A.spanTxt(e.ms) : ''; PV.querySelector('b').textContent = e.title;
+    PV.querySelector('.mp-pva').innerHTML = (e.kids || []).map(id => A.personAv?.(id)).filter(Boolean).slice(0, 6).map(u => `<img src="${u}" alt="">`).join('');
+    const im = PV.querySelector('.mp-pvi img'); im.removeAttribute('src'); A.thumbURL?.(e.stack[0]?.id).then(u => { if (u && PV._key === key) im.src = u; });
+    PV.hidden = false; PV.animate([{ transform: 'translateY(30px) scale(.9)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 380, easing: 'cubic-bezier(.34,1.56,.64,1)' }); A.sfx?.('pop');
+  }
+  PV.querySelector('.mp-pvx').onclick = ev => { ev.stopPropagation(); PV.hidden = true; A.sfx?.('whoosh'); };
+  PV.querySelector('.mp-pvo').onclick = ev => { ev.stopPropagation(); const k = PV._key; PV.hidden = true; if (M.tab) A.goTab?.('tl'); else close(); setTimeout(() => A.openEvent(k), M.tab ? 350 : 0); };
+  // chưa có ảnh nào có toạ độ → thẻ gợi ý + danh sách sự kiện chưa có nơi
+  const TIP = V.querySelector('.mp-tip');
+  function tipUi() { TIP.hidden = !M.tab || A.events().some(e => eventGeo(e)); }
+  TIP.querySelector('.mp-tipb').onclick = ev => { ev.stopPropagation(); const evs = A.events().filter(x => !eventGeo(x)).slice(0, 40); if (!evs.length) { TIP.hidden = true; return; }
+    contextMenu({ at: ev.currentTarget, title: 'Gắn nơi chốn cho kỷ niệm nào?', items: evs.map(x => ({ label: `${typeOf(x.type).ic} ${esc(x.title)}`, note: A.spanTxt?.(x.ms) || '', act: () => { M.mode = 'pick'; M.pick = async pl => { await A.setEventPlace(x, pl); refresh(); tipUi(); A.toast(`Đã đặt “${x.title}” ở ${pl.name || 'nơi này'} 📍`, 2200); }; hint('Chạm vào chỗ diễn ra kỷ niệm để cắm ghim', 5000); } })) }); };
   // lộ trình chuyến đi: đường gradient theo ngày + chấm đánh số
   function addRoute(route) {
     if (!route?.length) return; const coords = route.map(LL);
@@ -124,7 +175,8 @@ export function initMap(A) {
   // ---------- chạm bản đồ: "Đặt kỷ niệm ở đây?" ----------
   function onMapClick(e) {
     if (performance.now() - (M.openAt || 0) < 900) return; // cú chạm mở bản đồ không lọt xuống thành “Nơi này là…”
-    if (map.queryRenderedFeatures(e.point, { layers: ['evc', 'days'].filter(l => map.getLayer(l)) }).length) return;
+    if (map.queryRenderedFeatures(e.point, { layers: ['days'].filter(l => map.getLayer(l)) }).length) return;
+    if (!PV.hidden) { PV.hidden = true; return; } // chạm nền khi đang xem thẻ: chỉ đóng thẻ
     haptic(10); M.newMk?.remove(); const ll = { lat: +e.lngLat.lat.toFixed(6), lon: +e.lngLat.lng.toFixed(6) }, pick = M.mode === 'pick';
     const el = document.createElement('div'); el.className = 'mk-new'; el.innerHTML = `<div class="sb-bub"><b>${pick ? 'Đặt kỷ niệm ở đây?' : 'Nơi này là…'}</b><div class="r">${pick ? '<button data-b="no">Thôi</button><button class="primary" data-b="ok">Đặt ở đây</button>' : '<button data-b="save">Lưu nơi quan trọng</button><button class="primary" data-b="ev">Gắn kỷ niệm</button>'}</div></div><span class="mk-pin">📍</span>`;
     M.newMk = new ML.Marker({ element: el, anchor: 'bottom' }).setLngLat(LL(ll)).addTo(map);
@@ -133,7 +185,7 @@ export function initMap(A) {
       const dx = r.left < W.left + pad ? W.left + pad - r.left : r.right > W.right - pad ? W.right - pad - r.right : 0; if (dx) b.style.transform = `translateX(${dx}px)`; });
     el.addEventListener('click', async ev => { ev.stopPropagation(); const act = ev.target.closest('[data-b]')?.dataset.b; if (!act) return;
       if (act === 'no') { M.newMk.remove(); M.newMk = null; return; }
-      if (act === 'ok') { const name = await reverseName(ll.lat, ll.lon), cb = M.pick; close(); cb?.({ lat: ll.lat, lon: ll.lon, name }); return; }
+      if (act === 'ok') { const name = await reverseName(ll.lat, ll.lon), cb = M.pick; if (M.tab) { M.mode = 'view'; M.pick = null; M.newMk?.remove(); M.newMk = null; } else close(); cb?.({ lat: ll.lat, lon: ll.lon, name }); return; }
       if (act === 'save') contextMenu({ at: el, title: 'Đây là…', items: [{ label: '✏️ Tự gõ tên nơi này…', act: async () => { const nm = (await A.prompt('Tên nơi này (vd: Nhà ngoại, Quán cà phê quen)', await reverseName(ll.lat, ll.lon), 50))?.trim(); if (!nm) return; const ps = await places(); ps.push({ id: Date.now().toString(36), kind: 'other', name: nm, lat: ll.lat, lon: ll.lon }); await savePlaces(ps); M.newMk.remove(); M.newMk = null; refresh(); A.toast(`Đã lưu ${nm} ✨`, 1800); } }, ...KINDS.map(k => ({ label: `${k.e} ${k.t}`, act: async () => { const nm = (await A.prompt(`Tên ${k.t.toLowerCase()}`, k.k === 'home' ? 'Nhà mình' : await reverseName(ll.lat, ll.lon), 50))?.trim(); if (nm == null) return; const ps = await places(); if (k.k === 'home') { const i = ps.findIndex(x => x.kind === 'home'); if (i >= 0) ps.splice(i, 1); } ps.push({ id: Date.now().toString(36), kind: k.k, name: nm || k.t, lat: ll.lat, lon: ll.lon }); await savePlaces(ps); M.newMk.remove(); M.newMk = null; refresh(); A.toast(`Đã lưu ${nm || k.t} ✨`, 1800); } }))] });
       if (act === 'ev') { const evs = A.events().filter(x => !eventGeo(x)).slice(0, 40); if (!evs.length) { A.toast('Mọi kỷ niệm đều đã có nơi chốn rồi', 2000); return; } contextMenu({ at: el, title: 'Gắn kỷ niệm nào vào đây?', items: evs.map(x => ({ label: `${typeOf(x.type).ic} ${esc(x.title)}`, note: A.spanTxt(x.ms), act: async () => { const nm = await reverseName(ll.lat, ll.lon); await A.setEventPlace(x, { lat: ll.lat, lon: ll.lon, name: nm }); M.newMk.remove(); M.newMk = null; refresh(); A.toast(`Đã gắn “${x.title}” vào ${nm || 'nơi này'}`, 2200); } })) }); }
     });
@@ -174,21 +226,26 @@ export function initMap(A) {
     M.flt = !f ? null : f.startsWith('y:') ? (ev, y) => y === +f.slice(2) : (ev) => ev.chapter?.key === f.slice(2); map.getSource('evs')?.setData(evFeatures()); setTimeout(() => M.syncEv?.(), 300); });
   // ---------- mở / đóng ----------
   function close() {
-    const stop = ev => { ev.stopPropagation(); ev.preventDefault(); }; document.addEventListener('click', stop, true); setTimeout(() => document.removeEventListener('click', stop, true), 450);
+    if (!M.tab) { const stop = ev => { ev.stopPropagation(); ev.preventDefault(); }; document.addEventListener('click', stop, true); setTimeout(() => document.removeEventListener('click', stop, true), 450); }
+    PV.hidden = true; TIP.hidden = true; M.hereEl = null; if (map) M.last = { center: map.getCenter(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
     M.playing = 0; clearMarkers(); M.newMk?.remove(); M.newMk = null; try { map?.remove(); } catch (e) { } map = null;
-    V.classList.remove('open'); V.setAttribute('aria-hidden', 'true'); document.body.classList.remove('mapopen'); M.pick = null; M.mode = 'view'; M.route = null; M.flt = null; V.querySelector('.mp-flt').hidden = true; A.onClose?.();
+    V.classList.remove('open', 'tab'); V.setAttribute('aria-hidden', 'true'); document.body.classList.remove('mapopen', 'maptab'); M.tab = false; M.pick = null; M.mode = 'view'; M.route = null; M.flt = null; V.querySelector('.mp-flt').hidden = true; A.onClose?.();
   }
   async function open(o = {}) {
+    if (V.classList.contains('open')) { if (o.tab && M.tab) return; close(); }
+    M.tab = !!o.tab; V.classList.toggle('tab', M.tab); document.body.classList.toggle('maptab', M.tab);
     V.classList.add('open'); M.openAt = performance.now(); V.setAttribute('aria-hidden', 'false'); document.body.classList.add('mapopen'); A.onOpen?.();
     M.mode = o.pick ? 'pick' : 'view'; M.pick = o.pick || null; M.route = o.route || null; RES.hidden = true; Q.value = ''; V.querySelector('[data-m=play]').hidden = !(M.route?.length > 1); V.querySelector('.mp-flt').hidden = true;
-    hint(o.pick ? 'Chạm vào chỗ diễn ra kỷ niệm để cắm ghim' : 'Chạm một chỗ để cắm ghim · hai ngón để xoay, nghiêng', 4500);
+    hint(o.pick ? 'Chạm vào chỗ diễn ra kỷ niệm để cắm ghim' : 'Chạm ảnh để xem · chạm nền để cắm ghim · hai ngón để xoay', 4500);
     const LD = V.querySelector('.mp-load'); LD.hidden = false;
     try {
       ML ||= (await import('./lib/maplibre-gl.mjs')).default || await import('./lib/maplibre-gl.mjs');
       let at = o.at; if (!at) { const ps = await places(); const h = ps.find(p => p.kind === 'home') || ps[0]; if (h) at = { lat: h.lat, lon: h.lon, name: h.name }; }
       if (!at) { const g = A.events().map(eventGeo).find(Boolean); if (g) at = { ...g, name: g.name || '' }; }
       const style = themed(await baseStyle(), A.theme?.() || 'dawn'); M.theme = A.theme?.();
-      map = new ML.Map({ container: BOX, style, center: at ? LL(at) : [105.8524, 21.0287], zoom: at ? 16 : 5.2, pitch: at ? 56 : 0, bearing: at ? -18 : 0, maxPitch: 62, maxZoom: 18.5, attributionControl: false, canvasContextAttributes: { antialias: true }, fadeDuration: 150 });
+      // tab Bản đồ: lần đầu mở trong phiên thì bắt đầu từ toàn cảnh Việt Nam rồi bay xuống; các lần sau mở lại đúng chỗ cũ
+      const flyIn = M.tab && !o.at && !M.last, back = M.tab && !o.at && M.last;
+      map = new ML.Map({ container: BOX, style, center: flyIn ? [106.2, 16.2] : back ? M.last.center : at ? LL(at) : [105.8524, 21.0287], zoom: flyIn ? 4.6 : back ? M.last.zoom : at ? 16 : 5.2, pitch: flyIn ? 0 : back ? M.last.pitch : at ? 56 : 0, bearing: flyIn ? 0 : back ? M.last.bearing : at ? -18 : 0, maxPitch: 62, maxZoom: 18.5, attributionControl: false, canvasContextAttributes: { antialias: true }, fadeDuration: 150 });
       const attr = new ML.AttributionControl({ compact: true, customAttribution: '© OpenMapTiles © OpenStreetMap contributors' });
       map.addControl(attr, 'bottom-right');
       // MapLibre mở sẵn dòng ghi nguồn → thu lại thành nút ⓘ, bấm mới hiện
@@ -200,9 +257,17 @@ export function initMap(A) {
       addEvLayers(); addRoute(M.route); map.on('click', onMapClick); await drawPlaces(); M.syncEv();
       if (M.route?.length > 1) { const b = M.route.reduce((bb, p) => bb.extend(LL(p)), new ML.LngLatBounds(LL(M.route[0]), LL(M.route[0]))); map.fitBounds(b, { padding: 80, pitch: 50, maxZoom: 15.5, duration: 0 }); }
       if (o.focus) fly(o.focus, at?.name || '', 16.6);
+      tipUi();
+      if (flyIn) { // bay từ toàn cảnh xuống vị trí hiện tại (nếu đã cho phép) hoặc Nhà mình
+        let st = 'prompt'; try { st = (await navigator.permissions?.query({ name: 'geolocation' }))?.state || 'prompt'; } catch (e) { }
+        const go = (p, t) => { title(t); map?.flyTo({ center: LL(p), zoom: 15.4, pitch: 52, bearing: -18, duration: 3600, curve: 1.5, essential: true }); };
+        if (st === 'granted' && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { if (!map) return; M.here = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }; setAccuracy(); refresh(); go(M.here, 'Bạn đang ở đây'); }, () => at && go(at, at.name || ''), { timeout: 8000 });
+        else if (at) setTimeout(() => go(at, at.name || ''), 500);
+        else if (A.events().some(e => eventGeo(e))) setTimeout(showAll, 500);
+      }
     } catch (e) { LD.hidden = true; console.warn('bản đồ', e); A.toast('Chưa mở được bản đồ — kiểm tra mạng rồi thử lại', 3500); }
   }
-  return { open, close, isOpen: () => V.classList.contains('open'), get map() { return map; }, setTheme: t => { if (map && M.theme !== t) baseStyle().then(s => { M.theme = t; map.setStyle(themed(s, t), { diff: false }); map.once('style.load', () => { addEvLayers(); addRoute(M.route); setAccuracy(); refresh(); }); }); } };
+  return { open, close, isOpen: () => V.classList.contains('open'), get map() { return map; }, isTab: () => M.tab && V.classList.contains('open'), setTheme: t => { if (map && M.theme !== t) baseStyle().then(s => { M.theme = t; map.setStyle(themed(s, t), { diff: false }); map.once('style.load', () => { M.evMk.forEach(m => m.remove()); M.evMk.clear(); addEvLayers(); addRoute(M.route); setAccuracy(); refresh(); }); }); } };
 }
 
 // ---------- khung bản đồ cho video "Bản đồ hành trình": bản đồ ẩn, máy quay theo lộ trình, đợi tải xong rồi mới chụp ----------
