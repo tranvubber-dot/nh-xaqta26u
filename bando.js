@@ -175,7 +175,7 @@ export function initMap(A) {
     const el = M.hereEl; if (!el || !M.here) return; let o = el.querySelector('.mk-orb'); const { list, near } = orbitList(); M.orbKeys = near ? new Set(list.map(e => e.key)) : new Set();
     const sig = list.map(e => e.key).join('|'); if (o && o.dataset.sig === sig) return; o?.remove(); if (!list.length) return;
     o = document.createElement('span'); o.className = 'mk-orb'; o.dataset.sig = sig; const n = list.length;
-    o.innerHTML = list.map((e, i) => `<span class="ob" style="--a:${(i / n * 360).toFixed(0)}deg;--ph:${(i * .53).toFixed(2)}s"><button data-k="${esc(e.key)}" aria-label="${esc(e.title)}"><img alt="" data-mid="${e.stack[0].id}"></button></span>`).join(''); el.appendChild(o);
+    o.innerHTML = list.map((e, i) => `<span class="ob" style="--a:${(n === 1 ? 270 : 172 + i * 196 / (n - 1)).toFixed(0)}deg;--ph:${(i * .53).toFixed(2)}s"><button data-k="${esc(e.key)}" aria-label="${esc(e.title)}"><img alt="" data-mid="${e.stack[0].id}"></button></span>`).join(''); el.appendChild(o);
     o.querySelectorAll('img').forEach(im => A.thumbURL?.(im.dataset.mid).then(u => { if (u) im.src = u; }));
     o.onclick = ev => { const b = ev.target.closest('[data-k]'); if (!b) return; ev.stopPropagation(); preview(b.dataset.k); };
   }
@@ -250,7 +250,7 @@ export function initMap(A) {
   const fly = (p, t, z = 16.2) => { title(t || ''); map?.flyTo({ center: LL(p), zoom: z, pitch: 56, bearing: -18, speed: 1.2, curve: 1.4, essential: true }); };
   // ---------- thanh dưới ----------
   V.querySelector('.mp-back').onclick = () => close();
-  async function setKind(k) { await A.metaSet('sy:mapStyle', k); M.kind = k; const t = k === 'theme' ? (A.theme?.() || 'dawn') : 'light'; if (map && M.theme !== t) { const s0 = await baseStyle(); M.theme = t; map.setStyle(themed(s0, t), { diff: false }); map.once('style.load', () => { M.evMk.forEach(m => m.remove()); M.evMk.clear(); addEvLayers(); addRoute(M.route); setAccuracy(); refresh(); }); } }
+  async function setKind(k) { await A.metaSet('sy:mapStyle', k); M.kind = k; const t = k === 'theme' ? (A.theme?.() || 'dawn') : 'light'; if (map && M.theme !== t) { const s0 = await baseStyle(); M.theme = t; V.classList.toggle('light', t === 'light'); map.setStyle(themed(s0, t), { diff: false }); map.once('style.load', () => { M.evMk.forEach(m => m.remove()); M.evMk.clear(); addEvLayers(); addRoute(M.route); setAccuracy(); refresh(); }); } }
   V.querySelector('.mp-more').onclick = e => contextMenu({ at: e.currentTarget, title: 'Bản đồ', items: [
     { icon: 'palette', label: 'Kiểu bản đồ', note: M.kind === 'theme' ? 'Theo giao diện' : 'Sáng', act: () => contextMenu({ at: e.currentTarget, title: 'Kiểu bản đồ', items: [{ label: '☀️ Sáng (giống Google)', on: M.kind !== 'theme', act: () => setKind('light') }, { label: '🌌 Theo giao diện của app', on: M.kind === 'theme', act: () => setKind('theme') }] }) },
     { icon: 'info', label: 'Về dữ liệu bản đồ', act: () => A.toast('Bản đồ dùng dữ liệu OpenStreetMap qua OpenFreeMap; khu vực bạn xem được tải từ máy chủ bản đồ. Toạ độ kỷ niệm chỉ lưu trong máy và Google Drive của bạn.', 6500) }] });
@@ -291,7 +291,7 @@ export function initMap(A) {
       let at = o.at; if (!at) { const ps = await places(); const h = ps.find(p => p.kind === 'home') || ps[0]; if (h) at = { lat: h.lat, lon: h.lon, name: h.name }; }
       if (!at) { const g = A.events().map(eventGeo).find(Boolean); if (g) at = { ...g, name: g.name || '' }; }
       M.kind = (await A.metaGet('sy:mapStyle')) || 'light'; const tk = M.kind === 'theme' ? (A.theme?.() || 'dawn') : 'light';
-      const style = themed(await baseStyle(), tk); M.theme = tk;
+      const style = themed(await baseStyle(), tk); M.theme = tk; V.classList.toggle('light', tk === 'light');
       // tab Bản đồ: lần đầu mở trong phiên thì bắt đầu từ toàn cảnh Việt Nam rồi bay xuống; các lần sau mở lại đúng chỗ cũ
       const flyIn = M.tab && !o.at && !M.last, back = M.tab && !o.at && M.last;
       map = new ML.Map({ container: BOX, style, center: flyIn ? [106.2, 16.2] : back ? M.last.center : at ? LL(at) : [105.8524, 21.0287], zoom: flyIn ? 4.6 : back ? M.last.zoom : at ? 16 : 5.2, pitch: flyIn ? 0 : back ? M.last.pitch : at ? 56 : 0, bearing: flyIn ? 0 : back ? M.last.bearing : at ? -18 : 0, maxPitch: 62, maxZoom: 18.5, attributionControl: false, canvasContextAttributes: { antialias: true }, fadeDuration: 150 });
