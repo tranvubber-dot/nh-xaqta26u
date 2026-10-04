@@ -16,6 +16,7 @@ import { chibiSVG, chibiWaveSVG } from './chibi.js';
 import { initSfx } from './sfx.js';
 import { initAI, testKey, resetModel as aiReset } from './ai.js';
 import { buildArchive } from './luutru.js';
+import { initLetters } from './thu.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
@@ -1606,6 +1607,8 @@ async function archiveToDrive(force = false) {
   const a = await makeArchive(); const id = await DRV.putRoot('doc-hanh-trinh.html', a.html, 'text/html'); if (!id) return false;
   await DRV.putRoot('hanh-trinh.json', a.json, 'application/json'); await metaSet('arcAt', Date.now()); await metaSet('arcSig', sig); return true;
 }
+// v1.8.0: 💌 thư gửi tương lai
+let LET = null; const letters = () => LET ||= initLetters({ metaGet, metaSet, people: () => S.kids.map(dispKid), me: () => ME() ? dispKid(ME()) : null, toast, ask, openModal: m => openModal(m), closeModal: m => closeModal(m), contextMenu, confetti: () => P.confetti('#ffd27f'), ai: o => aiOpen(o), deliverICS: f => shareOrDownload(f, f.name), notify: (msg, act) => undoToast(msg, act, 10000, { label: 'Mở thư', icon: 'mail' }) });
 // v1.8.0: âm thanh hiệu ứng (sfx.js) — không phát khi đang chiếu có nhạc hoặc đang dựng / xem video
 window.SFX = initSfx({ block: () => { try { return document.body.classList.contains('showing') || !!document.querySelector('#mVid.open, #vkFs.on') || !!INTRO?.active; } catch (e) { return false; } } });
 function openModal(m) { const was = m.classList.contains('open'); m.classList.add('open'); haptic(5); if (!was) SFX.play('pop'); }
@@ -2904,6 +2907,7 @@ function storyHub(at) {
     ps.length > 1 && { icon: 'people', label: 'Kể chuyện về một người…', act: () => contextMenu({ at, title: 'Kể chuyện về ai?', items: ps.map(k => ({ img: P.avatarNow(k), color: k.color, label: esc(isMe(k) ? 'Bạn' : cap(k.name)), note: isMe(k) ? '' : roleName(k), act: () => startStory({ person: k }) })) }) },
     { icon: 'grid', label: 'Kể chuyện một chuyến đi / nhóm…', act: () => { const gs = TL.events.filter(e => e.group || e.type === 'trip').slice(0, 30); if (!gs.length) { toast('Chưa có chuyến đi hay nhóm nào — gộp nhiều ngày thành nhóm trước nhé', 3000); return; } contextMenu({ at, title: 'Chọn chuyến đi', items: gs.map(e => ({ icon: 'image', label: esc(e.title), note: TL.spanTxt(e.ms), act: () => startStory({ ids: e.ms.map(m => m.id), title: e.title, sub: TL.spanTxt(e.ms), people: e.kids.map(id => S.kids.find(k => k.id === id)).filter(Boolean) }) })) }); } },
     { icon: 'star', label: 'Tổng kết năm…', act: () => yearReview(at) },
+    { icon: 'mail', label: '💌 Thư gửi tương lai <small class="cm-n">niêm phong tới ngày mở</small>', act: () => letters().open() },
     { sep: 1 },
     openVideoMaker && { icon: 'video', label: 'Video kỷ niệm <small class="cm-n">tự dựng MP4</small>', act: () => openVideoMaker() }
   ] });
@@ -3069,7 +3073,7 @@ async function boot() {
     await P.warm(S.kids);
     await migrate18();
     const id = await metaGet('curKid'); await selectKid(S.kids.some(k => k.id === id) ? id : S.kids[0].id, true);
-    setTimeout(async () => { if (!ME() && !(await metaGet('meAsk'))) { meBanner(); return; } for (const k of S.kids) { if (k.gender || !isChild(k) || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
+    setTimeout(async () => { if (!ME() && !(await metaGet('meAsk'))) { meBanner(); return; } if (await letters().check()) return; for (const k of S.kids) { if (k.gender || !isChild(k) || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
     setTimeout(() => queueThumbFix((S.all || []).slice().sort((a, b) => b.ts - a.ts)), 4000);
     if (DRV.signedIn) setTimeout(() => DRV.afterLogin(), 1500);
     setTimeout(() => archiveToDrive().catch(() => { }), 90e3); document.addEventListener('visibilitychange', () => { if (document.hidden) archiveToDrive().catch(() => { }); });
@@ -3179,7 +3183,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, letters, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));

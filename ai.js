@@ -92,7 +92,7 @@ export function initAI(A) {
 QUAN TRỌNG: giữ ĐÚNG sự thật người dùng cung cấp — không bịa thêm tên người, nơi chốn hay sự việc mới. Được thêm cảm xúc, hình ảnh so sánh, nhịp câu cho hay.
 Ngữ cảnh:\n${ctx || '(không có)'}`;
     if (o.kind === 'video') return `${base}\nViết lời cho video kỷ niệm: title (tiêu đề ≤ 6 từ, gợi cảm xúc) và sub (phụ đề ≤ 10 từ). Tạo đúng 2 phương án khác nhau.\nNội dung người dùng: ${o.text || '(chỉ có ngữ cảnh)'}`;
-    const what = o.kind === 'chapter' ? `Viết LỜI MỞ CHƯƠNG cho chương đời "${o.title}" (đoạn mở đầu ngắn, như trang đầu một chương sách)` : `Viết lại lời kể cho kỷ niệm "${o.title || ''}" cho hay hơn`;
+    const what = o.kind === 'chapter' ? `Viết LỜI MỞ CHƯƠNG cho chương đời "${o.title}" (đoạn mở đầu ngắn, như trang đầu một chương sách)` : o.kind === 'letter' ? `Viết lại LÁ THƯ GỬI TƯƠNG LAI ${o.title || ''} cho hay và cảm động hơn, có lời chào đầu thư và lời ký cuối thư` : `Viết lại lời kể cho kỷ niệm "${o.title || ''}" cho hay hơn`;
     const tone = S.tone === 'tho' ? 'Thể thơ lục bát (4–8 câu, mỗi câu một dòng, cặp 6 chữ – 8 chữ).' : `Giọng văn: ${T.d}. Độ dài khoảng ${a}–${b} chữ.`;
     return `${base}\n${what}. ${tone}${mode === 'again' ? ' Viết khác hẳn lần trước.' : ''}\nTạo đúng 2 phương án khác nhau (trường options, mỗi phần tử là một đoạn văn hoàn chỉnh).\nLời kể gốc của người dùng: ${o.text?.trim() ? o.text : '(chưa có — chỉ dựa vào ngữ cảnh, viết ngắn gọn, không bịa chi tiết)'}`;
   }
