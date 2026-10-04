@@ -1,5 +1,5 @@
 // Hành Trình Của Bạn — giao diện 🎬 VIDEO KỶ NIỆM: chọn mẫu, khung, độ dài, nhạc, ảnh → xem trước → dựng MP4 → lưu máy / Drive / dòng thời gian.
-import { icon, haptic, contextMenu } from './ui.js';
+import { icon, haptic, contextMenu, undoToast } from './ui.js';
 import { TEMPLATES, LENGTHS, scoreThumb, pickMoments, storyboard, createEngine, createRenderer, makeAssets, exportMp4, recordFallback, sceneSpan, clipAudio } from './videokn.js';
 import { mapIntro } from './bando.js';
 import { renderMusic, userMusic, mixClipAudio, STYLES } from './videonhac.js';
@@ -11,7 +11,7 @@ export function initVideoUI(A) {
   document.body.insertAdjacentHTML('beforeend', `<div class="modal gsheet" id="mVid"><div class="card glass">
     <h2>🎬 Video kỷ niệm</h2>
     <div class="vk-pv"><canvas class="vk-cv"></canvas><video class="vk-out" playsinline hidden></video><button class="vk-fsb" type="button" aria-label="Xem toàn màn hình">⤢ Toàn màn hình</button><button class="vk-play" aria-label="Xem trước">${icon('play', 30, 2.2)}</button><div class="vk-busy" hidden><i></i><b>Đang chuẩn bị…</b></div></div>
-    <label class="f">Tiêu đề<input id="vkTi" maxlength="60"></label>
+    <div class="vk-tirow"><label class="f">Tiêu đề<input id="vkTi" maxlength="60"></label><button type="button" id="vkAI" aria-label="AI viết tiêu đề và phụ đề">✨ AI</button></div>
     <div class="vk-row"><b>Mẫu</b><div class="vk-ch" data-k="tpl">${Object.entries(TEMPLATES).map(([k, t]) => `<button type="button" data-v="${k}">${{ dienanh: '🎞️', nhanh: '⚡', hoainiem: '📷', bando: '🗺️' }[k]} ${t.t}</button>`).join('')}</div></div>
     <div class="vk-row two"><div><b>Khung</b><div class="vk-ch" data-k="ratio"><button type="button" data-v="9:16">9:16 dọc</button><button type="button" data-v="16:9">16:9 ngang</button></div></div><div><b>Độ dài</b><div class="vk-ch" data-k="dur">${LENGTHS.map(l => `<button type="button" data-v="${l}">${l}s</button>`).join('')}</div></div></div>
     <div class="vk-row"><b>Nhạc</b><div class="vk-ch" data-k="music">${MUSICS.map(([k, t]) => `<button type="button" data-v="${k}">${t}</button>`).join('')}</div><input type="file" id="vkMf" accept="audio/*" hidden></div>
@@ -51,6 +51,10 @@ export function initVideoUI(A) {
   });
   M.querySelector('#vkMf').onchange = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; V.userBlob = f; V.music = 'file'; changed(); A.toast('Đã chọn nhạc: ' + f.name, 1800); };
   M.querySelector('#vkTi').addEventListener('change', changed);
+  M.querySelector('#vkAI').onclick = () => { if (!A.ai || !V.o) return; const ti = M.querySelector('#vkTi');
+    A.ai({ kind: 'video', heading: '✨ Lời cho video', goLabel: 'Viết tiêu đề + phụ đề', text: [ti.value, V.o.sub].filter(Boolean).join(' · '), oldTitle: ti.value, oldSub: V.o.sub || '', lead: 'AI gợi ý tiêu đề và phụ đề ngắn cho video, từ tên và ngày của kỷ niệm.', mids: V.picked.slice(0, 4).map(m => m.id),
+      ctx: { date: V.o.sub || '', people: (V.o.people || []).filter(p => p.role !== 'me').map(p => p.name) },
+      onUse: v => { const o0 = { t: ti.value, s: V.o.sub }; ti.value = v.title; V.o.sub = v.sub; changed(); A.openModal(M); undoToast?.('Đã dùng lời của AI', () => { ti.value = o0.t; V.o.sub = o0.s; changed(); }, 6000); } }); };
   // ---------- chọn ảnh tự động ----------
   async function autoPick() {
     busy(true, 'Đang chọn ảnh đẹp nhất…');

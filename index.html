@@ -887,6 +887,18 @@ body.maptab #mapv { bottom: calc(var(--tabh, 62px) + 16px + var(--safe-b)); }
 .mp-tip[hidden] { display: none; } .mp-tip button { height: 38px; border-radius: 12px; border: none; background: linear-gradient(135deg, #ff8fbf, #ffb36b); color: #fff; font: 800 13.5px var(--font); }
 @media (prefers-reduced-motion: reduce) { .fl-b, .fl-sh, .mk-orb, .mk-orb img { animation: none; } }
 .sfxv { display: flex; align-items: center; gap: 10px; margin: 2px 0 8px; font-size: 16px; } .sfxv input { flex: 1; accent-color: #ff8fbf; }
+.gem-steps { margin: 6px 0 0; padding-left: 20px; font-size: 13.5px; color: var(--sub); line-height: 1.55; }
+#mAI .ai-r { margin-top: 10px; } #mAI .ai-r > b { display: block; font-size: 13px; color: var(--sub); margin-bottom: 6px; } #mAI .ai-r[hidden], #mAI .ai-img[hidden] { display: none; }
+#mAI .ai-go { margin-top: 14px; width: 100%; height: 50px; border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; }
+#mAI .ai-free { text-align: center; margin: 6px 0 0; font-size: 12px; }
+#mAI .ai-cmp { display: grid; gap: 10px; margin-top: 14px; } #mAI .ai-c { padding: 12px; border-radius: 18px; background: linear-gradient(165deg, var(--gl1), var(--gl2)); border: 1px solid var(--glb); }
+#mAI .ai-c.old { opacity: .78; border-style: dashed; } #mAI .ai-c small { font-size: 12px; font-weight: 800; color: var(--sub); } #mAI .ai-c p { margin: 6px 0 8px; line-height: 1.6; font-size: 15px; white-space: normal; } #mAI .ai-c button { height: 40px; border-radius: 13px; }
+#mAI .ai-more { display: flex; gap: 8px; margin-top: 10px; } #mAI .ai-more[hidden] { display: none; } #mAI .ai-more button { flex: 1; height: 42px; border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13.5px; }
+#mAI .ai-wait { display: flex; align-items: center; gap: 10px; justify-content: center; padding: 18px; font-weight: 800; } #mAI .ai-wait i { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--line); border-top-color: #ff8fbf; animation: spinR 1s linear infinite; }
+#mAI .ai-err { color: var(--danger, #ff6f6f); font-weight: 700; } #mAI .ai-guide ol { padding-left: 20px; line-height: 1.6; } #mAI .ai-guide button { margin-top: 6px; height: 44px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; }
+.evn-ai { display: flex; gap: 8px; margin: -2px 0 6px; } .evn-ai button { height: 40px; border-radius: 13px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 800; } .evn-ai .ai-b { background: linear-gradient(135deg, #b28bff, #ff8fbf); color: #fff; border: none; } .evn-ai .mic.on { background: #ff6f6f; color: #fff; }
+.ch-in { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; opacity: .95; font-style: italic; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.vk-tirow { display: flex; gap: 8px; align-items: flex-end; } .vk-tirow label { flex: 1; } .vk-tirow button { height: 46px; padding: 0 12px; border-radius: 14px; border: none; background: linear-gradient(135deg, #b28bff, #ff8fbf); color: #fff; font-weight: 800; margin-bottom: 2px; }
 /* v1.8.0 — chống giật khi cuộn: đang cuộn thì dừng mọi hoạt ảnh lặp trong dòng thời gian (dải chảy, viền phát sáng, sao lấp lánh) */
 #tl.scr .lane i, #tl.scr .mb .ic, #tl.scr .ev.mile .cd::after, #tl.scr .ch-ic, #tl.scr .tl-cb, #tl.scr .rail2 i::before, #tl.scr .rhead, #tl.scr .bdb, #tl.scr .tl-more i, #tl.scr .avs i { animation-play-state: paused !important; }
 .chap, .otd, .bdb { content-visibility: auto; contain-intrinsic-size: auto 150px; }
@@ -1489,11 +1501,12 @@ input.ob-in[type=date]::-webkit-date-and-time-value { text-align: left; }
     <input type="file" id="importIn" accept=".nganha,application/octet-stream" hidden>
     <p class="hint">Ảnh, video chỉ nằm trong máy này. Thỉnh thoảng hãy tạo bản sao lưu và cất vào ổ cứng, iCloud Drive hoặc Google Drive. Muốn chuyển sang máy khác: mở bản sao lưu ở máy kia.</p>
     <p class="hint" id="storeInfo"></p></div>
-  <div class="sec"><h3>AI viết lời cho nhật ký (không bắt buộc)</h3>
-    <p class="hint" style="margin-top:0">Không cần cũng được: app tự ghép lời miễn phí, ảnh không đi đâu cả. Nếu muốn AI xem ảnh rồi viết lời, bạn tạo khoá miễn phí tại <b>aistudio.google.com</b> (mục <b>Get API key</b>) rồi dán vào đây. Khoá chỉ lưu trong máy này.</p>
-    <form onsubmit="return false" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="gemKey" type="password" autocomplete="off" spellcheck="false" placeholder="Dán khoá Gemini API…" style="flex:1;min-width:180px;font:600 15px var(--font);color:var(--text);background:var(--field);border:1px solid var(--line);border-radius:14px;padding:10px 12px;outline:none"><button id="gemSave">Lưu khoá</button><button id="gemDel" class="danger" hidden>Xoá khoá</button></form>
+  <div class="sec" id="gemSec"><h3>✨ AI kể lại cho hay (miễn phí, không bắt buộc)</h3>
+    <p class="hint" style="margin-top:0">Dùng khoá Gemini <b>miễn phí</b> của chính bạn để AI kể lại kỷ niệm cho hay, viết lời mở chương, lời cho video và truyện tranh. Không có khoá app vẫn chạy bình thường.</p>
+    <ol class="gem-steps"><li>Mở <b>aistudio.google.com</b> bằng tài khoản Google của bạn.</li><li>Bấm <b>Get API key</b> → <b>Create API key</b>. Chọn (hoặc tạo) một dự án <b>KHÔNG gắn thanh toán</b> để chắc chắn 0đ.</li><li>Chép khoá, dán vào ô dưới rồi bấm <b>Kiểm tra khoá</b>.</li></ol>
+    <form onsubmit="return false" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="gemKey" type="password" autocomplete="off" spellcheck="false" placeholder="Dán khoá Gemini API…" style="flex:1;min-width:180px;font:600 15px var(--font);color:var(--text);background:var(--field);border:1px solid var(--line);border-radius:14px;padding:10px 12px;outline:none"><button id="gemSave">Lưu khoá</button><button id="gemTest">Kiểm tra khoá</button><button id="gemDel" class="danger" hidden>Xoá khoá</button></form>
     <p class="hint" id="gemInfo"></p>
-    <p class="hint">Lưu ý: khi bạn bấm “✨ AI viết lời”, ảnh nhỏ của các khung sẽ được gửi tới Google để AI viết lời.</p></div>
+    <p class="hint">Khoá chỉ lưu trong máy này, không đồng bộ lên Drive. Mặc định chỉ gửi chữ; ảnh chỉ gửi khi bạn tự bật “Cho AI xem ảnh”. Dùng miễn phí: Google có thể dùng nội dung gửi lên để cải thiện AI.</p></div>
   <div class="sec"><h3>Cài lên điện thoại</h3><p class="hint" style="margin:0">iPhone/iPad: mở link bằng <b>Safari</b> › bấm nút Chia sẻ <b>⬆︎</b> › <b>Thêm vào MH chính</b>.<br>Android: mở bằng Chrome › menu <b>⋮</b> › <b>Cài đặt ứng dụng</b>.</p></div>
   <div class="sec about"><div class="ab-card">
     <img src="icons/icon-192.png" alt="" class="ab-ic">

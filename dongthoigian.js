@@ -50,9 +50,10 @@ const HTML = `
 <div id="evs" aria-hidden="true"><div class="evs-st"></div><div class="evs-cap"><small></small><b></b><span></span></div><div class="evs-bar"><i></i></div><button class="glassbtn evs-x" aria-label="Dừng chiếu">${icon('close', 22, 2)}</button></div>
 <div id="fsc" aria-hidden="true"><i class="th"></i><span class="bb"></span></div>
 <div class="modal" id="mEvName"><div class="card glass">
-  <h2>Đổi tên sự kiện</h2><p class="lead evn-sub"></p>
+  <h2>Tên &amp; lời kể</h2><p class="lead evn-sub"></p>
   <label class="f">Tên sự kiện<input id="evnTi" maxlength="60"></label>
-  <label class="f">Ghi chú<textarea id="evnNt" maxlength="2000" placeholder="Hôm nay có gì vui?"></textarea></label>
+  <label class="f">Lời kể<textarea id="evnNt" maxlength="4000" placeholder="Hôm nay có gì vui? Gõ vài dòng hoặc bấm 🎤 Đọc để nói…"></textarea></label>
+  <div class="evn-ai"><button type="button" class="mic" id="evnMic">🎤 <span>Đọc</span></button><button type="button" class="ai-b" id="evnAI">✨ <span>Kể lại cho hay</span></button></div>
   <div class="foot"><button id="evnAuto">Dùng tên tự động</button><button data-close>Huỷ</button><button class="primary" id="evnOk">Lưu</button></div>
 </div></div>
 <div class="modal" id="mEvMerge"><div class="card glass"><h2>Gộp hoặc tách</h2><p class="lead">Mỗi ngày có ảnh là một sự kiện. Bạn gộp hai ngày liền nhau thành một (vd chuyến đi chơi), hoặc tách một ngày thành hai — mở một ảnh rồi bấm “Tách từ ảnh này”.</p><div class="evm-list"></div><div class="foot"><button data-close>Xong</button></div></div></div>
@@ -275,7 +276,7 @@ export function initTimeline(A) {
     const span = y1 == null ? `từ ${y0}` : y1 > y0 ? `${y0} – ${y1}` : `${y0}`, ages = a0 == null ? '' : y1 == null ? ` · từ ${Math.max(0, a0)} tuổi` : ` · ${Math.max(0, a0)}–${Math.max(0, y1 - +me.birth.slice(0, 4))} tuổi`;
     const n = evs.reduce((t, e) => t + e.ms.length, 0), best = evs.slice().sort((a, b) => b.ms.length - a.ms.length)[0];
     const cov = c.cover && evs.flatMap(e => e.ms).find(m => m.id === c.cover) || best?.stack[0];
-    return `<section class="chap${empty ? ' empty' : ''}" data-ch="${esc(c.key)}" style="--cc:${c.c}">${cov ? `<div class="ch-cv"><img data-mid="${cov.id}" alt="" decoding="async" loading="lazy"></div>` : ''}<div class="ch-tx"><small>Chương ${c.num} · ${span}${ages}</small><h2><span class="ch-ic">${c.ic}</span>${esc(c.title)}</h2>${empty ? `<button class="ch-add" data-a="addold" data-y="${y0}">${icon('plus', 15, 2.4)}<span>Thêm ảnh cũ của chương này</span></button>` : `<p>${n} khoảnh khắc · ${evs.length} ngày đáng nhớ</p>`}</div><button class="ch-more" data-a="chmenu" aria-label="Tuỳ chọn chương">${icon('more', 20, 2.2)}</button></section>`;
+    return `<section class="chap${empty ? ' empty' : ''}" data-ch="${esc(c.key)}" style="--cc:${c.c}">${cov ? `<div class="ch-cv"><img data-mid="${cov.id}" alt="" decoding="async" loading="lazy"></div>` : ''}<div class="ch-tx"><small>Chương ${c.num} · ${span}${ages}</small><h2><span class="ch-ic">${c.ic}</span>${esc(c.title)}</h2>${c.intro ? `<p class="ch-in">${esc(c.intro)}</p>` : ''}${empty ? `<button class="ch-add" data-a="addold" data-y="${y0}">${icon('plus', 15, 2.4)}<span>Thêm ảnh cũ của chương này</span></button>` : `<p>${n} khoảnh khắc · ${evs.length} ngày đáng nhớ</p>`}</div><button class="ch-more" data-a="chmenu" aria-label="Tuỳ chọn chương">${icon('more', 20, 2.2)}</button></section>`;
   }
   function render(keep = true) {
     const kid = A.kid(); if (!kid) { IN.innerHTML = ''; return; }
@@ -894,7 +895,7 @@ export function initTimeline(A) {
       A.makeVideo && e.ms.length >= 3 && { icon: 'video', label: '🎬 Tạo video kỷ niệm', act: () => A.makeVideo({ ms: e.ms, title: e.title, sub: spanTxt(e.ms), people: e.kids.map(kidById).filter(Boolean), key: e.key }) },
       { icon: 'book', label: e.diaries.length ? 'Xem nhật ký' : 'Tạo nhật ký từ sự kiện', act: () => e.diaries.length ? A.openDiary(e.diaries[0].id) : A.makeDiary(e.ms.filter(m => m.type !== 'video').length ? e.ms.filter(m => m.type !== 'video') : e.ms) },
       { sep: 1 },
-      { icon: 'edit', label: 'Đổi tên, ghi chú', act: () => { st.cur = st.cur || e; renameEvent(e); } },
+      { icon: 'edit', label: 'Đổi tên, lời kể <small class="cm-n">✨ AI kể lại cho hay</small>', act: () => { st.cur = st.cur || e; renameEvent(e); } },
       A.family() && kidsAll().length > 1 && { icon: 'people', label: (() => { const ps = e.kids.map(kidById).filter(k => k && !isMe(k)); return ps.length ? `Ai có mặt? · ${esc(ps.slice(0, 3).map(k => cap(k.name)).join(', '))}${ps.length > 3 ? '…' : ''}` : 'Ai có mặt? · chỉ mình bạn'; })(), act: async () => { const ids = await A.pickKids(e.ms, 'Ai có mặt? · ' + e.title); if (!ids) return; await A.setKidsMany(e.ms, ids); refreshAll(e.key); A.toast('Đã cập nhật người có mặt', 1400); } },
       { icon: 'plus', label: 'Thêm ảnh vào sự kiện', act: () => { st.cur = st.cur || e; st.addTo = e; $('#evFiles').click(); } },
       { icon: 'check', label: 'Chọn nhiều ảnh', act: async () => { await ensure(); showGrid(true, true); startSel('ev'); } },
@@ -961,6 +962,10 @@ export function initTimeline(A) {
       { icon: 'edit', label: 'Đổi tên chương', act: async () => { const t = await A.prompt('Tên chương', c.title, 40); if (t?.trim()) { ed.title = t.trim(); await save('Đã đổi tên chương'); } } },
       { icon: 'calendar', label: `Đổi ngày bắt đầu (${A.dmy(c.ts)})`, act: async () => { const v = await A.prompt('Chương bắt đầu từ ngày', c.start, 10, 'date'); if (v && A.parseYmd(v)) { ed.start = v; await save('Đã đổi ngày bắt đầu chương'); } } },
       { icon: 'palette', label: 'Đổi màu chương', act: () => contextMenu({ at, title: 'Màu chương', items: CH_COLORS.map(col => ({ label: `<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${col};vertical-align:-4px;margin-right:8px"></span>${col === c.c ? 'Đang dùng' : 'Chọn màu này'}`, on: col === c.c, act: async () => { ed.c = col; await save('Đã đổi màu chương'); } })) }) },
+      A.ai && { icon: 'sparkle', label: c.intro ? '✨ Viết lại lời mở chương' : '✨ Viết lời mở chương', act: () => { const evs = st.events.filter(e => e.chapter?.key === c.key).slice().sort((a, b) => a.ts0 - b.ts0), me = A.me?.();
+        A.ai({ kind: 'chapter', heading: '✨ Lời mở chương', goLabel: 'Viết lời mở chương', title: c.title, text: c.intro || '', lead: `Chương ${c.num} · ${c.title}: AI viết đoạn mở đầu từ tên chương và các sự kiện trong chương.`, mids: evs.slice(0, 4).map(e => e.stack[0]?.id).filter(Boolean),
+          ctx: { date: c.end ? `${new Date(c.ts).getFullYear()} – ${new Date(c.end - 864e5).getFullYear()}` : `từ ${new Date(c.ts).getFullYear()}`, me: me ? cap(me.name) : '', events: evs.slice(0, 24).map(e => `${A.dmy(e.ts0)} ${e.title}${e.note ? ' — ' + e.note.slice(0, 120) : ''}`) },
+          onUse: async v => { const old = ed.intro || ''; ed.intro = v; await save('Đã thêm lời mở chương ✨'); undoToast('Đã dùng lời mở chương của AI', async () => { ed.intro = old || undefined; await A.saveChapters(cfg); render(); }, 6000); } }); } },
       { icon: 'play', label: 'Kể chuyện chương này', act: () => A.story?.({ chapter: c }) },
       A.makeVideo && { icon: 'video', label: '🎬 Video kỷ niệm của chương', act: () => { const ms = st.events.filter(e => e.chapter?.key === c.key).flatMap(e => e.ms); if (ms.length < 3) { A.toast('Chương này cần ít nhất 3 ảnh', 1800); return; } A.makeVideo({ ms, title: c.title, sub: `Chương ${c.num}`, people: [A.me()].filter(Boolean) }); } },
       { icon: 'book', label: 'Tạo truyện tranh chương này', act: () => { const ms = st.events.filter(e => e.chapter?.key === c.key).flatMap(e => e.ms).filter(m => m.type !== 'video').sort((a, b) => a.ts - b.ts); if (!ms.length) { A.toast('Chương này chưa có ảnh', 1800); return; } A.makeDiary(ms); } },
@@ -970,7 +975,7 @@ export function initTimeline(A) {
       !c.custom && (c.edited || !c.auto) && { icon: 'back', label: 'Về như app gợi ý', act: async () => { delete cfg.edits[key]; await save('Đã khôi phục chương như gợi ý'); } },
       { icon: 'close', label: c.custom ? 'Xoá chương này' : 'Ẩn chương này', danger: true, act: async () => { if (cu) cfg.custom = cfg.custom.filter(x => x !== cu); else ed.hidden = true; await save(c.custom ? 'Đã xoá chương' : 'Đã ẩn chương — ảnh vẫn còn, nằm ở chương trước'); } }] });
   }
-  function renameEvent(e) { $('#evnTi').value = e.title; $('#evnNt').value = e.note; $('#mEvName .evn-sub').textContent = `${dateTxt(e)} · ${countTxt(e)}`; st.cur = e; A.openModal($('#mEvName')); setTimeout(() => $('#evnTi').focus(), 350); }
+  function renameEvent(e) { $('#evnTi').value = e.title; $('#evnNt').value = e.note; delete $('#evnNt').dataset.orig; $('#mEvName .evn-sub').textContent = `${dateTxt(e)} · ${countTxt(e)}`; st.cur = e; A.openModal($('#mEvName')); setTimeout(() => $('#evnTi').focus(), 350); }
   async function mergeWith(e, o) { const ks = [...new Set([...(e.merged || [e.key]), ...(o.merged || [o.key])])]; st.meta.merges = st.meta.merges.filter(g => !g.some(k => ks.includes(k))); st.meta.merges.push(ks); await saveMeta(); const mid = e.ms[0].id; closeEvent(); render(); const k = keyOfMid(mid); if (k) setTimeout(() => scrollToKey(k), 450); A.toast('Đã gộp thành một sự kiện', 1600); }
   async function setCover(m) { const e = st.cur || st.events.find(x => x.ms.includes(m)); if (!e) return; if (e.group) { e.group.cover = m.id; await A.saveGroups(); } else st.meta.covers[e.key] = m.id; await saveMeta(); haptic(10); A.toast('Đã đặt làm ảnh bìa sự kiện', 1500); const k = e.key; render(); if (EVP.classList.contains('open') && st.byKey.get(k)) { st.cur = st.byKey.get(k); fillEvent(st.cur); EVP.style.setProperty('--hc', m.color || COL.get(m.id) || kidCol()); paintBg(m); } hint(''); }
   async function changeEventDate(e) {
@@ -1055,8 +1060,22 @@ export function initTimeline(A) {
     grid.addEventListener('touchend', up); grid.addEventListener('touchcancel', up);
     grid.addEventListener('contextmenu', e => { if (e.target.closest('.gi')) e.preventDefault(); });
   }
-  $('#evnOk').onclick = async () => { const e = st.cur; if (!e) return; if (!EVP.classList.contains('open')) st.cur = null; const t = $('#evnTi').value.trim(), n = $('#evnNt').value.trim(); if (e.group) { if (t) e.group.name = t; e.group.note = n; await A.saveGroups(); A.closeModal($('#mEvName')); refreshAll(e.key); A.toast('Đã lưu tên nhóm', 1600); return; } if (t && t !== (e.mile?.label || e.auto)) st.meta.titles[e.key] = t; else delete st.meta.titles[e.key]; if (n) st.meta.notes[e.key] = n; else delete st.meta.notes[e.key]; await saveMeta(); A.closeModal($('#mEvName')); refreshAll(e.key); A.toast('Đã lưu tên sự kiện', 1600); };
+  $('#evnOk').onclick = async () => { const e = st.cur; if (!e) return; { const ta = $('#evnNt'); if (ta.dataset.orig != null && ta.dataset.orig.trim() && ta.dataset.orig !== ta.value) { st.meta.notesOrig ||= {}; st.meta.notesOrig[e.key] = ta.dataset.orig; } delete ta.dataset.orig; } if (!EVP.classList.contains('open')) st.cur = null; const t = $('#evnTi').value.trim(), n = $('#evnNt').value.trim(); if (e.group) { if (t) e.group.name = t; e.group.note = n; await A.saveGroups(); A.closeModal($('#mEvName')); refreshAll(e.key); A.toast('Đã lưu tên nhóm', 1600); return; } if (t && t !== (e.mile?.label || e.auto)) st.meta.titles[e.key] = t; else delete st.meta.titles[e.key]; if (n) st.meta.notes[e.key] = n; else delete st.meta.notes[e.key]; await saveMeta(); A.closeModal($('#mEvName')); refreshAll(e.key); A.toast('Đã lưu tên sự kiện', 1600); };
   $('#evnAuto').onclick = () => { const e = st.cur; if (e) $('#evnTi').value = e.mile?.label || e.auto; };
+  // v1.8.0: 🎤 đọc thành chữ (nhận dạng giọng nói tiếng Việt của trình duyệt) + ✨ AI kể lại cho hay (giữ bản gốc, hoàn tác được)
+  { const SR = window.SpeechRecognition || window.webkitSpeechRecognition, mic = $('#evnMic'); let rec = null;
+    if (!SR) mic.hidden = true;
+    const stop = () => { try { rec?.stop(); } catch (e) { } rec = null; mic.classList.remove('on'); mic.querySelector('span').textContent = 'Đọc'; };
+    mic.onclick = () => { if (rec) { stop(); return; } rec = new SR(); rec.lang = 'vi-VN'; rec.continuous = true; rec.interimResults = false; const ta = $('#evnNt');
+      rec.onresult = ev => { let t = ''; for (let i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) t += ev.results[i][0].transcript; if (t) { ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + t.trim(); } };
+      rec.onerror = ev => { if (ev.error === 'not-allowed') A.toast('Bạn chưa cho phép dùng micro', 2200); stop(); }; rec.onend = () => stop();
+      try { rec.start(); mic.classList.add('on'); mic.querySelector('span').textContent = 'Dừng'; haptic(8); } catch (e) { stop(); } };
+    new MutationObserver(() => { if (!$('#mEvName').classList.contains('open')) stop(); }).observe($('#mEvName'), { attributes: true }); }
+  $('#evnAI').onclick = () => { const e = st.cur; if (!e || !A.ai) return; const ta = $('#evnNt'), me = A.me?.();
+    const people = e.kids.map(kidById).filter(k => k && !isMe(k)).map(k => `${cap(k.name)} (${roleName(k)}${k.birth && A.ageOf ? ', ' + A.ageOf(k, e.ts0) : ''})`);
+    A.ai({ kind: 'story', title: $('#evnTi').value.trim() || e.title, text: ta.value, lead: 'AI viết lại lời kể của bạn cho hay hơn — giữ đúng sự thật, không bịa thêm người hay nơi chốn.', mids: e.stack.map(m => m.id).filter(Boolean),
+      ctx: { date: dateTxt(e), place: e.geo?.name || '', people, me: me ? `${cap(me.name)}${me.birth ? ', ' + A.ageOf(me, e.ts0) : ''}` : '' },
+      onUse: v => { const old = ta.value; if (ta.dataset.orig == null) ta.dataset.orig = old; ta.value = v; A.openModal($('#mEvName')); undoToast('Đã dùng bản của AI — bấm Lưu để giữ', () => { ta.value = old; }, 6000); } }); };
   function openMerge(e) {
     const i = st.events.indexOf(e), newer = st.events[i - 1], older = st.events[i + 1], box = $('#mEvMerge .evm-list'), rows = [];
     if (older) rows.push(`<button data-m="older">${icon('merge', 20)}<span>Gộp với ngày trước <b>${esc(older.title)}</b> · ${A.dmy(older.ts0)}</span></button>`);

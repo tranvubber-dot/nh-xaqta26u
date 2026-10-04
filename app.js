@@ -14,6 +14,7 @@ import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 import { initOnboarding } from './lamquen.js';
 import { chibiSVG, chibiWaveSVG } from './chibi.js';
 import { initSfx } from './sfx.js';
+import { initAI, testKey, resetModel as aiReset } from './ai.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
@@ -1593,6 +1594,8 @@ function updateScrubKnob() {
 // ---------- Hộp thoại, thông báo ----------
 let toastT = 0;
 function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms); }
+// v1.8.0: ✨ AI kể lại cho hay (ai.js) — khoá Gemini riêng, chỉ mẫu chữ
+let AI = null; const aiOpen = o => { AI ||= initAI({ metaGet, toast, openModal: m => openModal(m), closeModal: m => closeModal(m), thumbBlob: id => dbGet('blobs', 't_' + id), openSettings: () => { renderSettings(); openModal($('#mSet')); setTimeout(() => $('#gemSec')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 380); } }); return AI.open(o); };
 // v1.8.0: âm thanh hiệu ứng (sfx.js) — không phát khi đang chiếu có nhạc hoặc đang dựng / xem video
 window.SFX = initSfx({ block: () => { try { return document.body.classList.contains('showing') || !!document.querySelector('#mVid.open, #vkFs.on') || !!INTRO?.active; } catch (e) { return false; } } });
 function openModal(m) { const was = m.classList.contains('open'); m.classList.add('open'); haptic(5); if (!was) SFX.play('pop'); }
@@ -2335,9 +2338,11 @@ $('#trPurge').onclick = async () => {
   for (const m of list) { await dbDel('blobs', 'o_' + m.id); await dbDel('blobs', 't_' + m.id); await dbDel('moments', m.id); } toast(`Đã xoá vĩnh viễn ${list.length} mục`, 1800); openTrash();
 };
 $('#bDiary').onclick = () => { leaveIntro(); if (S.mode === 'show') stopShow(); D.openList(); };
-async function renderGem() { const k = await metaGet('geminiKey'); $('#gemInfo').textContent = k ? 'Đã có khoá trong máy này ✓ — nút “✨ AI viết lời” đã hiện trong trình chỉnh nhật ký.' : 'Chưa có khoá — app vẫn tự ghép lời miễn phí.'; $('#gemDel').hidden = !k; $('#gemKey').value = ''; D.setAiVisible(!!k); }
-$('#gemSave').onclick = async () => { const v = $('#gemKey').value.trim(); if (!/^[\w-]{20,}$/.test(v)) { toast('Khoá trông chưa đúng — bạn dán lại nguyên khoá nhé'); return; } await metaSet('geminiKey', v); D.resetModel(); renderGem(); toast('Đã lưu khoá trong máy này ✓'); };
-$('#gemDel').onclick = async () => { if (!(await ask('Xoá khoá Gemini?', 'App sẽ quay về tự ghép lời miễn phí. Bạn dán lại khoá lúc nào cũng được.', 'Xoá khoá', true))) return; await dbDel('meta', 'geminiKey'); D.resetModel(); renderGem(); toast('Đã xoá khoá'); };
+async function renderGem() { const k = await metaGet('geminiKey'); $('#gemInfo').textContent = k ? 'Đã có khoá trong máy này ✓ — các nút ✨ AI đã dùng được.' : 'Chưa có khoá — app vẫn chạy bình thường, nút ✨ sẽ mở hướng dẫn lấy khoá.'; $('#gemDel').hidden = !k; $('#gemKey').value = ''; D.setAiVisible(!!k); }
+$('#gemSave').onclick = async () => { const v = $('#gemKey').value.trim(); if (!/^[\w-]{20,}$/.test(v)) { toast('Khoá trông chưa đúng — bạn dán lại nguyên khoá nhé'); return; } await metaSet('geminiKey', v); D.resetModel(); aiReset(); renderGem(); toast('Đã lưu khoá trong máy này ✓'); };
+$('#gemTest').onclick = async () => { const v = $('#gemKey').value.trim() || await metaGet('geminiKey'); if (!v) { toast('Bạn dán khoá vào ô trước nhé'); return; } const b = $('#gemTest'); b.disabled = true; $('#gemInfo').textContent = 'Đang kiểm tra khoá…';
+  try { const m = await testKey(v); if ($('#gemKey').value.trim()) { await metaSet('geminiKey', v); D.resetModel(); } await renderGem(); $('#gemInfo').textContent = `Khoá dùng được ✓ — mẫu chữ ${m} (miễn phí).`; SFX.play('ting'); } catch (e) { $('#gemInfo').textContent = e.message; } finally { b.disabled = false; } };
+$('#gemDel').onclick = async () => { if (!(await ask('Xoá khoá Gemini?', 'App sẽ quay về tự ghép lời miễn phí. Bạn dán lại khoá lúc nào cũng được.', 'Xoá khoá', true))) return; await dbDel('meta', 'geminiKey'); D.resetModel(); aiReset(); renderGem(); toast('Đã xoá khoá'); };
 $('#kidsList').onclick = e => { const nh = e.target.closest('[data-nhac]'); if (nh) { $('#mSet').classList.remove('open'); nhacFor([S.kids.find(k => k.id === nh.dataset.nhac)]); return; } const pf = e.target.closest('[data-prof]'); if (pf) { $('#mSet').classList.remove('open'); P.openProfile(dispKid(S.kids.find(k => k.id === pf.dataset.prof))); return; } const b = e.target.closest('[data-kid]'); if (!b) return; $('#mSet').classList.remove('open'); openKid(S.kids.find(k => k.id === b.dataset.kid)); };
 $('#kidAdd').innerHTML = icon('plus', 16, 2.2) + '<span>Thêm bé</span>';
 $('#kidAdd').insertAdjacentHTML('afterend', `<button id="kidNhacAll" style="margin-left:8px">${icon('cake', 16)}<span>Nhắc sinh nhật cả nhà</span></button>`);
@@ -2863,7 +2868,7 @@ function kidMenu(el) {
 function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(() => $('#bgList')?.closest('.sec')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 380); }
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
-const TL = initTimeline({ hidden: () => new Set(), life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
+const TL = initTimeline({ hidden: () => new Set(), ai: o => aiOpen(o), ageOf: (k, ts) => ageText(k, ts, false), life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
   allCount: () => (S.all || []).length, makeVideo: o => makeVideo(o), voice: { open: (m, o) => VOICE.open(m, o), play: (m, o) => VOICE.play(m, o), ok: () => VOICE.supported() }, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
@@ -2891,7 +2896,7 @@ function storyHub(at) {
   ] });
 }
 // ---------- 🎬 VIDEO KỶ NIỆM ----------
-const VID = initVideoUI({ MOBILE, toast, openModal, closeModal, dmy, ymd, noAccent, approxLabel, shareOrDownload, get drive() { return DRV; },
+const VID = initVideoUI({ ai: o => aiOpen(o), MOBILE, toast, openModal, closeModal, dmy, ymd, noAccent, approxLabel, shareOrDownload, get drive() { return DRV; },
   blob: k => dbGet('blobs', k), thumbBlob: id => dbGet('blobs', 't_' + id), thumbURL: async id => { const b = await dbGet('blobs', 't_' + id); return b ? URL.createObjectURL(b) : ''; },
   me: () => ME(), confetti: () => P.confetti('#ffd27f'),
   avatarImgs: async ps => { const out = []; for (const k0 of ps.slice(0, 6)) { const k = S.kids.find(x => x.id === k0.id) || k0, im = new Image(); im.src = k.avatar ? await P.avatarURL(k) : (k.role || k.chibi) ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(chibiSVG(k, { w: 240 })) : P.avatarNow(k); try { await im.decode(); out.push(im); } catch (e) { } } return out; },
@@ -3160,7 +3165,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));

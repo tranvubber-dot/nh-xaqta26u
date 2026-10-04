@@ -2,6 +2,7 @@
 // trình chỉnh trang, trình xem lật trang, AI viết lời (tuỳ chọn, dùng khoá Gemini riêng của người dùng).
 // Ảnh không bao giờ rời máy trừ khi người dùng tự bấm "✨ AI viết lời".
 
+import { pickModel, apiErr, b64, resetModel } from './ai.js';
 export const PW = 1240, PH = 1754, PM = 50, GUT = 22;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pad2 = n => String(n).padStart(2, '0');
@@ -952,26 +953,7 @@ export function initDiary(A) {
   }, true);
 
   // ---------- AI viết lời (khoá Gemini của chính người dùng) ----------
-  let MODEL = null;
-  async function pickModel(key) {
-    if (MODEL) return MODEL;
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { headers: { 'x-goog-api-key': key } });
-    if (!r.ok) throw await apiErr(r);
-    const j = await r.json(), ok = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent') && /gemini-[\d.]+-flash/.test(m.name) && !/image|tts|audio|live|embed|thinking|exp|preview|robotics|computer/.test(m.name));
-    const ver = n => parseFloat((n.match(/gemini-([\d.]+)/) || [0, 0])[1]);
-    ok.sort((a, b) => (/flash-lite/.test(b.name) - /flash-lite/.test(a.name)) || ver(b.name) - ver(a.name));
-    MODEL = (ok[0]?.name || 'models/gemini-3.5-flash-lite').replace(/^models\//, '');
-    return MODEL;
-  }
-  async function apiErr(r) {
-    let msg = ''; try { msg = (await r.json()).error?.message || ''; } catch (e) { }
-    if (r.status === 400 && /key/i.test(msg)) return new Error('Khoá API không đúng — bạn kiểm tra lại trong Cài đặt nhé');
-    if (r.status === 401 || r.status === 403) return new Error('Khoá này chưa được phép dùng Gemini API — bạn kiểm tra lại khoá trong Google AI Studio');
-    if (r.status === 429) return new Error('Khoá đã hết lượt dùng (hoặc gửi quá nhanh) — bạn thử lại sau ít phút');
-    if (r.status >= 500) return new Error('Máy chủ Google đang bận — bạn thử lại sau nhé');
-    return new Error('Gemini báo lỗi ' + r.status + (msg ? ': ' + msg.slice(0, 120) : ''));
-  }
-  const b64 = blob => new Promise((res, rej) => { const f = new FileReader(); f.onload = () => res(String(f.result).split(',')[1]); f.onerror = rej; f.readAsDataURL(blob); });
+  // chọn mẫu + báo lỗi dùng chung trong ai.js (chỉ mẫu chữ Flash / Flash-Lite)
   async function aiWrite(btn) {
     const d = E.d, key = await A.metaGet('geminiKey'); if (!key) { A.toast('Bạn dán khoá Gemini trong Cài đặt trước nhé'); return; }
     const old = btn.textContent; btn.disabled = true; btn.textContent = '✨ AI đang viết…'; busy(true, '✨ AI đang xem ảnh và viết lời…');
@@ -1117,6 +1099,6 @@ Yêu cầu: tiếng Việt có dấu, dễ thương, tích cực, hợp tuổi b
     openList, openNew, openEditor, openViewer, closeViewer, build, saveDiary, renderPage, header, autoText, pickModel, applyAI,
     get viewer() { return V; }, get editor() { return E; }, isOpen: () => BK.classList.contains('open') || ED.classList.contains('open'),
     diaryMenu, renameDiary, splitDiary,
-    setAiVisible: v => { ED.querySelector('.dai').hidden = !v; }, resetModel: () => { MODEL = null; }, movePanel, draw
+    setAiVisible: v => { ED.querySelector('.dai').hidden = !v; }, resetModel: () => resetModel(), movePanel, draw
   };
 }

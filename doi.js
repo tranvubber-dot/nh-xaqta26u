@@ -71,9 +71,9 @@ export function chaptersOf(me, people, cfg, now = Date.now()) {
     const e = E[c.k] || {};
     if (e.start) start = e.start;
     if (!start || e.hidden) continue;
-    out.push({ key: c.k, title: e.title || c.t, start, c: e.c || c.c, ic: c.ic, cover: e.cover || null, auto: !e.start, edited: !!(e.title || e.start || e.c) });
+    out.push({ key: c.k, title: e.title || c.t, start, c: e.c || c.c, ic: c.ic, cover: e.cover || null, intro: e.intro || null, auto: !e.start, edited: !!(e.title || e.start || e.c) });
   }
-  for (const x of cfg?.custom || []) if (x.start && !x.hidden) out.push({ key: 'c:' + x.id, title: x.title || 'Chương mới', start: x.start, c: x.c || '#e0607e', ic: x.ic || '✨', cover: x.cover || null, custom: true });
+  for (const x of cfg?.custom || []) if (x.start && !x.hidden) out.push({ key: 'c:' + x.id, title: x.title || 'Chương mới', start: x.start, c: x.c || '#e0607e', ic: x.ic || '✨', cover: x.cover || null, intro: x.intro || null, custom: true });
   const list = out.map(c => ({ ...c, ts: day0(pYmd(c.start)) })).filter(c => c.ts <= now).sort((a, b) => a.ts - b.ts || CHAPTERS.findIndex(x => x.k === a.key) - CHAPTERS.findIndex(x => x.k === b.key));
   list.forEach((c, i) => { c.num = i + 1; c.end = list[i + 1]?.ts ?? null; });
   return list;
