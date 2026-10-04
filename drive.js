@@ -442,6 +442,7 @@ export function initDrive(A) {
   async function getApp(name) { if (!on || !signedIn() || !navigator.onLine) return null; try { const id = await appFind(name); return id ? await download(id) : null; } catch (e) { return null; } }
   // tệp thấy được trong thư mục sự kiện (giọng kể, video kỷ niệm)
   async function putVisible({ blob, name, kidId, key, mime }) { if (!on || !signedIn() || !navigator.onLine) return null; try { const places = await A.places(); let parent = null; for (const p of places.values()) if (p.key === key && (!kidId || p.kidId === kidId)) { parent = await eventFolder(p); break; } if (!parent) parent = await ensureFolder('root', ROOT_NAME, 'root'); return await upload({ blob, name: safe(name, 100), mime: mime || blob.type, parents: [parent], key: 'vis:' + name + ':' + blob.size }); } catch (e) { console.warn('putVisible', e.message); return null; } }
-  const api = { on, boot, organize, putApp, getApp, putVisible, folderOf, rootId, loadReg, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
+  const fetchFile = async id => { if (!on || !signedIn()) return null; try { return await download(id); } catch (e) { return null; } };
+  const api = { on, boot, organize, putApp, getApp, putVisible, fetchFile, folderOf, rootId, loadReg, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
   return api;
 }

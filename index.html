@@ -1075,6 +1075,41 @@ html.wk .ob-card { -webkit-backdrop-filter: none; backdrop-filter: none; backgro
 .mp-title { position: absolute; z-index: 6; left: 0; right: 0; top: calc(var(--safe-t) + 62px); text-align: center; pointer-events: none; } .mp-title b { display: inline-block; padding: 5px 14px; border-radius: 16px; background: rgba(255,255,255,.88); color: #3d1b35; font: 800 14px var(--font); box-shadow: 0 4px 12px rgba(40,20,60,.15); }
 .mp-hint { position: absolute; z-index: 6; left: 50%; bottom: calc(var(--safe-b) + 150px); transform: translateX(-50%); padding: 7px 14px; border-radius: 16px; background: rgba(61,27,53,.82); color: #fff; font: 700 13px var(--font); white-space: nowrap; pointer-events: none; transition: opacity .4s; }
 .chip.geo { color: var(--text); } .hc.geo { border: none; cursor: pointer; color: inherit; background: rgba(255,255,255,.14); font-weight: 800; }
+
+/* v1.7.0: ngày này năm xưa, lịch kỷ niệm */
+.otd { position: relative; z-index: 2; display: flex; align-items: center; gap: 14px; margin: 6px 0 14px; padding: 12px 40px 12px 12px; border-radius: 24px; cursor: pointer; color: #3d1b35; background: linear-gradient(135deg, #fff3c4, #ffd1e3 60%, #e2d6ff); box-shadow: 0 10px 28px rgba(255,150,190,.35), inset 0 1px 0 rgba(255,255,255,.7); animation: hsPop .7s cubic-bezier(.34,1.56,.64,1) backwards; }
+#tl.fam .otd { margin-left: calc(var(--lx) * -1 + 12px); }
+.otd-stk { position: relative; width: 78px; height: 70px; flex: none; } .otd-stk .pol { position: absolute; width: 60px; height: 60px; padding: 4px 4px 10px; background: #fff; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,.18); } .otd-stk .pol img { width: 100%; height: 100%; object-fit: cover; border-radius: 3px; opacity: 0; transition: opacity .3s; } .otd-stk .pol img.ok { opacity: 1; }
+.otd-stk .p0 { left: 8px; top: 2px; transform: rotate(-6deg); z-index: 3; } .otd-stk .p1 { left: 18px; top: 6px; transform: rotate(7deg); z-index: 2; } .otd-stk .p2 { left: 0; top: 8px; transform: rotate(-12deg); z-index: 1; }
+.otd-tx { display: flex; flex-direction: column; min-width: 0; } .otd-tx small { font-weight: 800; font-size: 12px; color: #b0456e; text-transform: uppercase; letter-spacing: .4px; } .otd-tx b { font-size: 18px; line-height: 1.25; } .otd-tx span { font-size: 12.5px; font-weight: 600; color: #7a5a7e; }
+.otd-x { position: absolute; right: 8px; top: 8px; width: 30px; height: 30px; border-radius: 50%; padding: 0; display: grid; place-items: center; border: none; background: rgba(255,255,255,.6); color: #7a5a7e; }
+.cal-l { display: grid; gap: 8px; margin-top: 8px; }
+.cal-r { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 18px; background: rgba(255,255,255,.06); border: 1px solid var(--line); animation: hsPop .5s var(--d) cubic-bezier(.34,1.56,.64,1) backwards; }
+.cal-r.today { background: linear-gradient(135deg, rgba(255,210,127,.35), rgba(255,143,191,.3)); border-color: #ffd27f; }
+.cal-e { font-size: 26px; } .cal-t { flex: 1; min-width: 0; display: flex; flex-direction: column; } .cal-t b { font-size: 15px; } .cal-t small { font-size: 12.5px; color: var(--muted); font-weight: 600; } .cal-c { font-size: 12.5px; font-weight: 800; color: var(--accent-2); white-space: nowrap; }
+
+/* v1.7.0: CHẾ ĐỘ CHỮ TO cho người lớn tuổi */
+html.big .cd h3 { font-size: 23px; line-height: 1.25; } html.big .ev .dt { font-size: 15.5px; } html.big .chip { font-size: 15px; padding: 6px 11px; }
+html.big #tabbar span { font-size: 13.5px; font-weight: 800; } html.big #tabbar .ic { transform: scale(1.12); }
+html.big .cm-list button { font-size: 18px; min-height: 56px; } html.big .cm-t { font-size: 15px; }
+html.big .modal .card { font-size: 17px; } html.big .lead, html.big .hint { font-size: 16.5px !important; line-height: 1.55; } html.big label.f { font-size: 15.5px; }
+html.big .modal button, html.big .foot button { min-height: 48px; font-size: 16.5px; }
+html.big .yh b { font-size: 29px; } html.big .yh small { font-size: 15px; } html.big .mo span { font-size: 16px; } html.big .lt p { font-size: 16.5px; }
+html.big .hs-grid p, html.big .hs-grid .pa { font-size: 17.5px; } html.big .hs-grid .v { font-size: 28px; }
+html.big .pv-ti { font-size: 23px; } html.big .pv-dt, html.big .pv-ag { font-size: 16.5px; } html.big .evp-ti { font-size: 34px; } html.big .evp-dt { font-size: 16px; }
+html.big .otd-tx b { font-size: 21px; } html.big .chap h2 { font-size: 38px; } html.big .chap small, html.big .chap p { font-size: 15px; }
+html.big #toast, html.big .utoast { font-size: 17px !important; } html.big .bdb b { font-size: 17px; } html.big .cal-t b { font-size: 17px; } html.big .cal-t small { font-size: 14px; }
+html.big .ch-ic, html.big .tl-cb, html.big .hs-cb, html.big .lc-cb, html.big .lane i, html.big #tlv .rail i { animation: none !important; }
+
+/* v1.7.0: giọng kể */
+.vo-box { display: grid; place-items: center; gap: 8px; padding: 10px 0; } .vo-wave { width: 100%; height: 60px; } .vo-time { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.vo-rec { position: relative; width: 92px; height: 92px; border-radius: 50%; border: none; padding: 0; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #ff6f9f, #ffb36b); box-shadow: 0 10px 30px rgba(255,111,159,.45); }
+.vo-rec i { position: absolute; inset: -8px; border-radius: 50%; border: 3px solid rgba(255,111,159,.5); opacity: 0; }
+#mVoice.rec .vo-rec { background: linear-gradient(135deg, #ff3d6e, #ff6f9f); } #mVoice.rec .vo-rec i { animation: voPulse 1.2s ease-out infinite; }
+@keyframes voPulse { from { transform: scale(.9); opacity: .9; } to { transform: scale(1.35); opacity: 0; } }
+.vo-h { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--muted); } .vo-acts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.hc.vo { border: none; cursor: pointer; color: inherit; background: rgba(255,143,191,.25); font-weight: 800; } .chip.vo { color: var(--text); }
+.pv-vo { margin-top: 8px; height: 38px; padding: 0 14px; border-radius: 19px; border: none; color: #fff; background: linear-gradient(135deg, #ff8fbf, #ffb36b); font-weight: 800; display: inline-flex; gap: 6px; align-items: center; }
 </style>
 </head>
 <body data-theme="night" class="v12">
@@ -1195,6 +1230,10 @@ html.wk .ob-card { -webkit-backdrop-filter: none; backdrop-filter: none; backgro
   <h2>Cài đặt</h2>
   <div class="sec" style="border:none;padding-top:0;margin-top:12px"><h3>Các bé</h3><div id="kidsList"></div><button id="kidAdd">➕ Thêm bé</button></div>
   <div class="sec"><h3>Phong cách</h3><div class="seg" id="segTheme"><button data-v="night">🌌 Đêm ngân hà</button><button data-v="dawn">🌅 Bình minh</button></div></div>
+  <div class="sec"><h3>Hiển thị</h3>
+    <label class="tog"><span>Chữ to, dễ đọc <small>cho người lớn tuổi: chữ, nút to hơn, chuyển động nhẹ hơn</small></span><input type="checkbox" id="setBig"></label>
+    <label class="tog"><span>Ngày này năm xưa <small>thẻ nhắc kỷ niệm cùng ngày các năm trước</small></span><input type="checkbox" id="setOtd"></label>
+  </div>
   <div class="sec"><h3>Hình nền của <span id="bgKid">bé</span></h3>
     <div class="bgs" id="bgList"></div>
     <div id="bgImgBox" hidden>

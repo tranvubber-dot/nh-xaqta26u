@@ -31,11 +31,13 @@ export function buildICS(kids, opt = {}) {
   };
   const tail = '\nMở Hành Trình Của Bạn để xem lại kỷ niệm' + (url ? ': ' + url : '');
   let n = 0;
+  // v1.7.0: sự kiện thêm (ngày cưới, ngày kỷ niệm tự thêm, Tết, Trung thu…): { uid, date:[y,m,d], title, desc, yearly }
+  for (const x of opt.extra || []) { ev(x.uid, x.date, x.title, (x.desc || '') + tail, x.yearly ? ['RRULE:FREQ=YEARLY'] : []); n++; }
   for (const k of kids) {
-    if (!k?.birth) continue;
+    if (!k?.birth || k.birthApprox) continue;
     const [by, bm, bd] = k.birth.split('-').map(Number), name = k.name;
     if (opt.solar !== false) { ev(`${k.id}-sn-duong`, [by, bm, bd], `🎂 Sinh nhật ${name}`, `${name} chào đời ngày ${pad(bd)}/${pad(bm)}/${by}.${tail}`, ['RRULE:FREQ=YEARLY']); n++; }
-    if (opt.lunar) {
+    if (opt.lunar && (!opt.lunarMarked || k.birthLunar)) {
       const lb = solar2lunar(bd, bm, by);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); let made = 0;
       for (let ly = Math.max(lb.y + 1, Y0 - 1); made < years && ly < Y0 + years + 2; ly++) {
@@ -107,13 +109,13 @@ export function initNhac(A) {
     A.openModal(M);
   }
   async function deliver(kids, o) {
-    const { text, count } = buildICS(kids, { ...o, url: appURL() });
+    const { text, count } = buildICS(kids, { ...o, url: appURL() }); o = { ...o };
     if (!count) { A.toast('Bạn chọn ít nhất một mục để nhắc nhé'); return false; }
-    const name = kids.length > 1 ? 'nhac-sinh-nhat-ca-nha.ics' : `nhac-sinh-nhat-${A.noAccent(kids[0].name)}.ics`;
+    const name = o.extra?.length ? 'lich-ky-niem.ics' : kids.length > 1 ? 'nhac-sinh-nhat-ca-nha.ics' : `nhac-sinh-nhat-${A.noAccent(kids[0].name)}.ics`;
     if (A.TEST) { window.T && (T.lastICS = { text, name, count }); }
     else if (isIOS && standalone()) {
       // app ở Màn hình chính không mở được bảng "Thêm vào Lịch" → mở Safari kèm dữ liệu trong hash (không gửi lên máy chủ)
-      const h = packHash({ v: 1, kids: kids.map(k => ({ id: k.id, name: k.name, birth: k.birth })), o });
+      const h = packHash({ v: 1, kids: kids.map(k => ({ id: k.id, name: k.name, birth: k.birth, birthLunar: k.birthLunar || null })), o });
       window.open(appURL() + '#nhac=' + h, '_blank'); A.toast('Đang mở Safari — bấm “Thêm vào Lịch” ở đó nhé', 4000);
     } else if (isIOS) { location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(text); }
     else {

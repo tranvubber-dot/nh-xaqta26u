@@ -14,6 +14,8 @@ import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 import { initOnboarding } from './lamquen.js';
 import { chibiSVG } from './chibi.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
+import { initLich } from './lich.js';
+import { initVoice } from './giongke.js';
 
 const VERSION = '1.6.0';
 const Q = new URLSearchParams(location.search);
@@ -2248,13 +2250,18 @@ async function renderSettings() {
   $$('#segMusic button').forEach(b => b.classList.toggle('on', b.dataset.v === S.music));
   $('#musicHint').textContent = S.music === 'builtin' ? 'Giai điệu hộp nhạc dịu êm do app tự chơi — không lo bản quyền.' : S.music === 'file' ? `Đang dùng: ${S.musicName || 'bài của bạn'} · bấm “Bài của bạn” lần nữa để đổi bài.` : 'Trình chiếu không có nhạc.';
   $('#verTxt').textContent = 'Hành Trình Của Bạn · v' + VERSION;
-  renderGem(); renderBgUi();
+  renderGem(); renderBgUi(); $('#setBig').checked = document.documentElement.classList.contains('big'); $('#setOtd').checked = !(await metaGet('otdOff'));
   try {
     const e = await navigator.storage?.estimate?.(), p = await navigator.storage?.persisted?.();
     $('#storeInfo').textContent = e ? `Đang dùng ${fmtSize(e.usage || 0)} trong máy${p ? ' · đã bật lưu bền vững ✓' : ''}.` : '';
   } catch (er) { }
 }
 $('#bSet').onclick = () => { renderSettings(); openModal($('#mSet')); };
+$('#setOtd').onchange = async e => { await metaSet('otdOff', !e.target.checked); await TL.reload(); };
+// CHẾ ĐỘ CHỮ TO (người lớn tuổi): lưu trong máy này (localStorage) để áp ngay từ lúc mở app
+$('#setBig').onchange = e => { setBig(e.target.checked); toast(e.target.checked ? 'Đã bật chữ to' : 'Đã về cỡ chữ thường', 1600); };
+function setBig(on) { document.documentElement.classList.toggle('big', on); try { localStorage.setItem('bigText', on ? '1' : ''); } catch (er) { } setTimeout(() => TL.render(), 50); }
+try { if (localStorage.getItem('bigText')) document.documentElement.classList.add('big'); } catch (er) { }
 $('#bDup').onclick = () => { $('#mSet').classList.remove('open'); findDuplicates(); };
 $('#bTrash').onclick = () => { $('#mSet').classList.remove('open'); openTrash(); };
 $('#trList').addEventListener('click', async e => {
@@ -2565,6 +2572,7 @@ function updateShow(dt) {
         { const dd = m.approx ? approxLabel(m.approx, m.ts) : dmy(m.ts), ev = TL.events.find(e => e.ms.includes(m)) || TL.eventsAll?.find(e => e.ms.includes(m)), ag = ageText(S.kid, m.ts); capSet(m.title || ev?.title || dd, [dd, ag, (m.note || (ev && ev.ms[0] === m ? ev.note : '') || '').slice(0, 90)].filter(Boolean).join(' · ')); }
         SH.hold = 4 + (performance.now() - (SH.yearT || 0) < 3300 ? 1.5 : 0);
         if (m.type === 'video') { startCardVideo(st.card); SH.hold = clamp((m.dur || 4) + .3, 4, 10.3); }
+        if (m.voice && m.type !== 'video') { const run = SH.runId; SH.hold = 99; Music.duck(true); VOICE.play(m, { onEnd: () => { Music.duck(false); if (SH.runId === run && SH.cur === st) SH.hold = Math.min(SH.hold, SH.t + 1.2); } }).then(au => { SH.voice = au; if (!au && SH.runId === run) { Music.duck(false); SH.hold = 4; } }); }
       } else { const SI = starInfo(); capSet(SI.t, SI.d ? (SI.y ? SI.d.slice(0, 4) : dmy(parseYmd(SI.d))) : ''); SH.hold = 4; Burst.fire(G.star.g.position, 80, 9); }
     }
   } else if (SH.phase === 'hold') {
@@ -2578,7 +2586,7 @@ function updateShow(dt) {
 function stopShow(ended) {
   if (S.mode !== 'show') return;
   if (INTRO) { const it = INTRO; INTRO = null; it.skip(); }
-  SH.lcClose?.();
+  SH.lcClose?.(); if (SH.voice) { SH.voice.pause(); SH.voice = null; Music.duck(false); }
   if (!ended) SH.outro?.close(); SH.outro = null;
   if (D.viewer.auto) D.closeViewer();
   if (SH.cur?.card) stopCardVideo(SH.cur.card);
@@ -2677,6 +2685,8 @@ DRV = initDrive({ clientId: GOOGLE_CLIENT_ID || (TEST && Q.has('mock') ? 'mock-c
     if ($('#mSet').classList.contains('open')) renderSettings();
   } });
 const N = initNhac({ metaGet, metaSet, icon, toast, openModal, closeModal, dmy, noAccent, TEST, download: f => shareOrDownload(f, f.name), onSaved: () => { TL.render(); if (P.isOpen()) P.openProfile(dispKid(S.kid)); } });
+const VOICE = initVoice({ dbGet: dbGetRaw, dbPut: dbPutRaw, dbDel: dbDelRaw, dbGetRaw, saveMoment: m => dbPut('moments', m), ask, toast, openModal, closeModal, get drive() { return DRV; }, onChange: () => { loadAll().then(() => TL.refreshAll(TL.cur?.key)); } });
+const LICH = initLich({ people: () => S.kids.map(dispKid), metaGet, metaSet, prompt: prompt2, ask, toast, openModal, closeModal, contextMenu, parseYmd, deliverICS: (ks, o) => N.deliver(ks, o) });
 const nhacFor = kids => N.open((kids || [S.kid]).filter(Boolean).map(dispKid));
 
 // ---------- Hồ sơ bé, avatar ----------
@@ -2755,7 +2765,7 @@ function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
 const TL = initTimeline({ life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
-  allCount: () => (S.all || []).length, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
+  allCount: () => (S.all || []).length, voice: { open: (m, o) => VOICE.open(m, o), play: (m, o) => VOICE.play(m, o), ok: () => VOICE.supported() }, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
   music: on => on ? startMusic() : Music.stop(), confetti: c => P.confetti(c), nhac: ks => nhacFor(ks ? ks.map(k => S.kids.find(x => x.id === k.id)) : null),
@@ -2824,6 +2834,7 @@ function initBars() {
     { icon: 'map', label: 'Bản đồ đời tôi <small class="cm-n">sa bàn 3D</small>', act: () => MAP.open() },
     { icon: 'galaxy', label: gx ? 'Về dòng thời gian' : 'Xem Toàn cảnh ngân hà', act: () => $('#bOverview').click() },
     S.kid && { icon: 'star', label: `Hồ sơ của ${esc(KN())}`, act: () => P.openProfile(dispKid(S.kid)) },
+    { icon: 'calendar', label: 'Lịch kỷ niệm <small class="cm-n">sinh nhật, ngày cưới, giỗ, Tết</small>', act: () => LICH.open() },
     S.kid && { icon: 'cake', label: S.family ? 'Nhắc sinh nhật cả nhà' : `Nhắc sinh nhật ${esc(KN())}`, act: () => nhacFor(S.family ? S.kids : [S.kid]) },
     { icon: 'check', label: 'Tìm ảnh, video trùng', act: () => findDuplicates() },
     { icon: 'trash', label: 'Thùng rác', act: () => openTrash() }

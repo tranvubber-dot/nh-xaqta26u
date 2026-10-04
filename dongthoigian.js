@@ -114,7 +114,7 @@ export function initTimeline(A) {
 
   // ---------- gộp ảnh thành sự kiện (theo ngày + cột mốc) ----------
   async function loadMeta() {
-    st.hidePreg = !!(A.kid() && await A.metaGet('hidePreg:' + (A.family() ? 'fam' : A.kid().id)));
+    st.hidePreg = !!(A.kid() && await A.metaGet('hidePreg:' + (A.family() ? 'fam' : A.kid().id))); st.otdOff = !!(await A.metaGet('otdOff'));
     const k = A.kid(); st.meta = Object.assign(META0(), (k && await A.metaGet(metaKey())) || {});
   }
   const metaKey = () => A.family() ? 'ev:fam' : 'ev:' + A.kid().id;
@@ -244,7 +244,7 @@ export function initTimeline(A) {
   // ---------- dựng dòng sự kiện ----------
   function card(e, i) {
     const side = st.wide ? (i % 2 ? 'R' : 'L') : 'R', ag = A.ageText(A.kid(), e.ts0, false), T = typeOf(e.type);
-    const chips = [e.geo?.name ? `<span class="chip geo">${icon('pin', 13, 2.2)}${esc(e.geo.name.split(',')[0])}</span>` : '', e.type !== 'daily' ? `<span class="chip ty" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</span>` : '', `<span class="chip">${icon(e.nImg ? 'image' : 'video', 15, 1.9)}${esc(countTxt(e))}</span>`,
+    const chips = [e.ms.some(m => m.voice) ? `<span class="chip vo">${icon('mic', 13, 2.2)}lời kể</span>` : '', e.geo?.name ? `<span class="chip geo">${icon('pin', 13, 2.2)}${esc(e.geo.name.split(',')[0])}</span>` : '', e.type !== 'daily' ? `<span class="chip ty" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</span>` : '', `<span class="chip">${icon(e.nImg ? 'image' : 'video', 15, 1.9)}${esc(countTxt(e))}</span>`,
       e.diaries.length ? `<button class="chip bk" data-diary="${e.diaries[0].id}">${icon('book', 15, 1.9)}nhật ký</button>` : '',
       ...(A.family() ? e.ages.filter(a => a.txt !== e.title).map(a => `<span class="chip age" style="--c:${a.color}"><img class="mav" src="${A.avatar(kidById(a.id))}" alt="">${esc(a.txt)}</span>`) : [ag ? `<span class="chip age">${esc(ag)}</span>` : '']),
       ...e.sibs.map(x => `<span class="chip sib" style="--c:${kidById(x.id)?.color}">${icon('heart', 13, 2)}${esc(x.txt)}</span>`)].join('');
@@ -307,9 +307,9 @@ export function initTimeline(A) {
     if (evs.length) out.push(`<div class="tl-end">${life && A.chibi ? `<span class="tl-cb">${A.chibi(me)}</span>` : icon('star', 18, 1.8)}<span>${life ? me?.birthApprox ? `Năm ${me.birth.slice(0, 4)} bạn chào đời — hành trình bắt đầu từ đây` : 'Ngày bạn chào đời — hành trình bắt đầu từ đây' : isChild(kid) || isMe(kid) ? `Hành trình của ${esc(who)} bắt đầu từ đây` : `Hành trình cùng ${esc(kid.name)} bắt đầu từ đây`}</span></div>`);
     if (evs.length && evs.length < 6 && !fam) out.push(`<button class="tl-more" data-a="add"><i>${icon('plus', 26, 2.2)}</i><b>Thêm khoảnh khắc tiếp theo</b><span>Ảnh, video của ${esc(who)} — app tự xếp vào đúng ngày</span></button>`);
     if (evs.length && !fam) out.push('<div class="rail2" aria-hidden="true"><i></i></div>');
-    out.splice(1, 0, bdayBanner());
+    out.splice(1, 0, bdayBanner() + otdCard(evs));
     IN.innerHTML = out.join('');
-    IN.querySelectorAll('.pol img, .ch-cv img').forEach(im => imgIO.observe(im));
+    IN.querySelectorAll('.pol img, .ch-cv img, .otd img').forEach(im => imgIO.observe(im));
     IN.querySelectorAll('.ev').forEach(el => cardIO.observe(el));
     IN.querySelectorAll('.ysen').forEach(el => yrIO.observe(el));
     if (anchor) restoreAnchor(anchor);
@@ -328,7 +328,7 @@ export function initTimeline(A) {
     const h = IN.querySelector('.lt h1'), b = h?.closest('.lt-name'), row = h?.closest('.lt-row'); if (!h) return;
     h.style.fontSize = ''; const max = Math.max(row.clientWidth, Math.min(IN.clientWidth, innerWidth) - 32) - (row.querySelector('.lt-av, .lt-avs')?.offsetWidth || 0) - 12 - 30;
     let fs = parseFloat(getComputedStyle(h).fontSize) || 42; b.style.maxWidth = max + 'px';
-    while (h.scrollWidth > h.clientWidth + 1 && fs > 28) { fs -= 2; h.style.fontSize = fs + 'px'; }
+    while (h.scrollWidth > h.clientWidth + 1 && fs > 22) { fs -= 2; h.style.fontSize = fs + 'px'; }
   }
   new ResizeObserver(() => { if (!A.family()) layRail(); }).observe(IN);
   // các dải song song của Cả nhà: mỗi bé một màu, bắt đầu từ ngày sinh (đoạn mang bầu nét đứt), avatar so le ở đầu dải
@@ -366,6 +366,17 @@ export function initTimeline(A) {
     if (st.range) return `<div class="bdb flt">${icon('calendar', 18)}<span>Đang xem kỷ niệm từ sinh nhật năm ngoái đến nay</span><button data-a="unrange">${icon('close', 16, 2.2)}<span>Bỏ lọc</span></button></div>`;
     const bs = bdays(); const td = bs.find(b => !b.days && !st.conf?.has(b.k.id)); if (td) { (st.conf ||= new Set()).add(td.k.id); setTimeout(() => A.confetti?.(td.k.color || '#ff8fbf'), 900); }
     return bs.map(b => `<div class="bdb${b.days ? '' : ' today'}" style="--c:${b.k.color || '#ff8fbf'}"><img src="${A.avatar(b.k)}" alt=""><div><b>${b.days ? `Còn ${b.days} ngày nữa là sinh nhật ${b.turn} tuổi của ${esc(isMe(b.k) ? 'bạn' : b.k.name)}` : `Hôm nay là sinh nhật ${b.turn} tuổi của ${esc(isMe(b.k) ? 'bạn' : b.k.name)}!`}</b><div class="bdb-a"><button data-a="lastyear" data-k="${b.k.id}">${icon('heart', 16)}<span>Xem lại kỷ niệm năm qua</span></button><button data-a="bnhac" data-k="${b.k.id}">${icon('cake', 16)}<span>Nhắc sinh nhật</span></button></div></div></div>`).join('');
+  }
+  // NGÀY NÀY NĂM XƯA: sự kiện đúng ngày-tháng hôm nay ở các năm trước (không có thì trong tuần này), tắt được
+  function otdCard(evs) {
+    if (st.otdOff || st.range || !evs.length) return '';
+    const t = new Date(), md = (t.getMonth() + 1) * 100 + t.getDate(), Y = t.getFullYear();
+    const mdOf = ts => { const d = new Date(ts); return (d.getMonth() + 1) * 100 + d.getDate(); };
+    let hit = evs.filter(e => !e.approx && new Date(e.ts0).getFullYear() < Y && mdOf(e.ts0) === md), week = false;
+    if (!hit.length) { week = true; hit = evs.filter(e => { if (e.approx) return false; const d = new Date(e.ts0), y = d.getFullYear(); if (y >= Y) return false; const x = new Date(Y, d.getMonth(), d.getDate()); return Math.abs(x - new Date(Y, t.getMonth(), t.getDate())) <= 3 * 864e5; }); }
+    if (!hit.length) return '';
+    const best = hit.sort((a, b) => b.ms.length - a.ms.length).slice(0, 3), e = best[0], ago = Y - new Date(e.ts0).getFullYear();
+    return `<div class="otd" data-otd="${esc(e.key)}"><div class="otd-stk">${e.stack.slice(0, 3).map((m, j) => `<div class="pol p${j}"><img data-mid="${m.id}" alt=""></div>`).join('')}</div><div class="otd-tx"><small>${week ? 'Tuần này' : 'Ngày này'} ${ago} năm trước</small><b>${esc(e.title)}</b><span>${esc(dateTxt(e))}${best.length > 1 ? ` · và ${best.length - 1} kỷ niệm khác` : ''}</span></div><button class="otd-x" data-a="otdoff" aria-label="Ẩn">${icon('close', 15, 2.2)}</button></div>`;
   }
   function topAnchor() { // giữ chỗ đang xem khi dựng lại
     const evs = [...IN.querySelectorAll('.ev')]; const top = TL.scrollTop;
@@ -439,6 +450,8 @@ export function initTimeline(A) {
     if (a?.dataset.a === 'unrange') { st.range = null; render(false); return; }
     if (a?.dataset.a === 'bnhac') { A.nhac([kidById(a.dataset.k)]); return; }
     if (a?.dataset.a === 'addold') { A.addOld(+a.dataset.y); return; }
+    if (a?.dataset.a === 'otdoff') { contextMenu({ at: a, title: 'Ngày này năm xưa', items: [{ icon: 'close', label: 'Ẩn hôm nay', act: () => { st.otdOff = true; render(); } }, { icon: 'close', label: 'Tắt hẳn mục này', act: async () => { st.otdOff = true; await A.metaSet('otdOff', true); render(); A.toast('Đã tắt — bật lại trong Cài đặt', 2200); } }] }); return; }
+    { const o = e.target.closest('[data-otd]'); if (o) { const ev = st.byKey.get(o.dataset.otd); if (ev) openEvent(ev.key, o); return; } }
     if (a?.dataset.a === 'chmenu') { chapterMenu(a.closest('.chap').dataset.ch, a); return; }
     { const ch = e.target.closest('.chap:not(.pre)'); if (ch && !a) { chapterMenu(ch.dataset.ch, ch.querySelector('.ch-more')); return; } }
     if (a?.dataset.a === 'kid') { A.openKidMenu(a); return; } if (a?.dataset.a === 'add') { A.openAdd(); return; } if (a?.dataset.a === 'prof') { A.openProfile(); return; }
@@ -661,7 +674,7 @@ export function initTimeline(A) {
     if (!EVP.querySelector('.evp-ti').classList.contains('editing')) EVP.querySelector('.evp-ti .tt').textContent = e.title;
     const ag = A.family() ? '' : A.ageText(A.kid(), e.ts0, false);
     const T = typeOf(e.type); EVP.style.setProperty('--tc', T.c);
-    EVP.querySelector('.evp-chips').innerHTML = [e.type !== 'daily' ? `<button class="hc ty" data-a="type" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</button>` : '', e.mile ? `<span class="hc mile">${e.mile.emo || icon(e.mile.ic, 14, 2)}Cột mốc</span>` : '', e.approx ? `<span class="hc">${icon('clock', 14, 2)}ước chừng</span>` : '', A.openMap ? `<button class="hc geo" data-a="geo">${icon('pin', 14, 2)}${esc(e.geo ? (e.geo.name || 'Có toạ độ — xem sa bàn').split(',')[0] : 'Thêm nơi chốn')}</button>` : '', ag ? `<span class="hc age">${esc(ag)}</span>` : '', `<span class="hc">${esc(countTxt(e))}</span>`].join('');
+    EVP.querySelector('.evp-chips').innerHTML = [e.type !== 'daily' ? `<button class="hc ty" data-a="type" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</button>` : '', e.mile ? `<span class="hc mile">${e.mile.emo || icon(e.mile.ic, 14, 2)}Cột mốc</span>` : '', e.approx ? `<span class="hc">${icon('clock', 14, 2)}ước chừng</span>` : '', A.voice ? (() => { const vm = e.ms.find(m => m.voice); return `<button class="hc vo" data-a="voice">${icon(vm ? 'play' : 'mic', 14, 2.2)}${vm ? `Nghe lời kể ${Math.floor(vm.voice.dur / 60)}:${String(Math.round(vm.voice.dur % 60)).padStart(2, '0')}` : 'Kể lại'}</button>`; })() : '', A.openMap ? `<button class="hc geo" data-a="geo">${icon('pin', 14, 2)}${esc(e.geo ? (e.geo.name || 'Có toạ độ — xem sa bàn').split(',')[0] : 'Thêm nơi chốn')}</button>` : '', ag ? `<span class="hc age">${esc(ag)}</span>` : '', `<span class="hc">${esc(countTxt(e))}</span>`].join('');
     EVP.querySelector('.evp-bt b').textContent = e.title; EVP.querySelector('.evp-bt small').textContent = A.dmy(e.ts0);
     const nt = EVP.querySelector('.evp-nt'); nt.textContent = e.note; nt.hidden = !e.note;
     EVP.classList.toggle('mile', !!e.mile);
@@ -742,6 +755,7 @@ export function initTimeline(A) {
     if (a === 'play') playEvent(e);
     else if (a === 'type') typeMenu(e, b);
     else if (a === 'geo') placeEvent(e);
+    else if (a === 'voice') voiceMenu(e, b);
     else if (b.dataset.day) jumpDay(b.dataset.day);
     else if (a === 'grid') showGrid(GRID.hidden, true);
   });
@@ -889,6 +903,14 @@ export function initTimeline(A) {
       { icon: 'trash', label: 'Xoá sự kiện…', danger: true, act: () => deleteEvent(e) }
     ] });
   }
+  // giọng kể của sự kiện (lưu ở ảnh đầu tiên có lời kể, chưa có thì ảnh đầu)
+  let VA = null;
+  function voiceMenu(e, at) {
+    const vm = e.ms.find(m => m.voice); if (!vm) { A.voice.open(e.ms[0], { title: e.title, key: e.key }); return; }
+    contextMenu({ at, title: '🎤 Lời kể · ' + esc(e.title), items: [
+      { icon: 'play', label: 'Nghe lời kể', act: async () => { VA?.pause(); A.duck?.(true); VA = await A.voice.play(vm, { onEnd: () => A.duck?.(false) }); } },
+      { icon: 'mic', label: 'Ghi lại / xoá lời kể', act: () => A.voice.open(vm, { title: e.title, key: e.key }) }] });
+  }
   // nơi chốn: mở sa bàn ở toạ độ GPS (nếu có) để xác nhận / cắm ghim
   function placeEvent(e) {
     const g = e.geo; A.openMap({ at: g ? { lat: g.lat, lon: g.lon, name: g.name || e.title } : null, focus: g, pick: async pl => { await A.setPlace(e.ms, pl); refreshAll(e.key); A.toast(`Đã đặt “${e.title}” ở ${pl.name || 'nơi này'} 📍`, 2200); } });
@@ -960,6 +982,7 @@ export function initTimeline(A) {
       { icon: 'edit', label: 'Sửa tên, ngày, giờ, ghi chú', act: () => openEditM(m) },
       kidsAll().length > 1 && { icon: 'baby', label: 'Ai có trong ảnh này?', act: async () => { const ids = await A.pickKids([m]); if (ids) { await A.setKidsMany([m], ids); if (inViewer) fillInfo(); refreshAll(st.cur?.key); A.toast('Đã cập nhật người trong ảnh', 1200); } } },
       { icon: 'download', label: 'Lưu về máy', act: () => A.saveOriginal(m) },
+      A.voice && { icon: 'mic', label: m.voice ? 'Lời kể của ảnh này' : 'Ghi giọng kể cho ảnh này', act: () => A.voice.open(m, { title: m.title || e?.title || '', key: e?.key }) },
       { sep: 1 },
       { icon: 'star', label: 'Đặt làm ảnh bìa sự kiện', act: () => setCover(m) },
       A.life?.() && e?.chapter && { icon: 'star', label: `Làm ảnh bìa chương “${esc(e.chapter.title)}”`, act: async () => { const cfg = JSON.parse(JSON.stringify(A.chCfg() || {})); cfg.edits ||= {}; cfg.custom ||= []; const cu = cfg.custom.find(x => 'c:' + x.id === e.chapter.key); if (cu) cu.cover = m.id; else (cfg.edits[e.chapter.key] ||= {}).cover = m.id; await A.saveChapters(cfg); render(); A.toast('Đã đặt làm ảnh bìa chương', 1500); } },
@@ -1129,6 +1152,8 @@ export function initTimeline(A) {
     const ks = kidsAll().length > 1 ? A.kidsOf(m).map(kidById).filter(Boolean) : [A.kid()];
     PV.querySelector('.pv-ag').innerHTML = ks.map(k => `<span style="--c:${k.color || '#ff8fbf'}">${esc(A.ageText(k, m.ts))}</span>`).join('');
     const nt = PV.querySelector('.pv-nt'); nt.textContent = m.note || ''; nt.hidden = !m.note;
+    let vb = PV.querySelector('.pv-vo'); if (!vb) { PV.querySelector('.pv-info').insertAdjacentHTML('beforeend', '<button class="pv-vo" data-a="pvvoice"></button>'); vb = PV.querySelector('.pv-vo'); }
+    vb.hidden = !m.voice; if (m.voice) vb.innerHTML = `${icon('play', 14, 2.4)}<span>Nghe lời kể ${Math.floor(m.voice.dur / 60)}:${String(Math.round(m.voice.dur % 60)).padStart(2, '0')}</span>`;
   }
   // dải ảnh nhỏ: chạm để nhảy, kéo để tua nhanh
   const FW = 46;
@@ -1242,7 +1267,8 @@ export function initTimeline(A) {
   PV.addEventListener('click', async e => {
     const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a, m = V.list[V.i];
     if (a === 'more') { showUI(true); clearTimeout(uiT); photoMenu(m, null, b, true); return; }
-    if (a === 'close') { closeViewer(); return; }
+    if (a === 'close') { VA?.pause(); closeViewer(); return; }
+    if (a === 'pvvoice') { VA?.pause(); A.duck?.(true); VA = await A.voice.play(m, { onEnd: () => A.duck?.(false) }); showUI(true); return; }
     if (a === 'vplay') { const v = V.vid; if (v) { if (v.paused) v.play().catch(() => { }); else v.pause(); } showUI(true); return; }
     if (a === 'vmute') { const v = V.vid; if (v) { v.muted = !v.muted; updVC(); } showUI(true); return; }
   });
