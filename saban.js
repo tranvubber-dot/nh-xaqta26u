@@ -4,7 +4,7 @@
 // © OpenStreetMap contributors — dữ liệu ODbL. Toạ độ kỷ niệm của bạn KHÔNG gửi đi đâu (chỉ khung khu vực được tải từ OSM).
 import * as THREE from './lib/three.module.min.js';
 
-const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 const RM = 520, UNIT = 10, RU = RM / UNIT; // bán kính khu 520 m; 1 đơn vị = 10 m
 const GRID = .005; // tâm khu làm tròn ~550 m để các điểm gần nhau dùng chung một khu (đã tải rồi không tải lại)
 export const areaOf = (lat, lon) => { const la = Math.round(lat / GRID) * GRID, lo = Math.round(lon / GRID) * GRID; return { lat: +la.toFixed(4), lon: +lo.toFixed(4), key: `${la.toFixed(3)},${lo.toFixed(3)}` }; };
@@ -154,13 +154,20 @@ export async function buildIsland(A, opt = {}) {
   // nước: hồ, sông, bờ biển (biển nằm bên phải hướng đường bờ)
   for (const rings of A.w) polyFill(Wt, rings.map(r => r.map(v => Math.max(-R, Math.min(R, v)))), y0 + .015, hex(COL.water));
   for (const [w, p] of A.wl) for (const s of clipLine(p, R)) ribbon(Wt, s, w, y0 + .016, hex(COL.water));
-  for (const p of A.cl) for (const s of clipLine(p, R)) { // dải biển rộng phía phải đường bờ
-    const side = []; for (let i = 0; i < s.length - 2; i += 2) { const dx = s[i + 2] - s[i], dz = s[i + 3] - s[i + 1], L = Math.hypot(dx, dz) || 1; side.push([s[i], s[i + 1], -dz / L, dx / L]); }
-    for (let i = 0; i < side.length - 1; i++) { const [ax, az, anx, anz] = side[i], [bx, bz] = side[i + 1], D = 80; const a2 = [ax - anx * D, az - anz * D], b2 = [bx - anx * D, bz - anz * D]; Wt.tri([ax, az], [bx, bz], b2, y0 + .014, hex(COL.water)); Wt.tri([ax, az], b2, a2, y0 + .014, hex(COL.water)); }
-    ribbon(F, s, 1.6, y0 + .012, hex(COL.sand));
+  // biển: chia đảo thành lưới ô 1×1, ô nằm bên PHẢI đoạn bờ biển gần nhất là biển (OSM: đất bên trái hướng vẽ bờ)
+  const segs = []; for (const p of A.cl) for (let i = 0; i < p.length - 2; i += 2) segs.push([p[i], p[i + 1], p[i + 2], p[i + 3]]);
+  const isSea = (cx, cz) => { if (!segs.length) return false; let bd = 1e9, side = 0; for (const [ax, az, bx, bz] of segs) { const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1e-9; let t = ((cx - ax) * dx + (cz - az) * dz) / L2; t = Math.max(0, Math.min(1, t)); const px = ax + dx * t, pz = az + dz * t, d = (cx - px) ** 2 + (cz - pz) ** 2; if (d < bd) { bd = d; side = dx * (cz - az) - dz * (cx - ax); } } return side > 0; };
+  const inWater = (x, z) => isSea(x, z) || A.w.some(r => ptIn(x, z, r[0]));
+  if (A.cl.length) {
+    const C = 1, wc = hex(COL.water);
+    for (let x = -R; x < R; x += C) for (let z = -R; z < R; z += C) {
+      const cx = x + C / 2, cz = z + C / 2; if (cx * cx + cz * cz > R * R) continue;
+      if (isSea(cx, cz)) { Wt.tri([x, z], [x + C, z], [x + C, z + C], y0 + .014, wc); Wt.tri([x, z], [x + C, z + C], [x, z + C], y0 + .014, wc); }
+    }
+    for (const p of A.cl) for (const s of clipLine(p, R)) ribbon(F, s, 1.8, y0 + .02, hex(COL.sand));
   }
   // đường: to trước, nhỏ sau; vạch giữa cho đường lớn
-  const RW = { motorway: 2.2, trunk: 2, primary: 1.7, secondary: 1.4, tertiary: 1.15, residential: .85, unclassified: .8, living_street: .7, service: .5, pedestrian: .7, footway: .3, path: .25, cycleway: .3 };
+  var RW = { motorway: 2.2, trunk: 2, primary: 1.7, secondary: 1.4, tertiary: 1.15, residential: .85, unclassified: .8, living_street: .7, service: .5, pedestrian: .7, footway: .3, path: .25, cycleway: .3 };
   if (!lite) { const order = Object.keys(RW); const hs = A.h.slice().sort((a, b) => order.indexOf(b[0]) - order.indexOf(a[0]));
     for (const [cls, p] of hs) { const w = RW[cls] || .6, small = w < .4; for (const s0 of clipLine(simplify(p, .08), R - .3)) { ribbon(F, s0, w, y0 + .03 + (small ? 0 : .004) + w * .001, hex(small ? COL.path : w > 1.1 ? COL.road : COL.road2));
       if (w >= 1.4) { let acc = 0; for (let i = 0; i < s0.length - 2; i += 2) { const ax = s0[i], az = s0[i + 1], bx = s0[i + 2], bz = s0[i + 3], L = Math.hypot(bx - ax, bz - az); for (let t = 0; t < L; t += 1.6) { const t1 = Math.min(L, t + .8); if ((acc + t) % 1.6 > .8) continue; const p1 = [ax + (bx - ax) * t / L, az + (bz - az) * t / L], p2 = [ax + (bx - ax) * t1 / L, az + (bz - az) * t1 / L]; ribbon(F, [p1[0], p1[1], p2[0], p2[1]], .09, y0 + .045, hex(COL.line), false); } acc += L; } } } } }
@@ -184,6 +191,16 @@ export async function buildIsland(A, opt = {}) {
     for (let i = 0; i < pos.count; i++) { const top = nor.getY(i) > .6 && pos.getY(i) > h * .6, c = top ? roof : wl; cols.set([c.r, c.g, c.b], i * 3); }
     gg.setAttribute('color', new THREE.BufferAttribute(cols, 3)); geos.push(gg);
     if (++n % 120 === 0 && opt.yieldFn) await opt.yieldFn(n / blds.length);
+  }
+  if (!lite && A.b.length < 60) {
+    const Rd = rnd(23), occ = []; let k = 0;
+    for (const [cls, p] of A.h) { if (!/residential|unclassified|living_street|tertiary|service/.test(cls)) continue; const w = RW[cls] || .6;
+      for (let i = 0; i < p.length - 2 && k < 420; i += 2) { const ax = p[i], az = p[i + 1], bx = p[i + 2], bz = p[i + 3], L = Math.hypot(bx - ax, bz - az); if (L < 1) continue; const nx = -(bz - az) / L, nz = (bx - ax) / L;
+        for (let t = 1.2; t < L - .6; t += 2.4) for (const sd of [-1, 1]) { if (Rd() > .55) continue; const off = w / 2 + .95, x = ax + (bx - ax) * t / L + nx * off * sd, z = az + (bz - az) * t / L + nz * off * sd; if (x * x + z * z > (R - 1.5) ** 2 || occ.some(([ox, oz]) => (ox - x) ** 2 + (oz - z) ** 2 < 2.2) || inWater(x, z)) continue; occ.push([x, z]);
+          const sw = .55 + Rd() * .35, ang = Math.atan2(bz - az, bx - ax), c = Math.cos(ang), sn = Math.sin(ang), q = [[-sw, -sw], [sw, -sw], [sw, sw], [-sw, sw]].map(([u, v]) => [x + u * c - v * sn, z + u * sn + v * c]);
+          const sh = new THREE.Shape(); q.forEach(([u, v], j) => j ? sh.lineTo(u, -v) : sh.moveTo(u, -v)); const h = .7 + Rd() * .7, eg = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: true, bevelThickness: .06, bevelSize: .06, bevelSegments: 1 }); eg.rotateX(-Math.PI / 2); const gg = eg.toNonIndexed(); eg.dispose(); gg.computeVertexNormals();
+          const roof = hex(COL.roofs.res[Math.floor(Rd() * COL.roofs.res.length)]), wl = wall.clone().lerp(roof, .12), pos = gg.attributes.position, nor = gg.attributes.normal, cols = new Float32Array(pos.count * 3);
+          for (let m = 0; m < pos.count; m++) { const c2 = nor.getY(m) > .6 && pos.getY(m) > h * .6 ? roof : wl; cols.set([c2.r, c2.g, c2.b], m * 3); } gg.setAttribute('color', new THREE.BufferAttribute(cols, 3)); geos.push(gg); k++; } } }
   }
   if (geos.length) { const bg = merge(geos), bm = new THREE.Mesh(bg, toon()); bm.name = 'blds'; g.add(bm);
     if (!lite) { const ol = new THREE.ShaderMaterial({ side: THREE.BackSide, uniforms: { uC: { value: hex('#4a3446') } }, vertexShader: 'void main(){ vec3 p = position + normal * .045; gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.); }', fragmentShader: 'uniform vec3 uC; void main(){ gl_FragColor = vec4(uC,1.); }' }); mats.push(ol); const om = new THREE.Mesh(bg, ol); om.name = 'outline'; g.add(om); } }
