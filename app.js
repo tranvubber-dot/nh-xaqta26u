@@ -2720,8 +2720,14 @@ DRV = initDrive({ clientId: GOOGLE_CLIENT_ID || (TEST && Q.has('mock') ? 'mock-c
     if (TEST && T.legacyPlaces) return new Map();
     if (PLACES.v === DATAVER && PLACES.map) return PLACES.map;
     const map = new Map(), all = (await dbAll('moments')).filter(m => !m.deleted), kids = (await dbAll('kids')).filter(k => !k.deleted);
+    // v1.8.0: ảnh đã lên Drive theo cấu trúc cũ (chưa có dv:2) giữ nguyên thư mục cũ; ảnh mới theo hành trình chung
+    const oldUp = m => m.driveFileId && m.dv !== 2, lead = kids.find(isMe) || kids.slice().sort((a, b) => (a.created || 0) - (b.created || 0))[0];
+    if (lead && all.some(m => !oldUp(m))) {
+      const evs = TL.eventsForKid({ ...lead, name: cap(lead.name) }, all, await metaGet('ev:fam'));
+      for (const e of evs) for (const m of e.ms) if (!oldUp(m)) map.set(m.id, { kidId: 'all', flat: true, key: e.key, title: e.title, ts0: e.ts0, ts1: e.ts1 });
+    }
     for (const k of kids) {
-      const ms = all.filter(m => (m.kidIds?.[0] || m.kidId) === k.id); if (!ms.length) continue;
+      const ms = all.filter(m => oldUp(m) && (m.kidIds?.[0] || m.kidId) === k.id); if (!ms.length) continue;
       const evs = TL.eventsForKid({ ...k, name: cap(k.name) }, ms, await metaGet('ev:' + k.id));
       for (const e of evs) for (const m of e.ms) map.set(m.id, { kidId: k.id, kidName: cap(k.name), key: e.key, title: e.title, ts0: e.ts0, ts1: e.ts1 });
     }

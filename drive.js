@@ -2,7 +2,7 @@
 // • Đăng nhập: Google Identity Services (token model, popup) trên máy tính/Safari; OAuth 2.0 redirect (response_type=token)
 //   cho app mở từ Màn hình chính iOS (popup ở đó dễ bật sang Safari rồi không quay về). Token chỉ giữ trong bộ nhớ phiên.
 // • Quyền tối thiểu: drive.file (chỉ tệp do app tạo) + drive.appdata (thư mục ẩn của app) + openid email profile.
-// • Ảnh/video gốc → thư mục thấy được "Hành Trình Của Bạn / <tên ở nhà> / <năm>"; ảnh nhỏ + dữ liệu (nganha-db.json) → appDataFolder.
+// • Ảnh/video gốc → thư mục thấy được "Hành Trình Của Bạn / <năm> / <ngày · sự kiện>" (v1.8.0; ảnh đã lên theo cấu trúc cũ "<tên ở nhà> / <năm>" giữ nguyên chỗ); ảnh nhỏ + dữ liệu (nganha-db.json) → appDataFolder.
 // • Đồng bộ 2 chiều theo từng bản ghi: so với "bản bóng" (hash lần đồng bộ trước); hai máy cùng sửa → bản sửa sau thắng; xoá hẳn = tombstone.
 
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata openid email profile';
@@ -140,6 +140,10 @@ export function initDrive(A) {
     return safe(`${range} · ${p.title}`, 80);
   }
   async function eventFolder(p) {
+    if (p.flat) { // v1.8.0: một hành trình — "Hành Trình Của Bạn / <năm> / <ngày · sự kiện>"
+      const root = await ensureFolder('root', ROOT_NAME, 'root'), y = String(new Date(p.ts0).getFullYear()), yf = await ensureFolder(`year:all:${y}`, y, root);
+      return ensureFolder(`ev:all:${p.key}`, folderName(p), yf);
+    }
     const root = await ensureFolder('root', ROOT_NAME, 'root'), kf = await ensureFolder('kid:' + p.kidId, safe(p.kidName, 60), root);
     const y = String(new Date(p.ts0).getFullYear()), yf = await ensureFolder(`year:${p.kidId}:${y}`, y, kf);
     return ensureFolder(`ev:${p.kidId}:${p.key}`, folderName(p), yf);
@@ -174,9 +178,9 @@ export function initDrive(A) {
     } catch (e) { console.warn('xếp thư mục Drive:', e.message); }
     finally { await saveReg(); D.org = false; if (n || regDirty) markDirty(); }
   }
-  async function pathFor(m) {
-    const root = await folder(ROOT_NAME, null), kid = A.kidName(m.kidIds?.[0] || m.kidId) || 'Bé', y = String(new Date(m.ts).getFullYear());
-    const kf = await folder(kid, root); return folder(y, kf);
+  async function pathFor(m) { // không tìm được sự kiện: "Hành Trình Của Bạn / <năm>"
+    const root = await ensureFolder('root', ROOT_NAME, 'root'), y = String(new Date(m.ts).getFullYear());
+    return ensureFolder(`year:all:${y}`, y, root);
   }
   const fileName = m => { const d = new Date(m.ts), p = n => String(n).padStart(2, '0'); const ext = (/\.([a-z0-9]{2,5})$/i.exec(m.name || '')?.[1] || (m.type === 'video' ? 'mp4' : 'jpg')).toLowerCase(); const t = (A.titleOf(m) || '').replace(/[\\/:*?"<>|]+/g, '').slice(0, 60); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}.${p(d.getMinutes())}${t ? ' — ' + t : ''}.${ext}`; };
 
@@ -229,10 +233,10 @@ export function initDrive(A) {
       const pl = (await A.places()).get(m.id), parent = pl ? await eventFolder(pl) : await pathFor(m), nm = pl ? fileName2(m, pl) : fileName(m); await saveReg();
       D.q.cur = nm; emit();
       m.driveFileId = await upload({ blob: b, name: nm, mime: b.type || m.mime || 'application/octet-stream', parents: [parent], key: 'o_' + m.id, onProg: p => { D.q.part = p; renderPill(); } });
-      if (pl) { m.driveParent = parent; m.driveName = nm; }
+      if (pl) { m.driveParent = parent; m.driveName = nm; } if (!pl || pl.flat) m.dv = 2; // v1.8.0: tệp nằm theo cấu trúc một hành trình
       if (D.cfg.slim) { await A.dbDel('blobs', 'o_' + m.id); D.cfg.saved = (D.cfg.saved || 0) + b.size; await saveCfg(); }
     }
-    const fresh = (await A.dbGetRaw('moments', m.id)) || m; fresh.driveThumbId = m.driveThumbId || fresh.driveThumbId; fresh.driveFileId = m.driveFileId || fresh.driveFileId; if (m.driveParent) { fresh.driveParent = m.driveParent; fresh.driveName = m.driveName; } await A.dbPut('moments', fresh); A.onMomentDrive?.(fresh);
+    const fresh = (await A.dbGetRaw('moments', m.id)) || m; fresh.driveThumbId = m.driveThumbId || fresh.driveThumbId; fresh.driveFileId = m.driveFileId || fresh.driveFileId; if (m.driveParent) { fresh.driveParent = m.driveParent; fresh.driveName = m.driveName; } if (m.dv) fresh.dv = m.dv; await A.dbPut('moments', fresh); A.onMomentDrive?.(fresh);
   }
   let backoff = 0, retryT = 0;
   async function pump() {
@@ -348,8 +352,10 @@ export function initDrive(A) {
       const local = await collectLocal(), lu = (await A.metaGet('syncLU')) || {}, now = Date.now(); let shadow = (await A.metaGet('syncShadow')) || {};
       // an toàn: kho trong máy trống trơn (máy mới, vừa xoá dữ liệu trình duyệt, đang dọn dở) thì KHÔNG coi là "đã xoá hết" — chỉ kéo về
       if (!Object.keys(local).some(k => k.startsWith('k:') || k.startsWith('m:'))) shadow = {};
+      // an toàn (v1.8.0): trên Drive KHÔNG có tệp dữ liệu / tệp trống (bị xoá dữ liệu ẩn của app, đổi tài khoản, lỗi liệt kê) → coi như lần đầu: đẩy dữ liệu trong máy lên, KHÔNG xoá gì trong máy
+      if (!remote.id || !Object.keys(remote.data.recs || {}).length) shadow = {};
       const R = remote.data.recs, keys = new Set([...Object.keys(local), ...Object.keys(R), ...Object.keys(shadow)]);
-      let push = false; const newShadow = {}, tombs = [], liveR = Object.values(R).filter(r => r.d != null).length;
+      let push = false; const newShadow = {}, tombs = [], rdel = [], liveR = Object.values(R).filter(r => r.d != null).length, liveL = Object.keys(local).filter(k => k.startsWith('m:') || k.startsWith('k:')).length;
       for (const key of keys) {
         if (key.startsWith('k:') && alias[key.slice(2)]) { if (!R[key] || R[key].d) { R[key] = { u: now, h: null, d: null }; push = true; } newShadow[key] = null; continue; }
         const L = local[key], Rr = R[key], S = shadow[key] ?? null;
@@ -361,12 +367,17 @@ export function initDrive(A) {
         const takeLocal = lChg && (!rChg || (lu[key] || now) >= (Rr?.u || 0));
         if (takeLocal && L === undefined && Rr?.d != null) { tombs.push(key); continue; } // xoá hẳn: xét gộp ở dưới cho an toàn
         if (takeLocal) { R[key] = { u: lu[key] || now, h: lh, d: L === undefined ? null : L }; newShadow[key] = lh; push = true; delete lu[key]; }
+        else if (L !== undefined && (Rr?.d ?? null) == null && (key.startsWith('m:') || key.startsWith('k:'))) { rdel.push({ key, lh, L }); continue; } // Drive bảo xoá: xét gộp ở dưới cho an toàn
         else { const d = rewrite(alias, key, Rr?.d ?? null); await applyRec(key, d); newShadow[key] = d == null ? null : hash(d); if (newShadow[key] !== rh) { R[key] = { u: now, h: newShadow[key], d }; push = true; } changedLocal++; delete lu[key]; }
       }
       // một lần mà xoá quá nhiều (>30% và >10 bản ghi) thì nghi là kho trong máy bị hỏng/đang dọn → không xoá trên Drive, lấy lại về máy
       const massDel = tombs.length > 10 && tombs.length > liveR * .3;
       for (const key of tombs) { if (massDel) { const d = rewrite(alias, key, R[key].d); await applyRec(key, d); newShadow[key] = hash(d); changedLocal++; } else { R[key] = { u: lu[key] || now, h: null, d: null }; newShadow[key] = null; push = true; } delete lu[key]; }
       if (massDel) console.warn('Đồng bộ: bỏ qua', tombs.length, 'lệnh xoá bất thường');
+      // ngược lại: Drive đòi xoá quá nhiều bản ghi trong máy (>30% và >10) → không tin, giữ dữ liệu trong máy và đẩy lại lên Drive
+      const massR = rdel.length > 10 && rdel.length > liveL * .3;
+      for (const { key, lh, L } of rdel) { if (massR) { R[key] = { u: now, h: lh, d: L }; newShadow[key] = lh; push = true; } else { await applyRec(key, null); newShadow[key] = null; changedLocal++; } delete lu[key]; }
+      if (massR) console.warn('Đồng bộ: Drive đòi xoá', rdel.length, 'bản ghi — bỏ qua, giữ dữ liệu trong máy');
       for (const k of Object.keys(newShadow)) if (newShadow[k] == null && !R[k]) delete newShadow[k];
       if (push || !remote.id) remote.id = await pushDb(remote.id, remote.data);
       await A.metaSet('syncShadow', newShadow); await A.metaSet('syncLU', lu);
@@ -435,13 +446,13 @@ export function initDrive(A) {
   }
   addEventListener('hashchange', async () => { if (on && /[#&](access_token|error)=/.test(location.hash) && readRedirect()) { try { const u = await json('/oauth2/v3/userinfo'); D.cfg = { ...D.cfg, email: u.email, name: u.name || u.email, picture: u.picture || '', since: D.cfg.since || Date.now() }; await saveCfg(); emit(); await afterLogin(); } catch (e) { } } });
   const rootId = () => REG?.root?.id || D.cfg?.folders?.['root/' + ROOT_NAME] || OLD_ROOTS.map(n => D.cfg?.folders?.['root/' + n]).find(Boolean) || null;
-  const folderOf = (kidId, key) => REG?.['ev:' + kidId + ':' + key]?.id || null;
+  const folderOf = (kidId, key) => REG?.['ev:all:' + key]?.id || REG?.['ev:' + kidId + ':' + key]?.id || null;
   // tệp phụ trong appDataFolder (bản đồ sa bàn đã tải theo khu, giọng kể…): tên cố định, ghi đè được
   async function appFind(name) { const j = await json('/drive/v3/files?' + new URLSearchParams({ q: `name='${qesc(name)}' and trashed=false`, spaces: 'appDataFolder', fields: 'files(id)', pageSize: '2' })); return j.files?.[0]?.id || null; }
   async function putApp(name, blob) { if (!on || !signedIn() || !navigator.onLine) return null; try { const id = await appFind(name); return await upload({ blob, name, mime: blob.type || 'application/octet-stream', parents: id ? undefined : ['appDataFolder'], fileId: id || undefined, key: 'app:' + name }); } catch (e) { console.warn('putApp', e.message); return null; } }
   async function getApp(name) { if (!on || !signedIn() || !navigator.onLine) return null; try { const id = await appFind(name); return id ? await download(id) : null; } catch (e) { return null; } }
   // tệp thấy được trong thư mục sự kiện (giọng kể, video kỷ niệm)
-  async function putVisible({ blob, name, kidId, key, mime }) { if (!on || !signedIn() || !navigator.onLine) return null; try { const places = await A.places(); let parent = null; for (const p of places.values()) if (p.key === key && (!kidId || p.kidId === kidId)) { parent = await eventFolder(p); break; } if (!parent) parent = await ensureFolder('root', ROOT_NAME, 'root'); return await upload({ blob, name: safe(name, 100), mime: mime || blob.type, parents: [parent], key: 'vis:' + name + ':' + blob.size }); } catch (e) { console.warn('putVisible', e.message); return null; } }
+  async function putVisible({ blob, name, kidId, key, mime }) { if (!on || !signedIn() || !navigator.onLine) return null; try { const places = await A.places(); let parent = null; for (const p of places.values()) if (p.key === key && (p.flat || !kidId || p.kidId === kidId)) { parent = await eventFolder(p); break; } if (!parent) parent = await ensureFolder('root', ROOT_NAME, 'root'); return await upload({ blob, name: safe(name, 100), mime: mime || blob.type, parents: [parent], key: 'vis:' + name + ':' + blob.size }); } catch (e) { console.warn('putVisible', e.message); return null; } }
   const fetchFile = async id => { if (!on || !signedIn()) return null; try { return await download(id); } catch (e) { return null; } };
   const api = { on, boot, organize, putApp, getApp, putVisible, fetchFile, folderOf, rootId, loadReg, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
   return api;
