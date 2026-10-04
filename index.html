@@ -791,6 +791,13 @@ body.v12:not(.tlfam) #tlv .rail { display: none; }
 #tbar .glassbtn { width: 40px; height: 40px; } #tbar #tbTheme { display: none; } #tbar .rt { gap: 8px; }
 #tbar .tt { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; padding: 0 6px; }
 #tabbar > button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+/* v1.5 — Google Drive */
+.kf-g { margin-bottom: 10px; background: #fff !important; color: #1f1f1f !important; border: 1px solid #dadce0 !important; } .kf-g .g { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font: 800 17px/1 Arial, sans-serif; color: #fff; background: conic-gradient(#ea4335 0 25%, #fbbc05 0 50%, #34a853 0 75%, #4285f4 0); }
+#drvPill { position: fixed; z-index: 24; left: 50%; top: calc(var(--safe-t) + 10px); transform: translate(-50%, -20px); opacity: 0; pointer-events: none; height: 32px; padding: 0 14px; border-radius: 16px; font-size: 13px; font-weight: 700; color: var(--text); background: linear-gradient(180deg, var(--gl1), var(--gl2)), var(--cardsolid); border: 1px solid var(--glb); box-shadow: 0 8px 20px rgba(0,0,0,.25); transition: transform .35s cubic-bezier(.3,1.3,.5,1), opacity .25s; }
+#drvPill.on { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; } body.evopen #drvPill, body.pvopen #drvPill, body.showing #drvPill { opacity: 0; pointer-events: none; }
+.drv-acc { display: flex; align-items: center; gap: 12px; margin: 6px 0 8px; } .drv-acc img, .drv-acc i { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 18px; color: #fff; background: #4285f4; } .drv-acc b { display: block; } .drv-acc small { display: block; color: var(--muted); font-weight: 600; }
+.drv-st { margin: 4px 0; font-weight: 700; font-size: 14px; color: var(--accent); } .drv-b { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; } .drv-b button { height: 40px; font-size: 13.5px; }
+.drv-slim { margin-top: 6px; } .drv-out { margin-top: 10px; background: transparent !important; color: var(--muted) !important; }
 /* v1.4.3 */
 .row-add.dup { opacity: .62; } .row-add.dup .th { filter: grayscale(.6); }
 .dupb { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--accent-2, #9fe1cb); } .dupb button { height: 30px; padding: 0 10px; font-size: 12.5px; }
@@ -1009,6 +1016,7 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
   <div class="sec"><h3>Nhạc khi trình chiếu</h3><div class="seg" id="segMusic"><button data-v="builtin">🎐 Hộp nhạc</button><button data-v="file">🎵 Bài của bạn</button><button data-v="off">🔇 Tắt</button></div>
     <p class="hint" id="musicHint"></p><input type="file" id="musicIn" accept="audio/*" hidden></div>
   <div class="sec"><h3>Thùng rác</h3><p class="hint" style="margin-top:0">Xoá nhầm? Mọi thứ đã xoá được giữ 30 ngày.</p><button id="bTrash" style="margin-top:8px">Mở thùng rác</button></div>
+  <div class="sec" id="drvSec" hidden></div>
   <div class="sec"><h3>Sao lưu</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="bExport">💾 Tạo bản sao lưu</button><button id="bImport">📂 Mở bản sao lưu</button></div><p class="hint" id="bkLast"></p><button id="bDup" style="margin-top:6px">🔎 Tìm ảnh, video trùng</button><p class="hint" id="whereData"></p>
     <input type="file" id="importIn" accept=".nganha,application/octet-stream" hidden>
     <p class="hint">Ảnh, video chỉ nằm trong máy này. Thỉnh thoảng hãy tạo bản sao lưu và cất vào ổ cứng, iCloud Drive hoặc Google Drive. Muốn chuyển sang máy khác: mở bản sao lưu ở máy kia.</p>

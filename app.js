@@ -7,6 +7,8 @@ import { initTimeline } from './dongthoigian.js';
 import { initProfile, KID_COLORS, defaultColor } from './hoso.js';
 import { initNhac } from './nhac.js';
 import { birthIntro, showOutro } from './modau.js';
+import { initDrive } from './drive.js';
+import { GOOGLE_CLIENT_ID } from './config.js';
 
 const VERSION = '1.4.3';
 const Q = new URLSearchParams(location.search);
@@ -66,7 +68,7 @@ const fmtSize = b => b > 1e9 ? (b / 1e9).toFixed(1).replace('.', ',') + ' GB' : 
 const noAccent = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/[^\w-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 
 // ---------- IndexedDB ----------
-const DBN = TEST ? 'nganha_test' : 'nganha';
+const DBN = TEST ? 'nganha_test' + (/^[A-Z]$/.test(Q.get('dev') || '') ? '_' + Q.get('dev') : '') : 'nganha';
 let _db;
 function openDB() {
   if (_db) return Promise.resolve(_db);
@@ -100,9 +102,16 @@ async function dbx(store, mode, fn) {
     t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('abort'));
   });
 }
-const dbGet = (st, k) => dbx(st, 'readonly', s => s.get(k));
-const dbPut = (st, v, k) => dbx(st, 'readwrite', s => k === undefined ? s.put(v) : s.put(v, k));
-const dbDel = (st, k) => dbx(st, 'readwrite', s => s.delete(k));
+const dbGetRaw = (st, k) => dbx(st, 'readonly', s => s.get(k));
+const dbPutRaw = (st, v, k) => dbx(st, 'readwrite', s => k === undefined ? s.put(v) : s.put(v, k));
+const dbDelRaw = (st, k) => dbx(st, 'readwrite', s => s.delete(k));
+// tệp gốc / ảnh nhỏ không có trong máy (máy mới, hoặc "chỉ giữ bản nhỏ") → tải từ Google Drive nếu đã đăng nhập
+let DRV = null;
+const dbGet = (st, k) => dbGetRaw(st, k).then(v => v ?? (st === 'blobs' && DRV?.signedIn && /^[ot]_/.test(k) ? DRV.fetchBlob(k) : v));
+// mọi thay đổi dữ liệu thật → hẹn đồng bộ Drive (gom 5 giây)
+const SYNCMETA = /^(ev:|bg:|groups$)/;
+const dbPut = (st, v, k) => dbPutRaw(st, v, k).then(r => { if (st === 'kids' || st === 'moments' || st === 'diaries' || (st === 'meta' && SYNCMETA.test(String(k)))) DRV?.markDirty(); return r; });
+const dbDel = (st, k) => dbDelRaw(st, k).then(r => { if (st === 'kids' || st === 'moments' || st === 'diaries') DRV?.markDirty(); return r; });
 const dbAll = st => dbx(st, 'readonly', s => s.getAll());
 const dbKeys = st => dbx(st, 'readonly', s => s.getAllKeys());
 const metaGet = k => dbGet('meta', k);
@@ -1588,6 +1597,7 @@ async function trashDiary(d) { d.deleted = Date.now(); await dbPut('diaries', d)
 async function purgeOld() {
   const lim = Date.now() - TRASH_DAYS * 864e5;
   { const gs = await metaGet('groups'); if (gs?.length) { const ids = new Set((await dbKeys('moments')).map(String)); const ng = gs.map(g => ({ ...g, momentIds: g.momentIds.filter(id => ids.has(String(id))) })).filter(g => g.momentIds.length); if (JSON.stringify(ng) !== JSON.stringify(gs)) await metaSet('groups', ng); } }
+  { const tq = (await metaGet('drvTrashQ')) || [], old = (await dbAll('moments')).filter(m => m.deleted && m.deleted < lim); for (const m of old) { if (m.driveFileId) tq.push(m.driveFileId); if (m.driveThumbId) tq.push(m.driveThumbId); } if (old.length) await metaSet('drvTrashQ', tq); }
   for (const m of await dbAll('moments')) if (m.deleted && m.deleted < lim) { await dbDel('blobs', 'o_' + m.id); await dbDel('blobs', 't_' + m.id); await dbDel('moments', m.id); }
   for (const d of await dbAll('diaries')) if (d.deleted && d.deleted < lim) { await dbDel('blobs', 'd_' + d.id); await dbDel('diaries', d.id); }
   for (const k of await dbAll('kids')) if (k.deleted && k.deleted < lim) { await dbDel('blobs', 'av_' + k.id); await dbDel('kids', k.id); }
@@ -1686,6 +1696,7 @@ $('#kidOk').onclick = async () => {
   renderSettings();
 };
 $('#kfBackup').onclick = () => $('#importIn').click();
+setTimeout(() => DRV?.on && (() => { $('#kfBackup').insertAdjacentHTML('beforebegin', `<button class="kf-b kf-g" id="kfGoogle" type="button"><b class="g">G</b><span>Đăng nhập Google — lấy lại dữ liệu</span></button>`); $('#kfGoogle').onclick = () => DRV.signIn(); })(), 0);
 $('#kfLinkOk').onclick = async () => { const v = $('#kfLink').value.trim(); if (!/#hoso=/.test(v)) { toast('Bạn dán cả đường link hồ sơ (có đoạn #hoso=…) nhé', 3000); return; } await importProfiles(v); };
 $('#kfLink').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kfLinkOk').click(); });
 $('#kidIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kidBd').focus(); });
@@ -1921,7 +1932,7 @@ async function fingerprint(blob) {
   let h = 0x811c9dc5; for (const arr of [a, b]) for (let i = 0; i < arr.length; i++) { h ^= arr[i]; h = Math.imul(h, 16777619) >>> 0; }
   return blob.size + ':' + h.toString(36);
 }
-async function fpOf(m) { if (m.fp) return m.fp; const o = await dbGet('blobs', 'o_' + m.id); if (!o) return null; m.fp = await fingerprint(o); try { await dbPut('moments', m); } catch (e) { } return m.fp; }
+async function fpOf(m) { if (m.fp) return m.fp; const o = await dbGetRaw('blobs', 'o_' + m.id); if (!o) return null; m.fp = await fingerprint(o); try { await dbPut('moments', m); } catch (e) { } return m.fp; }
 // trùng hẳn (cùng dấu vân tay) hoặc gần như chắc trùng (cùng loại, cùng cỡ khung hình, cùng giây chụp đọc từ EXIF, cùng thời lượng video)
 async function findDup(r) {
   const live = (S.all || []).filter(m => !m.deleted);
@@ -2074,7 +2085,7 @@ function flyToBook(id) {
 
 // ---------- Cài đặt ----------
 async function renderSettings() {
-  renderBkLast();
+  renderBkLast(); DRV?.renderSettings();
   if ($('#kidNhacAll')) $('#kidNhacAll').hidden = S.kids.length < 2;
   const ms = await dbAll('moments');
   $('#kidsList').innerHTML = S.kids.map(k => `<div class="kid-row"><img src="${P.avatarNow(k)}" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px ${k.color || '#ff8fbf'}"><div><div class="n">${esc(cap(k.name))}</div><div class="b">Sinh ${dmy(parseYmd(k.birth))} · ${ms.filter(m => !m.deleted && kidsOf(m).includes(k.id)).length} khoảnh khắc</div></div><div class="kr-acts"><button data-nhac="${k.id}">${icon('cake', 16)}<span>Nhắc sinh nhật</span></button><button data-prof="${k.id}">${icon('star', 16)}<span>Hồ sơ</span></button><button data-kid="${k.id}">${icon('edit', 16)}<span>Sửa</span></button></div></div>`).join('');
@@ -2422,6 +2433,22 @@ function loop(now) {
 document.addEventListener('visibilitychange', () => { last = performance.now(); });
 
 // ---------- Nhắc sinh nhật (.ics cho app Lịch) ----------
+// ---------- Google Drive (ẩn hẳn nếu config.js chưa có Client ID) ----------
+const avCache = new Map();
+DRV = initDrive({ clientId: GOOGLE_CLIENT_ID || (TEST && Q.has('mock') ? 'mock-client.apps.googleusercontent.com' : ''), TEST, version: VERSION,
+  dbGetRaw, dbPut: dbPutRaw, dbDel: dbDelRaw, dbAll, dbKeys, metaGet, metaSet: (k, v) => dbPutRaw('meta', v, k), toast, ask, icon, esc,
+  kidName: id => cap(S.kids.find(k => k.id === id)?.name || ''), titleOf: m => { const k = TL.keyOfMid?.(m.id); return k ? TL.events.find(e => e.key === k)?.title || '' : m.title || ''; },
+  avatarSmall: async k => { const c = avCache.get(k.id); if (c && c.t === k.avatar) return c.u; const u = await smallAvatar(k); avCache.set(k.id, { t: k.avatar, u }); return u; },
+  openSettings: () => { $('#bSet').click(); setTimeout(() => $('#drvSec')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 450); },
+  onMomentDrive: m => { const i = (S.all || []).findIndex(x => x.id === m.id); if (i >= 0) Object.assign(S.all[i], { driveFileId: m.driveFileId, driveThumbId: m.driveThumbId }); },
+  onStatus: () => { },
+  onRemoteApplied: async () => {
+    S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0)); S.groups = (await metaGet('groups')) || [];
+    if (!S.kids.length) return; await P.warm(S.kids);
+    if ($('#mKid').classList.contains('open') && !kidEditing) { $('#mKid').classList.remove('open'); document.body.classList.remove('intro'); leaveIntro(true); }
+    if (!S.kid || !S.kids.some(k => k.id === S.kid.id)) await selectKid(S.kids[0].id, false); else { await loadAll(); await TL.reload(); buildGalaxy(); buildScrub(); renderKidBtn(); updateNow(); }
+    if ($('#mSet').classList.contains('open')) renderSettings();
+  } });
 const N = initNhac({ metaGet, metaSet, icon, toast, openModal, closeModal, dmy, noAccent, TEST, download: f => shareOrDownload(f, f.name), onSaved: () => { TL.render(); if (P.isOpen()) P.openProfile(dispKid(S.kid)); } });
 const nhacFor = kids => N.open((kids || [S.kid]).filter(Boolean).map(dispKid));
 
@@ -2596,6 +2623,9 @@ async function boot() {
   try {
     theme = (await metaGet('theme')) || 'night'; S.music = (await metaGet('music')) || 'builtin'; S.musicName = (await metaGet('musicName')) || '';
     await purgeOld();
+    if (TEST && Q.has('mock')) { const mk = await import('./drive-mock.js'); T.MOCK = mk.install(); T.mockDrive = mk; }
+    S.drvBoot = await DRV.boot();
+    if (DRV.signedIn && !(await dbAll('kids')).length) { await DRV.sync('boot'); } // máy mới / kho trống mà đã đăng nhập: kéo dữ liệu về trước
     S.groups = (await metaGet('groups')) || [];
     S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0));
   } catch (e) { console.error(e); toast('Trình duyệt chặn bộ nhớ — bạn mở bằng Safari/Chrome thường (không ở chế độ ẩn danh) nhé', 8000); }
@@ -2612,6 +2642,7 @@ async function boot() {
     if (S.kids.length > 1 && await metaGet('family')) await enterFamily();
     setTimeout(async () => { for (const k of S.kids) { if (k.gender || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
     setTimeout(() => queueThumbFix((S.all || []).slice().sort((a, b) => b.ts - a.ts)), 4000);
+    if (DRV.signedIn) setTimeout(() => DRV.afterLogin(), 1500);
     if (/#hoso=/.test(location.hash)) setTimeout(() => importProfiles(location.hash), 600);
   }
   N.fromHash(); addEventListener("hashchange", () => { N.fromHash(); if (/#hoso=/.test(location.hash)) importProfiles(location.hash); });
@@ -2681,7 +2712,7 @@ if (TEST) {
     location.replace(location.pathname + '?test');
   }, 2500);
   window.T = {
-    get INTRO() { return INTRO; }, fingerprint, findDuplicates, queueThumbFix, runThumbFix, RT, profileLink, importProfiles, readProfileLink, maybeRemindBackup, genderBanner, doBackup, renderBkLast, fpsMeter, openKid, S, G, FL, OV, cam, SH, ADD, Stream, Music, perf, camera, renderer, scene, frame, setMode, openLB, closeLB, lbNav, startShow, stopShow, setTheme, openAdd, addFiles, saveAdd, doImport, buildBackup, readBackup, ageText, exifDate, videoDate, readDate, selectKid, dbAll, dbGet,
+    get INTRO() { return INTRO; }, DRV, dbGetRaw, fingerprint, findDuplicates, queueThumbFix, runThumbFix, RT, profileLink, importProfiles, readProfileLink, maybeRemindBackup, genderBanner, doBackup, renderBkLast, fpsMeter, openKid, S, G, FL, OV, cam, SH, ADD, Stream, Music, perf, camera, renderer, scene, frame, setMode, openLB, closeLB, lbNav, startShow, stopShow, setTheme, openAdd, addFiles, saveAdd, doImport, buildBackup, readBackup, ageText, exifDate, videoDate, readDate, selectKid, dbAll, dbGet,
     async setKid(id, patch) { const k = S.kids.find(x => x.id === id); Object.assign(k, patch); await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); return k; }, loadAll,
     dbPut, splitName, splitNames, fakePhoto, fakeVideo, D, TL, P, N, nhacFor, BG, trashMoments, restoreMoments, openTrash, removeKid, restoreKid, alignDates, nameDate, prompt2, enterFamily, kidsOf, setMomentKids, refreshKid, applyBg, loadBg, setBgImage, enterGalaxy, exitGalaxy, renderBgUi, openBook, diaryChanged, importFilesQuiet, exifSeg,
     // giả lập Gemini (không cần khoá thật): trả JSON mẫu, ghi lại yêu cầu để kiểm
