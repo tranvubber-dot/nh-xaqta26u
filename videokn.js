@@ -169,7 +169,7 @@ export function createRenderer(engine, SB, assets) {
       if (s.kind === 'clip' && !clips.has(s) && assets.clip) { try { clips.set(s, await assets.clip(s.item, s, span(s), live)); } catch (e) { clips.set(s, null); } }
       if (!tex.has(id)) { const bmp = await assets.image(s.item); if (bmp) { tex.set(id, { t: E.texFrom(bmp), a: bmp.width / bmp.height, fy: typeof ImageBitmap !== 'undefined' && bmp instanceof ImageBitmap ? 1 : 0 }); bmp.close?.(); } else tex.set(id, null); }
     }
-    for (const [id, v] of tex) if (![...need].some(s => s.item.id === id)) { if (v) gl.deleteTexture(v.t); tex.delete(id); }
+    for (const [id, v] of tex) if (id !== 'saban' && ![...need].some(s => s.item.id === id)) { /* khung bản đồ mở đầu giữ lại cho CrossZoom */ if (v) gl.deleteTexture(v.t); tex.delete(id); }
     for (const [s, c] of clips) if (!need.has(s)) { c?.close?.(); if (c?.tex) gl.deleteTexture(c.tex); clips.delete(s); }
   }
   // vẽ một cảnh vào fbo
