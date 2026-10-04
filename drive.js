@@ -88,21 +88,91 @@ export function initDrive(A) {
       await afterLogin(); return true;
     } catch (e) { if (e.code !== 'login' || !standalone()) A.toast(e.message, 3600); D.status = e.message; emit(); return false; }
   }
-  async function afterLogin() { await sync('login'); pump(); processTrash(); }
+  async function afterLogin() { await loadReg(); await sync('login'); pump(); processTrash(); }
   async function signOut() {
     const t = D.token; D.token = null; D.exp = 0; try { sessionStorage.removeItem('drvTok'); } catch (e) { }
     try { if (t && window.google?.accounts?.oauth2?.revoke) window.google.accounts.oauth2.revoke(t, () => { }); } catch (e) { }
-    D.cfg = { slim: false, all: !!D.cfg?.all, folders: D.cfg?.folders || {} }; await saveCfg(); D.q.total = D.q.done = 0; emit(); A.toast('Đã đăng xuất Google — ảnh, dữ liệu trong máy và trên Drive vẫn còn nguyên', 3200);
+    REG = null; D.cfg = { slim: false, all: !!D.cfg?.all, folders: D.cfg?.folders || {} }; await saveCfg(); D.q.total = D.q.done = 0; emit(); A.toast('Đã đăng xuất Google — ảnh, dữ liệu trong máy và trên Drive vẫn còn nguyên', 3200);
   }
 
   // ---------- thư mục ----------
-  async function folder(name, parent) {
+  // tạo thư mục phải lần lượt (2 luồng tải lên chạy song song từng tạo ra 2 thư mục gốc trùng tên)
+  let fq = Promise.resolve(); const serial = fn => { const p = fq.then(fn, fn); fq = p.catch(() => { }); return p; };
+  const folder = (name, parent) => serial(() => folder0(name, parent));
+  async function folder0(name, parent) {
     const F = D.cfg.folders ||= {}, key = (parent || 'root') + '/' + name; if (F[key]) return F[key];
     const q = `name='${qesc(name)}' and mimeType='application/vnd.google-apps.folder' and trashed=false and '${parent || 'root'}' in parents`;
     const j = await json('/drive/v3/files?' + new URLSearchParams({ q, fields: 'files(id,name)', spaces: 'drive', pageSize: '10' }));
     let id = j.files?.[0]?.id;
     if (!id) id = (await json('/drive/v3/files?fields=id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent || 'root'] }) })).id;
     F[key] = id; await saveCfg(); markDirty(); return id;
+  }
+  // ---------- thư mục theo SỰ KIỆN: Ngân Hà Của Con / <bé> / <năm> / <ngày · tên sự kiện> ----------
+  // mỗi thư mục mang appProperties.nganha = 'root' | 'kid:<id>' | 'year:<kid>:<yyyy>' | 'ev:<kid>:<khoá sự kiện>' để tìm lại đúng (không theo tên),
+  // sổ đăng ký thư mục (meta drvFolders) đồng bộ qua nganha-db.json để máy khác dùng lại, không tạo trùng
+  const safe = (t, n = 80) => String(t || '').replace(/[\/\\:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n).trim() || 'Không tên';
+  let REG = null, regDirty = false;
+  const loadReg = async () => REG || (REG = (await A.metaGet('drvFolders')) || {});
+  const saveReg = async () => { if (regDirty) { regDirty = false; await A.metaSet('drvFolders', REG); } };
+  const ensureFolder = (prop, name, parent) => serial(() => ensureFolder0(prop, name, parent));
+  async function ensureFolder0(prop, name, parent) {
+    await loadReg(); let f = REG[prop];
+    if (!f) {
+      // bản cũ (v1.5.0) đã tạo thư mục theo tên: nhận lại, gắn nhãn appProperties
+      const legacy = D.cfg.folders?.[(parent || 'root') + '/' + name];
+      let id = legacy || null;
+      if (!id) { const q = `appProperties has { key='nganha' and value='${qesc(prop)}' } and mimeType='application/vnd.google-apps.folder' and trashed=false`; const j = await json('/drive/v3/files?' + new URLSearchParams({ q, fields: 'files(id,name,parents)', spaces: 'drive', pageSize: '5' })); const hit = j.files?.[0]; if (hit) { id = hit.id; f = { id, name: hit.name, parent: hit.parents?.[0] || parent }; } }
+      if (id && !f) { await json(`/drive/v3/files/${id}?fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appProperties: { nganha: prop } }) }); f = { id, name, parent }; }
+      if (!f) { id = (await json('/drive/v3/files?fields=id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent || 'root'], appProperties: { nganha: prop } }) })).id; f = { id, name, parent }; }
+      REG[prop] = f; regDirty = true;
+    }
+    if (f.name !== name || (parent && f.parent !== parent)) { // đổi tên sự kiện / đổi năm → đổi tên, chuyển thư mục
+      const q = new URLSearchParams({ fields: 'id' }); if (parent && f.parent !== parent) { q.set('addParents', parent); if (f.parent) q.set('removeParents', f.parent); }
+      await json(`/drive/v3/files/${f.id}?` + q, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      f.name = name; if (parent) f.parent = parent; regDirty = true;
+    }
+    return f.id;
+  }
+  const p2 = n => String(n).padStart(2, '0'), ymdS = t => { const d = new Date(t); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };
+  function folderName(p) {
+    const a = new Date(p.ts0), b = new Date(p.ts1); let range = ymdS(p.ts0);
+    if (ymdS(p.ts0) !== ymdS(p.ts1)) range += a.getFullYear() !== b.getFullYear() ? ' → ' + ymdS(p.ts1) : a.getMonth() !== b.getMonth() ? ` → ${p2(b.getMonth() + 1)}-${p2(b.getDate())}` : ' → ' + p2(b.getDate());
+    return safe(`${range} · ${p.title}`, 80);
+  }
+  async function eventFolder(p) {
+    const root = await ensureFolder('root', ROOT_NAME, 'root'), kf = await ensureFolder('kid:' + p.kidId, safe(p.kidName, 60), root);
+    const y = String(new Date(p.ts0).getFullYear()), yf = await ensureFolder(`year:${p.kidId}:${y}`, y, kf);
+    return ensureFolder(`ev:${p.kidId}:${p.key}`, folderName(p), yf);
+  }
+  const fileName2 = (m, p) => { const d = new Date(m.ts), ext = (/\.([a-z0-9]{2,5})$/i.exec(m.name || '')?.[1] || (m.type === 'video' ? 'mp4' : 'jpg')).toLowerCase(); return safe(`${p.ts0 && ymdS(p.ts0) !== ymdS(p.ts1) ? `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ` : ''}${p2(d.getHours())}.${p2(d.getMinutes())} — ${m.title || p.title}`, 100) + '.' + ext; };
+  // xếp lại tệp đã có trên Drive cho khớp sự kiện (đổi tên, đổi ngày, gộp, tách, nhóm, nâng cấp từ cấu trúc cũ): chỉ đổi thư mục/tên, không tải lại
+  async function organize() {
+    if (!on || !signedIn() || D.org || !navigator.onLine) return; D.org = true; let n = 0;
+    try {
+      const places = await A.places(); await loadReg();
+      const all = await A.dbAll('moments'), ms = all.filter(m => m.driveFileId && !m.deleted);
+      for (const m of ms) {
+        const p = places.get(m.id); if (!p) continue;
+        const fid = await eventFolder(p), name = fileName2(m, p);
+        if (m.driveParent === fid && m.driveName === name) continue;
+        let old = m.driveParent; if (!old) { const j = await json(`/drive/v3/files/${m.driveFileId}?fields=parents`); old = (j.parents || []).join(','); }
+        const q = new URLSearchParams({ fields: 'id' }); if (old !== fid) { q.set('addParents', fid); if (old) q.set('removeParents', old); }
+        await json(`/drive/v3/files/${m.driveFileId}?` + q, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+        const fresh = (await A.dbGetRaw('moments', m.id)) || m; fresh.driveParent = fid; fresh.driveName = name; await A.dbPut('moments', fresh);
+        D.org_n = ++n; await sleep(n % 20 ? 120 : 1200); // giới hạn tốc độ
+      }
+      // thư mục "Ngân Hà Của Con" trùng (bản 1.5.0 có thể tạo 2 cái) mà bên trong không còn tệp nào → thùng rác Drive
+      if (REG.root) {
+        const q = `name='${qesc(ROOT_NAME)}' and mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents`;
+        const dup = ((await json('/drive/v3/files?' + new URLSearchParams({ q, fields: 'files(id)', spaces: 'drive', pageSize: '20' }))).files || []).filter(f => f.id !== REG.root.id);
+        const hasFile = async (id, depth) => { const c = (await json('/drive/v3/files?' + new URLSearchParams({ q: `'${id}' in parents and trashed=false`, fields: 'files(id,mimeType)', spaces: 'drive', pageSize: '100' }))).files || []; for (const f of c) { if (f.mimeType !== 'application/vnd.google-apps.folder') return true; if (depth < 4 && await hasFile(f.id, depth + 1)) return true; } return false; };
+        for (const f of dup) if (!(await hasFile(f.id, 0))) await json(`/drive/v3/files/${f.id}?fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+      }
+      // thư mục sự kiện không còn tệp nào (kể cả ảnh đang trong thùng rác app) → thùng rác Drive
+      const live = new Set((await A.dbAll('moments')).map(m => m.driveParent).filter(Boolean));
+      for (const [prop, f] of Object.entries(REG)) if (prop.startsWith('ev:') && !live.has(f.id)) { try { await json(`/drive/v3/files/${f.id}?fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) }); } catch (e) { if (e.status !== 404) continue; } delete REG[prop]; regDirty = true; }
+    } catch (e) { console.warn('xếp thư mục Drive:', e.message); }
+    finally { await saveReg(); D.org = false; if (n || regDirty) markDirty(); }
   }
   async function pathFor(m) {
     const root = await folder(ROOT_NAME, null), kid = A.kidName(m.kidIds?.[0] || m.kidId) || 'Bé', y = String(new Date(m.ts).getFullYear());
@@ -156,11 +226,13 @@ export function initDrive(A) {
       m.driveThumbId = await upload({ blob: b, name: 't_' + m.id + '.jpg', mime: b.type || 'image/jpeg', parents: ['appDataFolder'], key: 't_' + m.id });
     } else {
       if (m.driveFileId) return; const b = await A.dbGetRaw('blobs', 'o_' + m.id); if (!b) return;
-      D.q.cur = fileName(m); emit();
-      m.driveFileId = await upload({ blob: b, name: fileName(m), mime: b.type || m.mime || 'application/octet-stream', parents: [await pathFor(m)], key: 'o_' + m.id, onProg: p => { D.q.part = p; renderPill(); } });
+      const pl = (await A.places()).get(m.id), parent = pl ? await eventFolder(pl) : await pathFor(m), nm = pl ? fileName2(m, pl) : fileName(m); await saveReg();
+      D.q.cur = nm; emit();
+      m.driveFileId = await upload({ blob: b, name: nm, mime: b.type || m.mime || 'application/octet-stream', parents: [parent], key: 'o_' + m.id, onProg: p => { D.q.part = p; renderPill(); } });
+      if (pl) { m.driveParent = parent; m.driveName = nm; }
       if (D.cfg.slim) { await A.dbDel('blobs', 'o_' + m.id); D.cfg.saved = (D.cfg.saved || 0) + b.size; await saveCfg(); }
     }
-    const fresh = (await A.dbGetRaw('moments', m.id)) || m; fresh.driveThumbId = m.driveThumbId || fresh.driveThumbId; fresh.driveFileId = m.driveFileId || fresh.driveFileId; await A.dbPut('moments', fresh); A.onMomentDrive?.(fresh);
+    const fresh = (await A.dbGetRaw('moments', m.id)) || m; fresh.driveThumbId = m.driveThumbId || fresh.driveThumbId; fresh.driveFileId = m.driveFileId || fresh.driveFileId; if (m.driveParent) { fresh.driveParent = m.driveParent; fresh.driveName = m.driveName; } await A.dbPut('moments', fresh); A.onMomentDrive?.(fresh);
   }
   let backoff = 0, retryT = 0;
   async function pump() {
@@ -217,7 +289,7 @@ export function initDrive(A) {
     for (const k of await A.dbAll('kids')) recs['k:' + k.id] = k;
     for (const m of await A.dbAll('moments')) recs['m:' + m.id] = m;
     for (const d of await A.dbAll('diaries')) recs['d:' + d.id] = d;
-    for (const key of (await A.dbKeys('meta')).map(String)) if (/^(ev:|bg:)/.test(key) || key === 'groups') { const v = await A.metaGet(key); if (v != null) recs['x:' + key] = v; }
+    for (const key of (await A.dbKeys('meta')).map(String)) if (/^(ev:|bg:)/.test(key) || key === 'groups' || key === 'drvFolders') { const v = await A.metaGet(key); if (v != null) recs['x:' + key] = v; }
     for (const k of await A.dbAll('kids')) if (k.avatar && !k.deleted) { const u = await A.avatarSmall(k); if (u) recs['a:' + k.id] = u; }
     return recs;
   }
@@ -299,7 +371,8 @@ export function initDrive(A) {
       if (push || !remote.id) remote.id = await pushDb(remote.id, remote.data);
       await A.metaSet('syncShadow', newShadow); await A.metaSet('syncLU', lu);
       D.cfg.lastSync = Date.now(); D.cfg.dbId = remote.id; await saveCfg(); D.status = '';
-      if (changedLocal) await A.onRemoteApplied?.(changedLocal);
+      if (changedLocal) { REG = null; await A.onRemoteApplied?.(changedLocal); }
+      setTimeout(organize, 400);
       return true;
     } catch (e) {
       D.status = e.code === 'login' ? 'Cần đăng nhập lại Google để đồng bộ' : e.code === 'net' ? 'Đang chờ mạng để đồng bộ' : e.message;
@@ -330,7 +403,8 @@ export function initDrive(A) {
       box.innerHTML = `<h3>Google Drive</h3>
         <div class="drv-acc">${D.cfg.picture ? `<img src="${A.esc(D.cfg.picture)}" alt="" referrerpolicy="no-referrer">` : `<i>${A.esc((D.cfg.name || '?')[0])}</i>`}<div><b>${A.esc(D.cfg.name || '')}</b><small>${A.esc(D.cfg.email)}</small></div></div>
         <p class="drv-st">${A.esc(st)}</p><p class="hint">${up}/${ms.length} ảnh, video đã có bản gốc trên Drive${D.cfg.all ? '' : ' (tự lưu ảnh mới thêm từ lúc đăng nhập)'}. App chỉ thấy các tệp do chính nó tạo trong Drive của bạn.</p>
-        <div class="drv-b">${!D.cfg.all || up < ms.length ? `<button data-d="all">${A.icon('download', 16)}<span>Lưu tất cả ảnh cũ lên Drive</span></button>` : ''}<button data-d="sync">${A.icon('timeline', 16)}<span>Đồng bộ ngay</span></button>${D.cfg.folders?.['root/' + ROOT_NAME] ? `<button data-d="open">${A.icon('image', 16)}<span>Mở thư mục trên Drive</span></button>` : ''}${D.status && /đăng nhập lại/i.test(D.status) ? `<button class="primary" data-d="re">Đăng nhập lại</button>` : ''}</div>
+        <p class="hint drv-tree">Ảnh xếp theo: <b>Ngân Hà Của Con › tên bé › năm › ngày · tên sự kiện</b> (nhóm nhiều ngày: “2025-09-12 → 15 · Đi biển”). Đổi tên, gộp, tách sự kiện trong app thì thư mục trên Drive đổi theo.</p>
+        <div class="drv-b">${!D.cfg.all || up < ms.length ? `<button data-d="all">${A.icon('download', 16)}<span>Lưu tất cả ảnh cũ lên Drive</span></button>` : ''}<button data-d="sync">${A.icon('timeline', 16)}<span>Đồng bộ ngay</span></button>${rootId() ? `<button data-d="open">${A.icon('image', 16)}<span>Mở thư mục Ngân Hà Của Con trên Drive</span></button>` : ''}${D.status && /đăng nhập lại/i.test(D.status) ? `<button class="primary" data-d="re">Đăng nhập lại</button>` : ''}</div>
         <label class="tog drv-slim"><span>Chỉ giữ bản nhỏ trên máy <small>bản gốc đã lên Drive thì xoá khỏi máy, mở xem sẽ tải lại từ Drive${D.cfg.saved ? ` · đã tiết kiệm ${fmtSize(D.cfg.saved)}` : ''}</small></span><input type="checkbox" data-d="slim" ${D.cfg.slim ? 'checked' : ''}></label>
         <button class="drv-out" data-d="out">Đăng xuất (không xoá gì)</button>`;
     }
@@ -341,7 +415,7 @@ export function initDrive(A) {
     else if (a === 'out') { if (await A.ask('Đăng xuất Google?', 'Ảnh, video, dữ liệu trong máy và trên Drive vẫn giữ nguyên. Đăng nhập lại là đồng bộ tiếp.', 'Đăng xuất')) signOut(); }
     else if (a === 'all') { D.cfg.all = true; D.paused = false; await saveCfg(); emit(); pump(); A.toast('Đang lưu dần các ảnh cũ lên Drive — cứ dùng app bình thường', 2600); }
     else if (a === 'sync') { await sync('manual'); pump(); A.toast(D.status || 'Đã đồng bộ', 1800); }
-    else if (a === 'open') window.open('https://drive.google.com/drive/folders/' + D.cfg.folders['root/' + ROOT_NAME], '_blank');
+    else if (a === 'open') window.open('https://drive.google.com/drive/folders/' + rootId(), '_blank');
   });
   document.addEventListener('change', async e => {
     const c = e.target.closest('#drvSec [data-d="slim"]'); if (!c) return;
@@ -360,6 +434,8 @@ export function initDrive(A) {
     return { redirected };
   }
   addEventListener('hashchange', async () => { if (on && /[#&](access_token|error)=/.test(location.hash) && readRedirect()) { try { const u = await json('/oauth2/v3/userinfo'); D.cfg = { ...D.cfg, email: u.email, name: u.name || u.email, picture: u.picture || '', since: D.cfg.since || Date.now() }; await saveCfg(); emit(); await afterLogin(); } catch (e) { } } });
-  const api = { on, boot, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
+  const rootId = () => REG?.root?.id || D.cfg?.folders?.['root/' + ROOT_NAME] || null;
+  const folderOf = (kidId, key) => REG?.['ev:' + kidId + ':' + key]?.id || null;
+  const api = { on, boot, organize, folderOf, rootId, loadReg, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
   return api;
 }

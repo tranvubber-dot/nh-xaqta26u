@@ -57,15 +57,18 @@ export function install() {
       const q = u.searchParams.get('q') || '', sp = u.searchParams.get('spaces') || 'drive';
       let fs = (await all('files')).filter(f => (sp === 'appDataFolder') === (f.parents || []).includes('appDataFolder'));
       const name = /name='((?:[^'\\]|\\.)*)'/.exec(q)?.[1]?.replace(/\\(.)/g, '$1'), par = /'([^']+)' in parents/.exec(q)?.[1], mime = /mimeType='([^']+)'/.exec(q)?.[1];
-      if (name != null) fs = fs.filter(f => f.name === name); if (par) fs = fs.filter(f => (f.parents || []).includes(par)); if (mime) fs = fs.filter(f => f.mimeType === mime); if (/trashed=false/.test(q)) fs = fs.filter(f => !f.trashed);
-      return J({ files: fs.map(f => ({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, size: f.size })) });
+      const ap = /appProperties has \{ key='([^']+)' and value='((?:[^'\\]|\\.)*)' \}/.exec(q); if (ap) fs = fs.filter(f => f.appProperties?.[ap[1]] === ap[2].replace(/\\(.)/g, '$1'));
+      if (name != null && !ap) fs = fs.filter(f => f.name === name); if (par) fs = fs.filter(f => (f.parents || []).includes(par)); if (mime) fs = fs.filter(f => f.mimeType === mime); if (/trashed=false/.test(q)) fs = fs.filter(f => !f.trashed);
+      return J({ files: fs.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime, size: f.size, parents: f.parents })) });
     }
-    if (path === '/drive/v3/files' && m === 'POST') { const meta = JSON.parse(opt.body || '{}'), f = { id: nid('d'), name: meta.name, parents: meta.parents || ['root'], mimeType: meta.mimeType, trashed: false, created: Date.now(), modifiedTime: new Date().toISOString() }; await put('files', f); return J({ id: f.id }); }
+    if (path === '/drive/v3/files' && m === 'POST') { const meta = JSON.parse(opt.body || '{}'), f = { id: nid('d'), name: meta.name, parents: meta.parents || ['root'], mimeType: meta.mimeType, appProperties: meta.appProperties, trashed: false, created: Date.now(), modifiedTime: new Date().toISOString() }; await put('files', f); return J({ id: f.id }); }
     const fm = /^\/drive\/v3\/files\/([^/]+)$/.exec(path);
     if (fm) {
       const f = await get('files', fm[1]); if (!f) return J({ error: { code: 404 } }, 404);
       if (m === 'GET') { if (u.searchParams.get('alt') === 'media') return new Response(f.blob || new Blob([]), { status: 200 }); const { blob, ...meta } = f; return J(meta); }
-      if (m === 'PATCH') { Object.assign(f, JSON.parse(opt.body || '{}')); await put('files', f); return J({ id: f.id }); }
+      if (m === 'PATCH') { const b = JSON.parse(opt.body || '{}'); if (b.appProperties) { f.appProperties = { ...(f.appProperties || {}), ...b.appProperties }; delete b.appProperties; } Object.assign(f, b);
+        const add = u.searchParams.get('addParents'), rem = u.searchParams.get('removeParents'); if (rem) f.parents = (f.parents || []).filter(x => !rem.split(',').includes(x)); if (add) f.parents = [...new Set([...(f.parents || []), ...add.split(',')])]; MOCK.moves = (MOCK.moves || 0) + (add ? 1 : 0);
+        await put('files', f); return J({ id: f.id, parents: f.parents }); }
     }
     return J({ error: { code: 400, message: 'mock: không hỗ trợ ' + m + ' ' + path } }, 400);
   };

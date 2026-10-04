@@ -10,7 +10,7 @@ import { birthIntro, showOutro } from './modau.js';
 import { initDrive } from './drive.js';
 import { GOOGLE_CLIENT_ID } from './config.js';
 
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
 const MUTE = Q.has('im');
@@ -109,9 +109,9 @@ const dbDelRaw = (st, k) => dbx(st, 'readwrite', s => s.delete(k));
 let DRV = null;
 const dbGet = (st, k) => dbGetRaw(st, k).then(v => v ?? (st === 'blobs' && DRV?.signedIn && /^[ot]_/.test(k) ? DRV.fetchBlob(k) : v));
 // mọi thay đổi dữ liệu thật → hẹn đồng bộ Drive (gom 5 giây)
-const SYNCMETA = /^(ev:|bg:|groups$)/;
-const dbPut = (st, v, k) => dbPutRaw(st, v, k).then(r => { if (st === 'kids' || st === 'moments' || st === 'diaries' || (st === 'meta' && SYNCMETA.test(String(k)))) DRV?.markDirty(); return r; });
-const dbDel = (st, k) => dbDelRaw(st, k).then(r => { if (st === 'kids' || st === 'moments' || st === 'diaries') DRV?.markDirty(); return r; });
+const SYNCMETA = /^(ev:|bg:|groups$|drvFolders$)/; let DATAVER = 0;
+const dbPut = (st, v, k) => dbPutRaw(st, v, k).then(r => { if (st !== 'blobs') DATAVER++; if (st === 'kids' || st === 'moments' || st === 'diaries' || (st === 'meta' && SYNCMETA.test(String(k)))) DRV?.markDirty(); return r; });
+const dbDel = (st, k) => dbDelRaw(st, k).then(r => { DATAVER++; if (st === 'kids' || st === 'moments' || st === 'diaries') DRV?.markDirty(); return r; });
 const dbAll = st => dbx(st, 'readonly', s => s.getAll());
 const dbKeys = st => dbx(st, 'readonly', s => s.getAllKeys());
 const metaGet = k => dbGet('meta', k);
@@ -2085,7 +2085,7 @@ function flyToBook(id) {
 
 // ---------- Cài đặt ----------
 async function renderSettings() {
-  renderBkLast(); DRV?.renderSettings();
+  renderBkLast(); DRV?.renderSettings(); $('#verNow').textContent = VERSION; $('#abVer').textContent = 'Phiên bản ' + VERSION; checkUpdate(true);
   if ($('#kidNhacAll')) $('#kidNhacAll').hidden = S.kids.length < 2;
   const ms = await dbAll('moments');
   $('#kidsList').innerHTML = S.kids.map(k => `<div class="kid-row"><img src="${P.avatarNow(k)}" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px ${k.color || '#ff8fbf'}"><div><div class="n">${esc(cap(k.name))}</div><div class="b">Sinh ${dmy(parseYmd(k.birth))} · ${ms.filter(m => !m.deleted && kidsOf(m).includes(k.id)).length} khoảnh khắc</div></div><div class="kr-acts"><button data-nhac="${k.id}">${icon('cake', 16)}<span>Nhắc sinh nhật</span></button><button data-prof="${k.id}">${icon('star', 16)}<span>Hồ sơ</span></button><button data-kid="${k.id}">${icon('edit', 16)}<span>Sửa</span></button></div></div>`).join('');
@@ -2149,6 +2149,33 @@ async function doBackup() {
     toast(`Đã tạo bản sao lưu (${fmtSize(blob.size)}) — cất vào Tệp / iCloud Drive cho chắc nhé`, 4200);
   } catch (er) { console.error(er); toast('Chưa tạo được bản sao lưu: ' + er.message, 5000); }
 }
+// ---------- cập nhật app: tải lại vỏ app mới nhất (KHÔNG đụng dữ liệu, ảnh trong IndexedDB) ----------
+const UPD = { latest: null, at: 0 };
+async function doUpdateApp() {
+  toast('Đang tải bản mới nhất…', 8000); const done = () => location.reload();
+  try {
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) await reg.update();
+    if (window.caches) for (const k of await caches.keys()) if (k.startsWith('nganha')) await caches.delete(k);
+  } catch (e) { }
+  if (TEST) { T.updated = true; return; } done();
+}
+const verCmp = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
+async function checkUpdate(force) {
+  if (!force && Date.now() - UPD.at < 10 * 60e3) return UPD.latest; UPD.at = Date.now();
+  try { const t = await (await fetch('sw.js?v=' + Date.now(), { cache: 'no-store' })).text(); const m = /VERSION\s*=\s*'([\d.]+)'/.exec(t); if (m) UPD.latest = m[1]; } catch (e) { }
+  const st = $('#updState'); if (st) { const nw = UPD.latest && verCmp(UPD.latest, VERSION) > 0; st.textContent = !UPD.latest ? 'chưa kiểm tra được (mất mạng?)' : nw ? `Có bản mới ${UPD.latest}` : 'Đã là bản mới nhất'; st.classList.toggle('new', !!nw); }
+  if (UPD.latest && verCmp(UPD.latest, VERSION) > 0) showUpdBanner(UPD.latest);
+  return UPD.latest;
+}
+function showUpdBanner(v) {
+  try { if (sessionStorage.getItem('updAsked') === v) return; sessionStorage.setItem('updAsked', v); } catch (e) { }
+  $('#updBan')?.remove(); const b = document.createElement('div'); b.id = 'updBan';
+  b.innerHTML = `<span>✨ Có bản mới ${esc(v)}</span><button class="primary" data-u="go">Cập nhật</button><button class="later" data-u="no">Để sau</button>`;
+  document.body.appendChild(b); requestAnimationFrame(() => b.classList.add('on'));
+  b.onclick = e => { const a = e.target.closest('[data-u]')?.dataset.u; if (!a) return; b.classList.remove('on'); setTimeout(() => b.remove(), 400); if (a === 'go') doUpdateApp(); };
+}
+$('#bUpdate').onclick = () => doUpdateApp();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
 // ---------- ảnh đại diện video cũ bị đen (nhập từ bản trước trên iPhone): tạo lại trong nền, mỗi lần 1 video ----------
 const RT = { q: [], busy: false, seen: new Set() };
 async function thumbLum(blob) { try { const bm = await createImageBitmap(blob), c = document.createElement('canvas'); c.width = c.height = 16; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bm, 0, 0, 16, 16); bm.close?.(); const d = x.getImageData(0, 0, 16, 16).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; return s / 256; } catch (e) { return -1; } }
@@ -2434,7 +2461,7 @@ document.addEventListener('visibilitychange', () => { last = performance.now(); 
 
 // ---------- Nhắc sinh nhật (.ics cho app Lịch) ----------
 // ---------- Google Drive (ẩn hẳn nếu config.js chưa có Client ID) ----------
-const avCache = new Map();
+const avCache = new Map(), PLACES = { v: -1, map: null };
 DRV = initDrive({ clientId: GOOGLE_CLIENT_ID || (TEST && Q.has('mock') ? 'mock-client.apps.googleusercontent.com' : ''), TEST, version: VERSION,
   dbGetRaw, dbPut: dbPutRaw, dbDel: dbDelRaw, dbAll, dbKeys, metaGet, metaSet: (k, v) => dbPutRaw('meta', v, k), toast, ask, icon, esc,
   kidName: id => cap(S.kids.find(k => k.id === id)?.name || ''), titleOf: m => { const k = TL.keyOfMid?.(m.id); return k ? TL.events.find(e => e.key === k)?.title || '' : m.title || ''; },
@@ -2442,6 +2469,18 @@ DRV = initDrive({ clientId: GOOGLE_CLIENT_ID || (TEST && Q.has('mock') ? 'mock-c
   openSettings: () => { $('#bSet').click(); setTimeout(() => $('#drvSec')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 450); },
   onMomentDrive: m => { const i = (S.all || []).findIndex(x => x.id === m.id); if (i >= 0) Object.assign(S.all[i], { driveFileId: m.driveFileId, driveThumbId: m.driveThumbId }); },
   onStatus: () => { },
+  // nơi đặt mỗi ảnh trên Drive: theo sự kiện trên dòng thời gian của bé đầu tiên trong ảnh
+  places: async () => {
+    if (TEST && T.legacyPlaces) return new Map();
+    if (PLACES.v === DATAVER && PLACES.map) return PLACES.map;
+    const map = new Map(), all = (await dbAll('moments')).filter(m => !m.deleted), kids = (await dbAll('kids')).filter(k => !k.deleted);
+    for (const k of kids) {
+      const ms = all.filter(m => (m.kidIds?.[0] || m.kidId) === k.id); if (!ms.length) continue;
+      const evs = TL.eventsForKid({ ...k, name: cap(k.name) }, ms, await metaGet('ev:' + k.id));
+      for (const e of evs) for (const m of e.ms) map.set(m.id, { kidId: k.id, kidName: cap(k.name), key: e.key, title: e.title, ts0: e.ts0, ts1: e.ts1 });
+    }
+    PLACES.v = DATAVER; PLACES.map = map; return map;
+  },
   onRemoteApplied: async () => {
     S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0)); S.groups = (await metaGet('groups')) || [];
     if (!S.kids.length) return; await P.warm(S.kids);
@@ -2527,6 +2566,7 @@ function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 const TL = initTimeline({ kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
+  driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
   music: on => on ? startMusic() : Music.stop(), confetti: c => P.confetti(c), nhac: ks => nhacFor(ks ? ks.map(k => S.kids.find(x => x.id === k.id)) : null),
   kids: () => S.kids.map(dispKid), family: () => !!S.family, kidsOf, avatar: k => P.avatarNow(k), setMomentKids, openProfile: () => P.openProfile(dispKid(S.kid)),
   trashMoments, pickKids, setKidsMany, updateMany, shareMany, setBgFromMoment, avatarFromMoment, kidMenu, prompt: prompt2, diaryMenu: (id, el) => D.diaryMenu(id, el), dbGet, metaGet, metaSet, ymd, dmy, WD, parseYmd, dayStart, ageText, openModal, closeModal, toast, ask,
@@ -2643,6 +2683,7 @@ async function boot() {
     setTimeout(async () => { for (const k of S.kids) { if (k.gender || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
     setTimeout(() => queueThumbFix((S.all || []).slice().sort((a, b) => b.ts - a.ts)), 4000);
     if (DRV.signedIn) setTimeout(() => DRV.afterLogin(), 1500);
+    setTimeout(() => checkUpdate(true), 3000);
     if (/#hoso=/.test(location.hash)) setTimeout(() => importProfiles(location.hash), 600);
   }
   N.fromHash(); addEventListener("hashchange", () => { N.fromHash(); if (/#hoso=/.test(location.hash)) importProfiles(location.hash); });
@@ -2712,7 +2753,7 @@ if (TEST) {
     location.replace(location.pathname + '?test');
   }, 2500);
   window.T = {
-    get INTRO() { return INTRO; }, DRV, dbGetRaw, fingerprint, findDuplicates, queueThumbFix, runThumbFix, RT, profileLink, importProfiles, readProfileLink, maybeRemindBackup, genderBanner, doBackup, renderBkLast, fpsMeter, openKid, S, G, FL, OV, cam, SH, ADD, Stream, Music, perf, camera, renderer, scene, frame, setMode, openLB, closeLB, lbNav, startShow, stopShow, setTheme, openAdd, addFiles, saveAdd, doImport, buildBackup, readBackup, ageText, exifDate, videoDate, readDate, selectKid, dbAll, dbGet,
+    get INTRO() { return INTRO; }, checkUpdate, doUpdateApp, UPD, DRV, dbGetRaw, fingerprint, findDuplicates, queueThumbFix, runThumbFix, RT, profileLink, importProfiles, readProfileLink, maybeRemindBackup, genderBanner, doBackup, renderBkLast, fpsMeter, openKid, S, G, FL, OV, cam, SH, ADD, Stream, Music, perf, camera, renderer, scene, frame, setMode, openLB, closeLB, lbNav, startShow, stopShow, setTheme, openAdd, addFiles, saveAdd, doImport, buildBackup, readBackup, ageText, exifDate, videoDate, readDate, selectKid, dbAll, dbGet,
     async setKid(id, patch) { const k = S.kids.find(x => x.id === id); Object.assign(k, patch); await dbPut('kids', k); await P.warm([k]); renderKidBtn(); TL.render(); return k; }, loadAll,
     dbPut, splitName, splitNames, fakePhoto, fakeVideo, D, TL, P, N, nhacFor, BG, trashMoments, restoreMoments, openTrash, removeKid, restoreKid, alignDates, nameDate, prompt2, enterFamily, kidsOf, setMomentKids, refreshKid, applyBg, loadBg, setBgImage, enterGalaxy, exitGalaxy, renderBgUi, openBook, diaryChanged, importFilesQuiet, exifSeg,
     // giả lập Gemini (không cần khoá thật): trả JSON mẫu, ghi lại yêu cầu để kiểm

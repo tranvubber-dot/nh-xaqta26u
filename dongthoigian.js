@@ -132,19 +132,20 @@ export function initTimeline(A) {
     return out.sort((x, y) => y.p - x.p)[0] || null;
   }
   const SES = { sang: ['Buổi sáng vui vẻ', 'Chào ngày mới', 'Sáng nay của {n}', 'Nắng sớm dịu dàng', 'Buổi sáng của {be}'], trua: ['Buổi trưa ấm áp', 'Trưa nay có gì vui', 'Giờ ăn trưa'], chieu: ['Buổi chiều dịu dàng', 'Chiều đi chơi', 'Chiều nắng đẹp', 'Một chiều vui'], toi: ['Buổi tối quây quần', 'Tối nay của {n}', 'Tối ấm áp'], dem: ['Đêm yên bình', 'Giấc ngủ ngon'] };
-  function autoTitle(e, kid) {
+  function autoTitle(e, kid, famCtx) {
     if (e.preg) return `${kid.name} trong bụng mẹ`;
     const R = rng(e.key), n = e.ms.length, hs = e.ms.map(m => new Date(m.ts).getHours()).sort((a, b) => a - b), h = hs[hs.length >> 1];
     const ses = h < 5 ? 'dem' : h < 11 ? 'sang' : h < 14 ? 'trua' : h < 18 ? 'chieu' : h < 22 ? 'toi' : 'dem';
     if (e.days.length > 1) return 'Những ngày vui';
     if (e.ms.every(m => m.type === 'video')) return n > 1 ? 'Những thước phim nhỏ' : 'Thước phim nhỏ';
     const pool = n >= 10 ? ['Một ngày thật vui', 'Ngày đầy ắp kỷ niệm', 'Ngày rộn ràng'] : SES[ses];
-    const fam = A.family() && (e.kids?.length || 0) > 1;
+    const fam = (famCtx ?? A.family()) && (e.kids?.length || 0) > 1;
     const t = pool[Math.floor(R() * pool.length)];
     return fam ? t.replace(' của {n}', ' cả nhà').replace(' của {be}', ' cả nhà') : t.replace('{n}', kid.name).replace('{be}', g3(kid, 'chàng trai nhỏ', 'công chúa nhỏ', 'bé yêu'));
   }
-  function compute() {
-    const kid = A.kid(), M = st.meta, ms0 = A.moments().slice().sort((a, b) => a.ts - b.ts);
+  // ctx = { kid, moments, meta }: tính sự kiện cho một bé bất kỳ (dùng xếp thư mục Drive), không đụng tới màn hình
+  function compute(ctx) {
+    const kid = ctx?.kid || A.kid(), M = ctx?.meta || st.meta, ms0 = (ctx?.moments || A.moments()).slice().sort((a, b) => a.ts - b.ts);
     const GR = A.groups?.() || [], inG = new Map(); for (const g of GR) for (const id of g.momentIds) inG.set(id, g);
     const ms = ms0.filter(m => !inG.has(m.id)); // ảnh đã vào nhóm thì không còn ở thẻ ngày lẻ
     const byDay = new Map(); for (const m of ms) { const d = A.ymd(m.ts); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(m); }
@@ -161,7 +162,7 @@ export function initTimeline(A) {
       evs = evs.filter(e => e === f || !parts.includes(e));
     }
     for (const g of GR) { const gm = ms0.filter(m => inG.get(m.id) === g); if (gm.length) evs.push({ key: 'g:' + g.id, day: A.ymd(gm[0].ts), days: [...new Set(gm.map(m => A.ymd(m.ts)))], ms: gm, group: g }); }
-    const fam = A.family(), KS = fam ? kidsAll() : [kid];
+    const fam = ctx ? false : A.family(), KS = fam ? kidsAll() : [kid];
     const b0 = kid?.birth ? A.dayStart(A.parseYmd(kid.birth)) : 0, dias = A.diaries();
     for (const e of evs) {
       e.kids = fam ? [...new Set(e.ms.flatMap(m => A.kidsOf(m)))].filter(id => kidById(id)) : [kid.id];
@@ -176,7 +177,7 @@ export function initTimeline(A) {
       else e.mile = e.preg ? null : milestone(kid, e.days);
       e.sibs = [];
       if (fam) for (const nb of KS) if (A.ymd(A.parseYmd(nb.birth)) === e.day) for (const o of KS) if (o !== nb && A.parseYmd(o.birth) < A.parseYmd(nb.birth)) e.sibs.push({ id: o.id, txt: `${o.name} ${g3(o, 'làm anh', 'làm chị', 'lên chức anh chị')}` });
-      e.auto = e.preg && fam ? `${present[0]?.name || ''} trong bụng mẹ` : autoTitle(e, fam ? present[0] || kid : kid);
+      e.auto = e.preg && fam ? `${present[0]?.name || ''} trong bụng mẹ` : autoTitle(e, fam ? present[0] || kid : kid, fam);
       e.title = e.group ? e.group.name : M.titles[e.key] || e.mile?.label || e.auto;
       e.note = e.group ? e.group.note || '' : M.notes[e.key] || '';
       const ids = new Set(e.ms.map(m => m.id));
@@ -188,6 +189,7 @@ export function initTimeline(A) {
       e.stack = cov ? [cov, ...pick.filter(m => m !== cov)].slice(0, 3) : pick;
     }
     evs.sort((a, b) => b.ts0 - a.ts0);
+    if (ctx) return evs;
     if (fam && st.filter) evs = evs.filter(e => e.kids.some(id => st.filter.has(id)));
     if (st.hidePreg) evs = evs.filter(e => !e.preg);
     if (st.range) evs = evs.filter(e => e.ts0 >= st.range[0] && e.ts0 <= st.range[1]);
@@ -784,6 +786,7 @@ export function initTimeline(A) {
       { icon: 'grid', label: GRID.hidden ? 'Xem dạng lưới' : 'Ẩn lưới', act: async () => { await ensure(); showGrid(GRID.hidden, true); } },
       { icon: 'check', label: 'Chọn nhiều ảnh', act: async () => { await ensure(); showGrid(true, true); startSel('ev'); } },
       { sep: 1 },
+      A.driveFolderOf?.(e) && { icon: 'image', label: 'Mở thư mục nhóm trên Drive', act: () => window.open('https://drive.google.com/drive/folders/' + A.driveFolderOf(e), '_blank') },
       { icon: 'split', label: 'Rã nhóm (giữ ảnh)', act: () => dissolveGroup(e.group) },
       { icon: 'trash', label: 'Xoá nhóm và ảnh…', danger: true, act: () => deleteGroupAll(e) }] }); return; }
     contextMenu({ el, at, title: esc(e.title), items: [
@@ -802,6 +805,7 @@ export function initTimeline(A) {
       older && { icon: 'merge', label: `Gộp với ngày trước (${A.dmy(older.ts0).slice(0, 5)})`, act: () => mergeWith(e, older) },
       newer && { icon: 'merge', label: `Gộp với ngày sau (${A.dmy(newer.ts0).slice(0, 5)})`, act: () => mergeWith(e, newer) },
       e.merged && { icon: 'split', label: 'Tách lại thành từng ngày', act: async () => { st.meta.merges = st.meta.merges.filter(g => !g.includes(e.key)); await saveMeta(); render(); } },
+      A.driveFolderOf?.(e) && { icon: 'image', label: 'Mở thư mục sự kiện trên Drive', act: () => window.open('https://drive.google.com/drive/folders/' + A.driveFolderOf(e), '_blank') },
       { icon: 'trash', label: 'Xoá sự kiện…', danger: true, act: () => deleteEvent(e) }
     ] });
   }
@@ -1188,7 +1192,7 @@ export function initTimeline(A) {
   return {
     async reload() { await loadMeta(); render(false); },
     render, refreshAll, scrollToKey, keyOfMid, openEvent, closeEvent, openViewer, closeViewer, openJump,
-    setTitle, refreshThumb, get events() { return st.events; }, get meta() { return st.meta; }, setMeta: async m => { st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, m); await saveMeta(); },
+    setTitle, refreshThumb, eventsForKid: (kid, moments, meta) => compute({ kid, moments, meta: Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, meta || {}) }), get events() { return st.events; }, get meta() { return st.meta; }, setMeta: async m => { st.meta = Object.assign({ titles: {}, notes: {}, merges: [], splits: {}, covers: {} }, m); await saveMeta(); },
     guard: (ms = 550) => { st.guard = performance.now() + ms; },
     startSel, endSel, eventMenu, get hidePreg() { return st.hidePreg; },
     async setHidePreg(v) { st.hidePreg = v; await A.metaSet('hidePreg:' + (A.family() ? 'fam' : A.kid().id), v); render(); },
