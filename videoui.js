@@ -1,6 +1,7 @@
 // Hành Trình Của Bạn — giao diện 🎬 VIDEO KỶ NIỆM: chọn mẫu, khung, độ dài, nhạc, ảnh → xem trước → dựng MP4 → lưu máy / Drive / dòng thời gian.
 import { icon, haptic, contextMenu } from './ui.js';
-import { TEMPLATES, LENGTHS, scoreThumb, pickMoments, storyboard, createEngine, createRenderer, makeAssets, exportMp4, recordFallback, sabanIntro } from './videokn.js';
+import { TEMPLATES, LENGTHS, scoreThumb, pickMoments, storyboard, createEngine, createRenderer, makeAssets, exportMp4, recordFallback } from './videokn.js';
+import { mapIntro } from './bando.js';
 import { renderMusic, userMusic, STYLES } from './videonhac.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -11,7 +12,7 @@ export function initVideoUI(A) {
     <h2>🎬 Video kỷ niệm</h2>
     <div class="vk-pv"><canvas class="vk-cv"></canvas><video class="vk-out" playsinline controls hidden></video><button class="vk-play" aria-label="Xem trước">${icon('play', 30, 2.2)}</button><div class="vk-busy" hidden><i></i><b>Đang chuẩn bị…</b></div></div>
     <label class="f">Tiêu đề<input id="vkTi" maxlength="60"></label>
-    <div class="vk-row"><b>Mẫu</b><div class="vk-ch" data-k="tpl">${Object.entries(TEMPLATES).map(([k, t]) => `<button type="button" data-v="${k}">${{ dienanh: '🎞️', nhanh: '⚡', hoainiem: '📷', saban: '🗺️' }[k]} ${t.t}</button>`).join('')}</div></div>
+    <div class="vk-row"><b>Mẫu</b><div class="vk-ch" data-k="tpl">${Object.entries(TEMPLATES).map(([k, t]) => `<button type="button" data-v="${k}">${{ dienanh: '🎞️', nhanh: '⚡', hoainiem: '📷', bando: '🗺️' }[k]} ${t.t}</button>`).join('')}</div></div>
     <div class="vk-row two"><div><b>Khung</b><div class="vk-ch" data-k="ratio"><button type="button" data-v="9:16">9:16 dọc</button><button type="button" data-v="16:9">16:9 ngang</button></div></div><div><b>Độ dài</b><div class="vk-ch" data-k="dur">${LENGTHS.map(l => `<button type="button" data-v="${l}">${l}s</button>`).join('')}</div></div></div>
     <div class="vk-row"><b>Nhạc</b><div class="vk-ch" data-k="music">${MUSICS.map(([k, t]) => `<button type="button" data-v="${k}">${t}</button>`).join('')}</div><input type="file" id="vkMf" accept="audio/*" hidden></div>
     <div class="vk-row"><b>Ảnh trong video <small class="vk-n"></small></b><div class="vk-ph"></div></div>
@@ -25,7 +26,7 @@ export function initVideoUI(A) {
   const ui = () => {
     M.classList.toggle('wide', V.ratio === '16:9');
     for (const g of M.querySelectorAll('.vk-ch')) g.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(V[g.dataset.k]) === b.dataset.v));
-    M.querySelector('[data-k=tpl] [data-v=saban]').disabled = !V.geo;
+    M.querySelector('[data-k=tpl] [data-v=bando]').disabled = !V.geo || !navigator.onLine;
     M.querySelector('.vk-n').textContent = `· ${V.picked.length} / ${V.ms.length} · chạm ảnh để đổi thứ tự hoặc bỏ`;
     M.querySelector('.vk-ph').innerHTML = V.picked.map((m, i) => `<button data-i="${i}" class="${m.type === 'video' ? 'v' : ''}"><img data-mid="${m.id}" alt=""><span>${i + 1}</span></button>`).join('') + (V.ms.length > V.picked.length ? `<button class="add" data-add="1">${icon('plus', 20, 2.4)}</button>` : '');
     M.querySelectorAll('.vk-ph img').forEach(im => A.thumbURL(im.dataset.mid).then(u => { if (u) im.src = u; }));
@@ -59,7 +60,7 @@ export function initVideoUI(A) {
     let mus = null, bpm = STYLES[style]?.bpm || 84, offset = .2;
     if (style === 'file' && V.userBlob) { busy(true, 'Đang dò nhịp bài nhạc của bạn…'); mus = await userMusic(V.userBlob, V.dur); bpm = mus.bpm; offset = mus.offset; }
     const items = V.picked.map(m => ({ id: m.id, kind: m.type === 'video' ? 'video' : 'image', ts: m.ts, heic: m.heic, dur: m.dur, place: m.place?.name?.split(',')[0] || '', approx: m.approx, approxTxt: m.approx ? A.approxLabel(m.approx, m.ts) : '', _s: m._s }));
-    const SB = storyboard({ items, tpl: V.tpl, dur: V.dur, bpm, offset, title: M.querySelector('#vkTi').value.trim() || V.o.title, sub: V.o.sub, ratio: V.ratio, intro: V.tpl === 'saban' && V.geo ? 7 : 0 });
+    const SB = storyboard({ items, tpl: V.tpl, dur: V.dur, bpm, offset, title: M.querySelector('#vkTi').value.trim() || V.o.title, sub: V.o.sub, ratio: V.ratio, intro: V.tpl === 'bando' && V.geo ? 7 : 0 });
     if (!mus) { busy(true, 'Đang soạn nhạc…'); mus = await renderMusic(style === 'file' ? T.music : style, SB.dur, { seed: 7, nostalgia: !!T.nostalgia }); }
     if (lo) { SB.W = V.ratio === '16:9' ? 1280 : 720; SB.H = V.ratio === '16:9' ? 720 : 1280; }
     const W = SB.W, H = SB.H;
@@ -68,7 +69,7 @@ export function initVideoUI(A) {
       V.eng = createEngine(CV, { W, H }); }
     const MB = await import('./lib/mediabunny.min.mjs');
     const assets = makeAssets({ getBlob: it => A.blob('o_' + it.id), getThumb: it => A.thumbBlob(it.id), avatars: await A.avatarImgs(V.o.people || []), MB });
-    if (V.tpl === 'saban' && V.geo) { try { busy(true, 'Đang dựng sa bàn cho đoạn mở đầu…'); const area = await A.areaFor(V.geo); if (area) assets.saban = await sabanIntro({ area, route: V.route, W, H, chibiImg: (await A.avatarImgs([A.me()].filter(Boolean)))[0] }); } catch (e) { console.warn('sa bàn', e); } }
+    if (V.tpl === 'bando' && V.geo) { try { busy(true, 'Đang tải bản đồ cho đoạn mở đầu…'); V.mapF?.dispose?.(); V.mapF = assets.saban = await mapIntro({ route: V.route.length ? V.route : [V.geo], W, H, theme: A.theme?.() || 'dawn' }); } catch (e) { console.warn('bản đồ', e); } }
     V.SB = SB; V.mus = mus; V.R?.dispose?.(); V.R = createRenderer(V.eng, SB, assets); V.dirty = false; busy(false);
     await V.R.prepare(0, live); await V.R.drawAt(.6, 18);
   }

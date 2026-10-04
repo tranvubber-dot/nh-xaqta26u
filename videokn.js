@@ -74,7 +74,7 @@ export const TEMPLATES = {
   dienanh: { t: 'Điện ảnh', music: 'dienanh', beats: 4, tLen: .7, kb: [1, 1.08], mode: 0, grade: { sat: 1.04, warm: .12, lift: .02, grain: .025, vig: .3 }, transSeq: ['fade', 'fade', 'fade', 'zoom', 'fade', 'fade', 'warp', 'fade', 'crosszoom'] },
   nhanh: { t: 'Nhịp nhanh', music: 'vui', arc: [4, 2, 2, 1], tLen: 0, kb: [1.02, 1.1], mode: 0, punch: true, grade: { sat: 1.12, warm: .05, lift: 0, grain: .012, vig: .18 }, transSeq: ['cut'] },
   hoainiem: { t: 'Hoài niệm', music: 'hopnhac', nostalgia: true, beats: 4, tLen: 1.2, kb: [1, 1.05], mode: 2, grade: { sat: .76, warm: .32, lift: .06, grain: .065, vig: .45 }, leak: true, transSeq: ['dreamy', 'fade'] },
-  saban: { t: 'Sa bàn', music: 'dienanh', beats: 4, tLen: .7, kb: [1, 1.08], mode: 0, intro: 'saban', grade: { sat: 1.04, warm: .1, lift: .02, grain: .02, vig: .28 }, transSeq: ['fade', 'fade', 'zoom', 'fade'] }
+  bando: { t: 'Bản đồ hành trình', music: 'dienanh', beats: 4, tLen: .7, kb: [1, 1.08], mode: 0, intro: 'map', grade: { sat: 1.04, warm: .1, lift: .02, grain: .02, vig: .28 }, transSeq: ['fade', 'fade', 'zoom', 'fade'] }
 };
 export const LENGTHS = [30, 60, 90];
 
@@ -306,31 +306,5 @@ export async function recordFallback({ canvas, renderer, SB, audio, onProg, sign
   await new Promise(res => { const f = async () => { const t = ac.currentTime - st; if (t >= SB.dur || signal?.aborted) { res(); return; } await renderer.prepare(t, true); await renderer.drawAt(Math.max(0, t), Math.round(t * 30)); onProg?.({ p: t / SB.dur }); requestAnimationFrame(f); }; requestAnimationFrame(f); });
   rec.stop(); await new Promise(r => rec.onstop = r); ac.close(); const type = (rec.mimeType || 'video/mp4').split(';')[0];
   return { file: new File(chunks, 'video-ky-niem.' + (type.includes('webm') ? 'webm' : 'mp4'), { type }) };
-}
-// ---------- mở đầu "Sa bàn": máy quay bay theo lộ trình trên sa bàn 3D chibi, rồi vào ảnh ----------
-export async function sabanIntro({ area, route, W, H, chibiImg }) {
-  const THREE = await import('./lib/three.module.min.js'), SBM = await import('./saban.js');
-  const cv = document.createElement('canvas'), R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true }); R.setPixelRatio(1); R.setSize(W, H, false); R.outputColorSpace = THREE.SRGBColorSpace;
-  const scene = new THREE.Scene(); scene.background = new THREE.Color('#bfe6ff'); scene.fog = new THREE.Fog('#bfe6ff', 240, 600);
-  scene.add(new THREE.HemisphereLight('#e3f3ff', '#f6d8ae', .9)); const d = new THREE.DirectionalLight('#fff1dc', 1.6); d.position.set(40, 90, 30); scene.add(d); scene.add(new THREE.AmbientLight('#ffffff', .35));
-  const sea = new THREE.Mesh(new THREE.CircleGeometry(600, 48), new THREE.MeshBasicMaterial({ color: '#a8dcff' })); sea.rotation.x = -Math.PI / 2; sea.position.y = -9.2; scene.add(sea);
-  const isl = await SBM.buildIsland(area); scene.add(isl);
-  const [la0, lo0] = area.c, toXZ = (lat, lon) => new THREE.Vector3((lon - lo0) * 111320 * Math.cos(la0 * Math.PI / 180) / 10, 0, -(lat - la0) * 110540 / 10);
-  let pts = route.map(r => toXZ(r.lat, r.lon)).filter(p => Math.hypot(p.x, p.z) < 50);
-  if (!pts.length) pts = [new THREE.Vector3()];
-  if (pts.length === 1) { const c = pts[0]; pts = [0, 1, 2, 3].map(k => c.clone().add(new THREE.Vector3(Math.cos(k * 1.6) * 14, 0, Math.sin(k * 1.6) * 14))); }
-  for (let it = 0; it < 3 && pts.length > 2; it++) { const n = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { n.push(pts[i].clone().lerp(pts[i + 1], .25), pts[i].clone().lerp(pts[i + 1], .75)); } n.push(pts[pts.length - 1]); pts = n; } // Chaikin 3 lượt
-  const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal'), cam = new THREE.PerspectiveCamera(42, W / H, .5, 1400);
-  const mkSprite = (img, s) => { const t = new THREE.Texture(img); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthWrite: false })); sp.scale.set(s, s * img.height / img.width, 1); return sp; };
-  const pinC = document.createElement('canvas'); pinC.width = pinC.height = 128; { const x = pinC.getContext('2d'); x.fillStyle = '#ff5f9e'; x.beginPath(); x.arc(64, 50, 40, Math.PI, 0); x.lineTo(64, 124); x.closePath(); x.fill(); x.fillStyle = '#fff'; x.beginPath(); x.arc(64, 50, 16, 0, 7); x.fill(); }
-  const pins = route.slice(0, 8).map(r => { const s = mkSprite(pinC, 3.2); s.position.copy(toXZ(r.lat, r.lon)); s.position.y = 1.8; scene.add(s); return s; });
-  const me = chibiImg ? mkSprite(chibiImg, 2.6) : null; if (me) scene.add(me);
-  return async (lt, len) => {
-    const p = cl(lt / Math.max(.1, len - .3)), u = ease.sine(p), q = curve.getPointAt(Math.min(1, u)), ahead = curve.getPointAt(Math.min(1, u + .08));
-    const back = q.clone().sub(ahead).setY(0).normalize(), dist = 46 - 14 * ease.sine(p); cam.position.copy(q).addScaledVector(back, dist * .5).add(new THREE.Vector3(0, dist * 1.05, 0)); cam.lookAt(q.clone().lerp(ahead, .5));
-    pins.forEach((pp, i) => { const k = spring(lt * 1.2 - i * .25); pp.scale.set(3.2 * k, 3.2 * k * 1, 1); });
-    if (me) { me.position.copy(q); me.position.y = 1.6 + Math.abs(Math.sin(lt * 9)) * .35; }
-    if (isl.userData.water) isl.userData.water.uniforms.uT.value = lt; R.render(scene, cam); return cv;
-  };
 }
 export { renderMusic, userMusic, spring, ease };

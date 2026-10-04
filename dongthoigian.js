@@ -234,6 +234,7 @@ export function initTimeline(A) {
       if (!M.titles[e.key]) e.title = e.mile.label; if (!e.typeSet) e.type = 'mile'; } }
     if (ctx) return evs;
     if (fam && st.filter) evs = evs.filter(e => e.kids.some(id => st.filter.has(id)));
+    { const hid = A.hidden?.(); if (fam && hid?.size) evs = evs.filter(e => e.kids.some(id => !hid.has(id))); }
     if (st.hidePreg) evs = evs.filter(e => !e.preg);
     if (st.range) evs = evs.filter(e => e.ts0 >= st.range[0] && e.ts0 <= st.range[1]);
     st.events = evs; st.byKey = new Map(evs.map(e => [e.key, e]));
@@ -279,8 +280,9 @@ export function initTimeline(A) {
     TL.classList.toggle('fam', fam); TL.classList.toggle('life', life); document.body.classList.toggle('tlfam', fam); TL.style.setProperty('--nl', fam ? KS.length : 1);
     const lifeSub = me ? [A.ageText(me, Date.now(), false), chs.length ? `${chs.length} chương` : '', `${n} khoảnh khắc`].filter(Boolean).join(' · ') : '';
     const others = KS.filter(k => !life || !isMe(k)), lead = life ? me : KS[0];
+    const memL = life ? KS.filter(k => !A.hidden?.().has(k.id)) : others;
     const out = fam ? [`<header class="lt lt2"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ" style="--c:${lead.color || '#ff8fbf'}"><img src="${A.avatar(lead)}" alt=""></button><div class="lt-mid"><h1 class="lt-t">${life ? 'Hành trình của ' + esc(me.name) : 'Cả nhà'}</h1><p>${life ? esc(lifeSub) : `${KS.length} bé · ${n} khoảnh khắc · ${evs.length} ngày đáng nhớ`}</p></div></div>
-        <button class="lt-mem" data-a="kid" aria-label="Thành viên">${others.slice(0, 3).map(k => `<img src="${A.avatar(k)}" style="--c:${k.color}" alt="">`).join('')}${others.length > 3 ? `<b>+${others.length - 3}</b>` : ''}<span>${others.length ? (life ? `${others.length} người thân` : 'Thành viên') : 'Thêm người thân'}</span>${icon('chevronDown', 16, 2.4)}</button>
+        <button class="lt-mem" data-a="kid" aria-label="Thành viên">${memL.slice(0, 3).map(k => `<img src="${A.avatar(k)}" style="--c:${k.color}" alt="">`).join('')}${memL.length > 3 ? `<b>+${memL.length - 3}</b>` : ''}<span>${life ? (KS.length > 1 ? `${KS.length - (A.hidden?.().size || 0)}/${KS.length} người` : 'Thêm người thân') : others.length ? 'Thành viên' : 'Thêm người thân'}</span>${icon('chevronDown', 16, 2.4)}</button>
         ${KS.length > 1 && st.showFilter ? `<div class="kflt">${KS.map(k => `<button data-kf="${k.id}" class="${!st.filter || st.filter.has(k.id) ? 'on' : ''}" style="--c:${k.color}"><img src="${A.avatar(k)}" alt=""><span>${esc(isMe(k) ? 'Bạn' : k.name)}</span></button>`).join('')}</div>` : ''}</header>`, '<div class="lanes"></div>']
       : [`<header class="lt"><div class="lt-row"><button class="lt-av" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button><button class="lt-name" data-a="kid"><h1>${esc(kid.name)}</h1>${icon('chevronDown', 20, 2.2)}</button></div><p>${esc([isMe(kid) ? 'Ảnh có bạn' : !isChild(kid) ? roleName(kid) : '', A.ageText(kid, Date.now(), false)].filter(Boolean).join(' · ') || '')}${n ? ` · ${n} khoảnh khắc` : ''}</p></header>`,
         evs.length ? `<button class="rstart" data-a="prof" aria-label="Hồ sơ của ${esc(kid.name)}" style="--c:${kid.color || '#ff8fbf'}"><img src="${A.avatar(kid)}" alt=""></button>` : ''];
@@ -342,7 +344,7 @@ export function initTimeline(A) {
     if (!evEls.length) { box.innerHTML = ''; return; }
     const y0 = IN.querySelector('.yr, .chap'), top = (y0 ? aT(y0) : aT(evEls[0]) - 70) + 6, html = [], ev = el => st.byKey.get(el.dataset.key);
     KS.forEach((k, i) => {
-      if (st.filter && !st.filter.has(k.id)) return;
+      if (st.filter && !st.filter.has(k.id)) return; if (A.hidden?.().has(k.id)) return;
       const x = LANE_X(i) - 1.5, mine = evEls.filter(el => ev(el)?.kids.includes(k.id)), anc = A.life?.() ? sinceOf(k, me) : (isChild(k) ? k.birth : anchorOf(k, me));
       const ancT = anc ? A.dayStart(A.parseYmd(anc)) : null;
       if (isMe(k) && A.life?.()) { // dải chính của bạn: suốt hành trình, tới ngày bạn chào đời
@@ -357,7 +359,7 @@ export function initTimeline(A) {
         if (pre.length) { const pb = aT(pre[pre.length - 1]) + 60; if (pb > bot) html.push(`<div class="lane preg" style="left:${x}px;top:${bot}px;height:${pb - bot}px;--c:${k.color}"></div>`); }
         if (!endEl && !pre.length) return;
       }
-      html.push(`<i class="lh" style="left:${LANE_X(i) - 6}px;top:${top - 14}px;--c:${k.color}" title="${esc(k.name)}"></i>`);
+      html.push(`<i class="lh" style="left:${LANE_X(i) - 3.5}px;top:${top - 10 - (i % 2) * 9}px;--c:${k.color}" title="${esc(k.name)}"></i>`);
     });
     box.innerHTML = html.join('');
   }
@@ -890,7 +892,7 @@ export function initTimeline(A) {
       { icon: 'edit', label: 'Sửa nhóm: tên, ghi chú, chọn ngày / ảnh', act: () => openGroupPicker({ group: e.group }) },
       { icon: 'star', label: 'Đổi ảnh bìa', act: async () => { await ensure(); startCoverPick(); } },
       { icon: 'tag', label: `Loại kỷ niệm: ${typeOf(e.type).ic} ${typeOf(e.type).t}`, act: () => typeMenu(e, el) },
-      A.openMap && { icon: 'map', label: e.geo ? `Nơi chốn: ${esc(e.geo.name || 'có toạ độ GPS')}` : 'Đặt nơi chốn trên sa bàn', act: () => placeEvent(e) },
+      A.openMap && { icon: 'map', label: e.geo ? `Nơi chốn: ${esc(e.geo.name || 'có toạ độ GPS')}` : 'Đặt nơi chốn trên bản đồ', act: () => placeEvent(e) },
       { icon: 'plus', label: 'Thêm ảnh từ máy vào nhóm', act: () => { st.cur = st.cur || e; st.addTo = e; $('#evFiles').click(); } },
       { icon: 'grid', label: GRID.hidden ? 'Xem dạng lưới' : 'Ẩn lưới', act: async () => { await ensure(); showGrid(GRID.hidden, true); } },
       { icon: 'check', label: 'Chọn nhiều ảnh', act: async () => { await ensure(); showGrid(true, true); startSel('ev'); } },
@@ -911,7 +913,7 @@ export function initTimeline(A) {
       { sep: 1 },
       { icon: 'star', label: 'Đổi ảnh bìa', act: async () => { await ensure(); startCoverPick(); } },
       { icon: 'calendar', label: 'Đổi ngày cả sự kiện', act: () => changeEventDate(e) },
-      A.openMap && { icon: 'map', label: e.geo ? `Nơi chốn: ${esc(e.geo.name || 'có toạ độ GPS')} · xem trên sa bàn` : 'Đặt nơi chốn trên sa bàn', act: () => placeEvent(e) },
+      A.openMap && { icon: 'map', label: e.geo ? `Nơi chốn: ${esc(e.geo.name || 'có toạ độ GPS')} · xem trên bản đồ` : 'Đặt nơi chốn trên bản đồ', act: () => placeEvent(e) },
       { icon: 'clock', label: e.approx ? `Ngày ước chừng: ${approxLabel(e.approx, e.ts0, true)}` : 'Không nhớ rõ ngày? Đặt ngày ước chừng', act: () => approxMoments(e.ms, e) },
       { icon: 'tag', label: `Loại kỷ niệm: ${typeOf(e.type).ic} ${typeOf(e.type).t}`, act: () => typeMenu(e, el) },
       { icon: 'flag', label: e.lifeMile ? `Cột mốc: ${mileOf(e.lifeMile)?.ic || ''} ${mileOf(e.lifeMile)?.t || ''}` : 'Đánh dấu cột mốc đời người…', act: () => mileMenu(e, el) },
@@ -931,7 +933,7 @@ export function initTimeline(A) {
       { icon: 'play', label: 'Nghe lời kể', act: async () => { VA?.pause(); A.duck?.(true); VA = await A.voice.play(vm, { onEnd: () => A.duck?.(false) }); } },
       { icon: 'mic', label: 'Ghi lại / xoá lời kể', act: () => A.voice.open(vm, { title: e.title, key: e.key }) }] });
   }
-  // nơi chốn: mở sa bàn ở toạ độ GPS (nếu có) để xác nhận / cắm ghim
+  // nơi chốn: mở bản đồ ở toạ độ GPS (nếu có) để xác nhận / cắm ghim
   function placeEvent(e) {
     const g = e.geo; A.openMap({ at: g ? { lat: g.lat, lon: g.lon, name: g.name || e.title } : null, focus: g, pick: async pl => { await A.setPlace(e.ms, pl); refreshAll(e.key); A.toast(`Đã đặt “${e.title}” ở ${pl.name || 'nơi này'} 📍`, 2200); } });
   }

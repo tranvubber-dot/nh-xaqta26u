@@ -75,9 +75,9 @@ export function initOnboarding(A) {
     const go = skip => { const v = skip ? '' : J.value.trim(); D.job = v || null; D.chibi = { ...D.chibi, acc: accForJob(v) }; next('Bạn đang làm gì?', v || '(để sau)', sPlace); };
     c.querySelector('.ob-go').onclick = () => go(false); c.querySelector('.ob-skip').onclick = () => go(true); J.onkeydown = e => { if (e.key === 'Enter') go(false); };
   }
-  // 4. nơi sống (sa bàn 3D đến ở bản sau — giờ gõ tên khu vực)
+  // 4. nơi sống (gõ tên khu vực; app tự cắm “Nhà mình” trên bản đồ)
   function sPlace() {
-    const c = card(`<h2>Bạn sống ở đâu? 🏡</h2><p>Tên khu vực là đủ — sau này bạn cắm “Nhà mình” trên bản đồ sa bàn.</p>
+    const c = card(`<h2>Bạn sống ở đâu? 🏡</h2><p>Tên khu vực là đủ — sau này bạn cắm “Nhà mình” trên bản đồ.</p>
       <input class="ob-in" id="obP" maxlength="80" placeholder="Ví dụ: Cầu Giấy, Hà Nội">
       <div class="ob-row"><button class="ob-skip">Bỏ qua</button><button class="primary ob-go">Tiếp ${icon('chevronRight', 16, 2.4)}</button></div>`, '#obP');
     const P = c.querySelector('#obP');

@@ -1672,7 +1672,8 @@ const TRSEL = new Set();
 function trBtns() { const n = TRSEL.size; $('#trRestore').textContent = n ? `Khôi phục ${n} mục` : 'Khôi phục tất cả'; $('#trPurge').textContent = n ? `Xoá vĩnh viễn ${n} mục` : 'Dọn sạch thùng rác'; $('#trRestore').disabled = $('#trPurge').disabled = !S.trash.length && !n; }
 function refreshKid() {
   S.chapters = LIFE() ? chaptersOf(ME(), S.kids, S.chCfg) : [];
-  const id = S.kid?.id; S.moments = LIFE() ? (S.all || []).filter(m => kidsOf(m).some(x => S.kids.some(k => k.id === x))) : (S.all || []).filter(m => kidsOf(m).includes(id));
+  const vis = id => S.kids.some(k => k.id === id) && !(LIFE() && S.hidden?.has(id));
+  const id = S.kid?.id; S.moments = LIFE() ? (S.all || []).filter(m => kidsOf(m).some(vis)) : (S.all || []).filter(m => kidsOf(m).includes(id));
   S.diaries = (S.allDiaries || []).filter(d => d.kidId === id || (d.kids || []).includes(id));
 }
 const dispKid = k => k ? { ...k, name: cap(k.name) } : null;
@@ -2453,7 +2454,7 @@ async function doImport(f) {
 
 // ---------- Phong cách ----------
 function setTheme(t, anim = true) {
-  S.theme = t; document.body.dataset.theme = t; document.documentElement.classList.toggle('dawn', t === 'dawn'); S.mixT = t === 'dawn' ? 1 : 0; if (!anim) { S.mix = S.mixT; applyThemeMats(); }
+  S.theme = t; document.body.dataset.theme = t; try { MAP?.setTheme(t); } catch (e) { } document.documentElement.classList.toggle('dawn', t === 'dawn'); S.mixT = t === 'dawn' ? 1 : 0; if (!anim) { S.mix = S.mixT; applyThemeMats(); }
   $('#themeIco').textContent = t === 'dawn' ? '🌌' : '🌅'; const tb = $('#tbTheme'); if (tb) { tb.innerHTML = icon(t === 'dawn' ? 'moon' : 'sun', 22, 1.9); tb.title = t === 'dawn' ? 'Đổi sang Đêm ngân hà' : 'Đổi sang Bình minh'; } $('#bTheme').title = t === 'dawn' ? 'Đổi sang Đêm ngân hà' : 'Đổi sang Bình minh';
   document.querySelector('meta[name="theme-color"]').content = t === 'dawn' ? '#fde4d6' : '#0b0a24';
   refreshLabels(); metaSet('theme', t);
@@ -2646,7 +2647,7 @@ $('#verTxt').addEventListener('click', () => { const t = performance.now(); FPSM
 function loop(now) {
   requestAnimationFrame(loop);
   if (FPSM.on) fpsTick(now);
-  if (MAPOPEN) { last = now; return; } // sa bàn đang mở: nghỉ vẽ ngân hà
+  if (MAPOPEN) { last = now; return; } // bản đồ đang mở: nghỉ vẽ ngân hà
   const raw = (now - last) / 1000; last = now; const dt = Math.min(.05, Math.max(0, raw));
   const f0 = performance.now(); frame(dt); perf.frames++; perf.ms = perf.ms * .95 + (performance.now() - f0) * .05;
   // tự hạ độ phân giải nếu máy yếu (giữ mượt)
@@ -2681,7 +2682,7 @@ DRV = initDrive({ clientId: GOOGLE_CLIENT_ID || (TEST && Q.has('mock') ? 'mock-c
     PLACES.v = DATAVER; PLACES.map = map; return map;
   },
   onRemoteApplied: async () => {
-    S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0)); S.groups = (await metaGet('groups')) || []; S.chCfg = (await metaGet('chapters')) || {};
+    S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0)); S.groups = (await metaGet('groups')) || []; S.chCfg = (await metaGet('chapters')) || {}; await loadHidden();
     if (!S.kids.length) return; await P.warm(S.kids);
     if ($('#mKid').classList.contains('open') && !kidEditing) { $('#mKid').classList.remove('open'); document.body.classList.remove('intro'); leaveIntro(true); }
     if (!S.kid || !S.kids.some(k => k.id === S.kid.id)) await selectKid(S.kids[0].id, false); else { await loadAll(); await TL.reload(); buildGalaxy(); buildScrub(); renderKidBtn(); updateNow(); }
@@ -2719,7 +2720,29 @@ function avatarMenu(k, at) {
     { icon: 'smile', label: 'Nhân vật chibi <small class="cm-n">tóc, áo, phụ kiện</small>', act: () => P.openChibi(k, async kk => { await dbPut('kids', kk); await P.warm([kk]); renderKidBtn(); TL.render(); buildGalaxy(); toast('Đã đổi nhân vật', 1500); }) },
     { icon: 'image', label: 'Ảnh thật <small class="cm-n">chọn từ máy hoặc ảnh trong app</small>', act: () => P.openAvatar({ ...k, chibi: null, role: null }, async kk => { const raw = S.kids.find(x => x.id === k.id); Object.assign(raw, { avatar: kk.avatar, avStyle: kk.avStyle }); await dbPut('kids', raw); await P.warm([raw]); renderKidBtn(); TL.render(); buildGalaxy(); toast('Đã đổi ảnh đại diện', 1500); }) }] });
 }
+// ---------- sheet THÀNH VIÊN (hành trình của bạn): mỗi người một công tắc bật/tắt hiện trên dòng thời gian ----------
+S.hidden = new Set();
+async function loadHidden() { S.hidden = new Set((await metaGet('sy:hidden')) || []); }
+function memberSheet() {
+  let M = $('#mMem');
+  if (!M) { document.body.insertAdjacentHTML('beforeend', `<div class="modal" id="mMem"><div class="card glass" style="width:min(460px,100%)"><h2>Thành viên</h2><p class="lead">Bật / tắt để hiện từng người trên dòng thời gian. Ảnh chụp chung vẫn hiện khi còn người khác đang bật.</p><div class="mm-l"></div>
+    <div class="mm-a"><button data-m="add">${icon('plus', 17, 2.2)}<span>Thêm người thân</span></button><button data-m="av">${icon('smile', 17, 2)}<span>Đổi ảnh đại diện của bạn</span></button><button data-m="edit">${icon('edit', 17, 2)}<span>Sửa hồ sơ của bạn</span></button></div></div></div>`);
+    M = $('#mMem'); initSheets(m => closeModal(m));
+    M.addEventListener('change', async e => { const c = e.target.closest('.cong-tac'); if (!c) return; const id = c.dataset.id, on = c.checked;
+      const vis = S.kids.filter(k => !S.hidden.has(k.id) && k.id !== id); if (!on && !vis.length) { c.checked = true; toast('Cần còn ít nhất 1 người được hiện', 1600); return; }
+      if (on) S.hidden.delete(id); else S.hidden.add(id); haptic(8); await metaSet('sy:hidden', [...S.hidden]); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); renderMem(); });
+    M.addEventListener('click', e => { const r = e.target.closest('.mm-r'); if (r && !e.target.closest('.cong-tac, label.sw')) { closeModal(M); P.openProfile(dispKid(S.kids.find(k => k.id === r.dataset.id))); return; }
+      const b = e.target.closest('[data-m]'); if (!b) return; const me = ME(); closeModal(M);
+      if (b.dataset.m === 'add') openKid(null); else if (b.dataset.m === 'av') setTimeout(() => avatarMenu(me, b), 250); else if (b.dataset.m === 'edit') openKid(me); });
+  }
+  renderMem(); openModal(M);
+}
+function renderMem() {
+  const M = $('#mMem'); if (!M) return; const ps = sortPeople(S.kids);
+  M.querySelector('.mm-l').innerHTML = ps.map((k, i) => `<div class="mm-r" data-id="${k.id}" style="--d:${Math.min(i, 8) * 35}ms"><img src="${P.avatarNow(k)}" alt="" style="--c:${k.color || '#ff8fbf'}"><span class="mm-t"><b>${esc(isMe(k) ? cap(k.name) + ' (bạn)' : cap(k.name))}</b><small>${esc([isMe(k) ? 'Bạn' : roleName(k), ageText(k, Date.now(), false)].filter(Boolean).join(' · '))}</small></span><label class="sw"><input type="checkbox" class="cong-tac" data-id="${k.id}"${S.hidden.has(k.id) ? '' : ' checked'} aria-label="Hiện ${esc(cap(k.name))}"></label></div>`).join('');
+}
 function openKidMenu(a) {
+  if (ME() && LIFE()) { memberSheet(); return; }
   const me = ME(), ps = sortPeople(S.kids), go = k => { if (k.id !== S.kid?.id || S.family) { leaveIntro(true); metaSet('family', false); selectKid(k.id, true); } };
   const note = k => isMe(k) ? 'chỉ ảnh có bạn' : [roleName(k), k.birth ? dmy(parseYmd(k.birth)) : ''].filter(Boolean).join(' · ');
   contextMenu({ at: a, title: me ? 'Xem hành trình của' : 'Chọn bé', items: [
@@ -2731,7 +2754,7 @@ function openKidMenu(a) {
     S.kid && { icon: 'edit', label: LIFE() || isMe(S.kid) ? 'Sửa hồ sơ của bạn' : `Sửa thông tin ${esc(KN())}`, act: () => openKid(S.kid) },
     { icon: 'plus', label: me ? 'Thêm người thân' : 'Thêm bé', act: () => openKid(null) },
     me && { icon: 'smile', label: 'Đổi ảnh đại diện của bạn', act: () => avatarMenu(me, a) },
-    S.family && S.kids.length > 1 && { icon: 'check', label: TL.filterOn ? 'Tắt lọc theo người' : 'Lọc dòng thời gian theo người', act: () => TL.toggleFilter() },
+
     !me && { icon: 'sparkle', label: 'Tạo hồ sơ của tôi <small class="cm-n">hành trình cả đời</small>', act: () => openKid(null, { role: 'me' }) }] });
 }
 // chọn bé cho một hoặc nhiều ảnh
@@ -2775,7 +2798,7 @@ function kidMenu(el) {
 function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(() => $('#bgList')?.closest('.sec')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 380); }
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
-const TL = initTimeline({ life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
+const TL = initTimeline({ hidden: () => LIFE() ? S.hidden : new Set(), life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
   allCount: () => (S.all || []).length, makeVideo: o => makeVideo(o), voice: { open: (m, o) => VOICE.open(m, o), play: (m, o) => VOICE.play(m, o), ok: () => VOICE.supported() }, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
@@ -2805,7 +2828,7 @@ const VID = initVideoUI({ MOBILE, toast, openModal, closeModal, dmy, ymd, noAcce
   blob: k => dbGet('blobs', k), thumbBlob: id => dbGet('blobs', 't_' + id), thumbURL: async id => { const b = await dbGet('blobs', 't_' + id); return b ? URL.createObjectURL(b) : ''; },
   me: () => ME(), confetti: () => P.confetti('#ffd27f'),
   avatarImgs: async ps => { const out = []; for (const k0 of ps.slice(0, 6)) { const k = S.kids.find(x => x.id === k0.id) || k0, im = new Image(); im.src = k.avatar ? await P.avatarURL(k) : (k.role || k.chibi) ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(chibiSVG(k, { w: 240 })) : P.avatarNow(k); try { await im.decode(); out.push(im); } catch (e) { } } return out; },
-  areaFor: async g => { const SBM = await import('./saban.js'), ar = SBM.areaOf(g.lat, g.lon); let a = await SBM.unpackArea(await dbGetRaw('blobs', 'osm:' + ar.key)); if (!a && navigator.onLine) { a = SBM.compactArea(await SBM.fetchOverpass(ar.lat, ar.lon), ar.lat, ar.lon); await dbPutRaw('blobs', await SBM.packArea(a), 'osm:' + ar.key); } return a; },
+  theme: () => S.theme,
   addToTimeline: async (file, o, ms) => { const id = uid(), th = await videoThumb(file); await dbPut('blobs', file, 'o_' + id); await dbPut('blobs', th.blob, 't_' + id); const last = ms.reduce((a, b) => b.ts > a.ts ? b : a, ms[0]), kids = [...new Set(ms.flatMap(kidsOf))];
     const m = { id, kn: 1, tv: 2, kidId: kids[0] || S.kid?.id, kidIds: kids.length ? kids : [S.kid?.id], ts: last.ts + 60e3, title: '🎬 ' + (o.title || 'Video kỷ niệm'), note: '', type: 'video', mime: file.type, name: file.name, size: file.size, dur: th.dur || 0, w: th.w, h: th.h, color: th.color, dateSrc: 'user', created: Date.now() };
     if (o.group) { o.group.momentIds.push(id); await metaSet('groups', S.groups); } await dbPut('moments', m); await afterDataChange(); } });
@@ -2829,19 +2852,19 @@ function yearReview(at) {
     { icon: 'play', label: 'Xem tổng kết (kể chuyện)', act: () => { const { ms, evs: E } = yearPicks(y); const n = E.reduce((t, e) => t + e.ms.length, 0), trips = E.filter(e => e.type === 'trip').length, miles = E.filter(e => e.mile).length; startStory({ ids: ms.map(m => m.id), title: `Năm ${y} của ${LIFE() ? 'bạn' : KN()}`, sub: [`${n} khoảnh khắc`, `${E.length} ngày đáng nhớ`, trips ? `${trips} chuyến đi` : '', miles ? `${miles} cột mốc` : ''].filter(Boolean).join(' · '), people: LIFE() ? sortPeople(S.kids).slice(0, 8) : [S.kid] }); } },
     { icon: 'book', label: 'Lưu thành truyện tranh', act: () => { const { ms } = yearPicks(y, 24); if (ms.length) makeDiary(ms); } }] }) }; }) });
 }
-// ---------- v1.7.0: Bản đồ đời tôi (sa bàn 3D chibi) ----------
+// ---------- v1.7.0: Bản đồ đời tôi (bản đồ đường phố 3D thực tế, MapLibre + OpenFreeMap) ----------
 var MAPOPEN = false;
-const MAP = initMap({ dbGet: dbGetRaw, dbPut: dbPutRaw, metaGet, metaSet, prompt: prompt2, toast, get drive() { return DRV; }, me: () => ME() ? dispKid(ME()) : null,
+const MAP = initMap({ theme: () => S.theme, chapters: () => S.chapters || [], thumbURL: async id => { const b = await dbGet('blobs', 't_' + id); return b ? URL.createObjectURL(b) : ''; }, dbGet: dbGetRaw, dbPut: dbPutRaw, metaGet, metaSet, prompt: prompt2, toast, get drive() { return DRV; }, me: () => ME() ? dispKid(ME()) : null,
   chibi: k => chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }), events: () => TL.events, spanTxt: ms => TL.spanTxt(ms),
   openEvent: key => { if (document.body.classList.contains('galaxy')) exitGalaxy(); TL.openEvent(key); },
   setEventPlace: async (e, pl) => setPlace(e.ms, pl),
   onOpen: () => { MAPOPEN = true; }, onClose: () => { MAPOPEN = false; } });
 async function setPlace(ms, pl) { for (const m of ms) { if (pl) m.place = { lat: pl.lat, lon: pl.lon, name: pl.name || '' }; else delete m.place; await dbPut('moments', m); } await afterDataChange(); }
-// Nhà mình từ màn làm quen: tìm toạ độ khu vực đã gõ, cắm ghim (chỉnh lại được trên sa bàn)
+// Nhà mình từ màn làm quen: tìm toạ độ khu vực đã gõ, cắm ghim (chỉnh lại được trên bản đồ)
 async function homeFromName(name) {
-  try { const r = (await searchPlace(name))[0]; if (!r) return; const ps = (await metaGet('sy:places')) || []; if (ps.some(p => p.kind === 'home')) return; ps.push({ id: Date.now().toString(36), kind: 'home', name: 'Nhà mình', area: name, lat: r.lat, lon: r.lon }); await metaSet('sy:places', ps); toast(`Đã cắm 🏡 Nhà mình ở ${r.name} trên sa bàn — mở “Bản đồ đời tôi” để chỉnh cho đúng`, 4200); } catch (e) { }
+  try { const r = (await searchPlace(name))[0]; if (!r) return; const ps = (await metaGet('sy:places')) || []; if (ps.some(p => p.kind === 'home')) return; ps.push({ id: Date.now().toString(36), kind: 'home', name: 'Nhà mình', area: name, lat: r.lat, lon: r.lon }); await metaSet('sy:places', ps); toast(`Đã cắm 🏡 Nhà mình ở ${r.name} trên bản đồ — mở “Bản đồ đời tôi” để chỉnh cho đúng`, 4200); } catch (e) { }
 }
-function tabOn(t) { $$('#tabbar [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === t)); }
+function tabOn(t) { $$('#tabbar [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === t)); const i = ['tl', 'diary', 'add', 'show', 'set'].indexOf(t); if (i >= 0) $('#tabbar').style.setProperty('--i', i); }
 function enterGalaxy() {
   TL.closeViewer(); TL.closeEvent(); $('#kidMenu').hidden = true;
   document.body.classList.add('galaxy'); setMode('overview'); cam.k = 1.25; tabOn('gx'); haptic(10);
@@ -2852,9 +2875,10 @@ function exitGalaxy(mid) {
   if (mid) { const k = TL.keyOfMid(mid); if (k) setTimeout(() => TL.scrollToKey(k), 420); }
 }
 function initBars() {
-  $('#tabbar').innerHTML = `<button data-t="tl" class="on">${icon('timeline', 25, 1.8)}<span>Kỷ niệm</span></button><button data-t="diary">${icon('book', 25, 1.8)}<span>Kể chuyện</span></button><button data-t="add" class="big" aria-label="Thêm ảnh, video"><i>${icon('plus', 30, 2.4)}</i></button><button data-t="show">${icon('play', 25, 1.8)}<span>Chiếu</span></button><button data-t="set">${icon('gear', 25, 1.8)}<span>Cài đặt</span></button>`;
+  $('#tabbar').innerHTML = `<button data-t="tl" class="on">${icon('timeline', 25, 1.8)}<span>Kỷ niệm</span></button><button data-t="diary">${icon('book', 25, 1.8)}<span>Kể chuyện</span></button><button data-t="add" class="big" aria-label="Thêm ảnh, video"><i>${icon('plus', 30, 2.4)}</i></button><button data-t="show">${icon('play', 25, 1.8)}<span>Chiếu</span></button><button data-t="set">${icon('gear', 25, 1.8)}<span>Cài đặt</span></button><i class="chi-bao" aria-hidden="true"></i>`;
   $('#tabbar').addEventListener('click', e => {
     const b = e.target.closest('[data-t]'); if (!b) return; const t = b.dataset.t; haptic(6);
+    { const TB = $('#tabbar'), idx = ['tl', 'diary', 'add', 'show', 'set'].indexOf(t); TB.style.setProperty('--i', idx); clearInterval(TB._back); TB._back = setInterval(() => { if (document.querySelector('.modal.open, .cm, #onb.open, #mapv.open, #dv.open, .dv.open') || document.body.classList.contains('showing')) return; clearInterval(TB._back); const on = TB.querySelector('.on')?.dataset.t; TB.style.setProperty('--i', Math.max(0, ['tl', 'diary', 'add', 'show', 'set'].indexOf(on))); }, 450); }
     if (t === 'tl') { if (document.body.classList.contains('galaxy')) exitGalaxy(); else if (TL.isOpen()) { TL.closeViewer(); TL.closeEvent(); } else TL.scroller.scrollTo({ top: 0, behavior: 'smooth' }); }
     else if (t === 'diary') storyHub(b);
     else if (t === 'add') { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); if (!S.kids.length || !(S.all || []).length) { openAdd(); return; } contextMenu({ at: b, title: 'Thêm vào dòng thời gian', items: [
@@ -2871,7 +2895,7 @@ function initBars() {
     { icon: 'image', label: 'Đổi hình nền', act: () => openBgSettings() },
     { icon: S.theme === 'dawn' ? 'moon' : 'sun', label: S.theme === 'dawn' ? 'Đổi sang Đêm ngân hà' : 'Đổi sang Bình minh', act: () => $('#bTheme').click() },
     { icon: 'heart', label: TL.hidePreg ? 'Hiện ảnh lúc mang bầu' : 'Ẩn ảnh lúc mang bầu', act: () => TL.setHidePreg(!TL.hidePreg) },
-    { icon: 'map', label: 'Bản đồ đời tôi <small class="cm-n">sa bàn 3D</small>', act: () => MAP.open() },
+    { icon: 'map', label: 'Bản đồ đời tôi <small class="cm-n">bản đồ 3D</small>', act: () => MAP.open() },
     { icon: 'galaxy', label: gx ? 'Về dòng thời gian' : 'Xem Toàn cảnh ngân hà', act: () => $('#bOverview').click() },
     S.kid && { icon: 'star', label: `Hồ sơ của ${esc(KN())}`, act: () => P.openProfile(dispKid(S.kid)) },
     { icon: 'calendar', label: 'Lịch kỷ niệm <small class="cm-n">sinh nhật, ngày cưới, giỗ, Tết</small>', act: () => LICH.open() },
@@ -2937,10 +2961,11 @@ async function boot() {
   try {
     theme = (await metaGet('theme')) || 'night'; S.music = (await metaGet('music')) || 'builtin'; S.musicName = (await metaGet('musicName')) || '';
     await purgeOld();
+    if (!(await metaGet('osmClean'))) { for (const k of (await dbKeys('blobs')).map(String)) if (k.startsWith('osm:')) await dbDelRaw('blobs', k); await metaSet('osmClean', 1); }
     if (TEST && Q.has('mock')) { const mk = await import('./drive-mock.js'); T.MOCK = mk.install(); T.mockDrive = mk; }
     S.drvBoot = await DRV.boot();
     if (DRV.signedIn && !(await dbAll('kids')).length) { await DRV.sync('boot'); } // máy mới / kho trống mà đã đăng nhập: kéo dữ liệu về trước
-    S.groups = (await metaGet('groups')) || []; S.chCfg = (await metaGet('chapters')) || {};
+    S.groups = (await metaGet('groups')) || []; S.chCfg = (await metaGet('chapters')) || {}; await loadHidden();
     S.kids = (await dbAll('kids')).filter(k => !k.deleted).sort((a, b) => (a.created || 0) - (b.created || 0));
   } catch (e) { console.error(e); toast('Trình duyệt chặn bộ nhớ — bạn mở bằng Safari/Chrome thường (không ở chế độ ẩn danh) nhé', 8000); }
   setTheme(theme, false);
