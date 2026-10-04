@@ -675,6 +675,7 @@ export function initTimeline(A) {
     EVP.querySelector('.evp-cta').innerHTML = `<button data-a="play" class="cta1"${e.ms.length < 2 ? ' hidden' : ''}>${icon('play', 18, 2.2)}<span>Chiếu</span></button>`
       + (A.voice ? `<button class="cta2${vm ? ' on' : ''}" data-a="voice" aria-label="${vm ? 'Nghe lời kể' : 'Kể lại'}">${icon(vm ? 'play' : 'mic', 19, 2.1)}<small>${vm ? 'Lời kể' : 'Kể lại'}</small></button>` : '')
       + (A.openMap ? `<button class="cta2${e.geo ? ' on' : ''}" data-a="geo" aria-label="Nơi chốn">${icon('pin', 19, 2.1)}<small>${e.geo ? 'Nơi chốn' : 'Thêm nơi'}</small></button>` : '')
+      + (A.placeCard && e.geo ? `<button class="cta2" data-a="pcard" aria-label="Thẻ nơi chốn">${icon('map', 19, 2.1)}<small>Thẻ nơi</small></button>` : '')
       + (A.makeVideo && e.ms.length >= 3 ? `<button class="cta2" data-a="tvideo" aria-label="Video kỷ niệm">${icon('video', 19, 2.1)}<small>Video</small></button>` : '');
     EVP.querySelector('.evp-bt b').textContent = e.title; EVP.querySelector('.evp-bt small').textContent = A.dmy(e.ts0);
     const nt = EVP.querySelector('.evp-nt'); nt.textContent = e.note; nt.hidden = !e.note;
@@ -763,6 +764,7 @@ export function initTimeline(A) {
     else if (a === 'voice') voiceMenu(e, b);
     else if (a === 'route') { const byDay = new Map(); for (const m of e.ms) { const g = m.place || m.gps; if (!g) continue; const d = A.ymd(m.ts); if (!byDay.has(d)) byDay.set(d, { ...g, d }); } const route = [...byDay.values()].map((r, i) => ({ lat: r.lat, lon: r.lon, n: i + 1, label: `Ngày ${i + 1} · ${A.dmy(A.parseYmd(r.d)).slice(0, 5)}` })); A.openMap({ at: { lat: route[0].lat, lon: route[0].lon, name: e.title }, route }); }
     else if (a === 'tstory') A.story({ ids: e.ms.map(m => m.id), title: e.title, sub: spanTxt(e.ms), people: e.kids.map(kidById).filter(Boolean) });
+    else if (a === 'pcard') A.placeCard?.(e);
     else if (a === 'tvideo') A.makeVideo?.({ ms: e.ms, title: e.title, sub: spanTxt(e.ms), people: e.kids.map(kidById).filter(Boolean), key: e.key, group: e.group });
     else if (b.dataset.day) jumpDay(b.dataset.day);
     else if (a === 'grid') showGrid(GRID.hidden, true);
@@ -912,6 +914,7 @@ export function initTimeline(A) {
       older && { icon: 'merge', label: `Gộp với ngày trước (${A.dmy(older.ts0).slice(0, 5)})`, act: () => mergeWith(e, older) },
       newer && { icon: 'merge', label: `Gộp với ngày sau (${A.dmy(newer.ts0).slice(0, 5)})`, act: () => mergeWith(e, newer) },
       e.merged && { icon: 'split', label: 'Tách lại thành từng ngày', act: async () => { st.meta.merges = st.meta.merges.filter(g => !g.includes(e.key)); await saveMeta(); render(); } },
+      A.placeCard && e.geo && { icon: 'map', label: '🗺 Thẻ nơi chốn <small class="cm-n">ảnh / video kiểu Google Maps</small>', act: () => A.placeCard(e) },
       A.albumOn?.() && { icon: 'share', label: '📤 Gửi vào album chung cả nhà', act: () => A.toAlbum(e) },
       A.driveFolderOf?.(e) && { icon: 'image', label: 'Mở thư mục sự kiện trên Drive', act: () => window.open('https://drive.google.com/drive/folders/' + A.driveFolderOf(e), '_blank') },
       { icon: 'trash', label: 'Xoá sự kiện…', danger: true, act: () => deleteEvent(e) }

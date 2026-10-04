@@ -103,7 +103,7 @@ export function initMap(A) {
     <div class="mp-flt" hidden></div><div class="mp-title"><b></b></div><div class="mp-hint">Chạm một chỗ trên bản đồ để cắm ghim</div>
     <div class="mp-bar"><button data-m="me" aria-label="Vị trí của tôi">${icon('pin', 20, 2.2)}<span>Vị trí của tôi</span></button><button data-m="home" aria-label="Nhà mình">🏡<span>Nhà mình</span></button><button data-m="all" aria-label="Những nơi đã đến">🧭<span>Những nơi đã đến</span></button><button data-m="play" hidden>${icon('play', 17, 2.2)}<span>Phát lộ trình</span></button></div>
     <div class="mp-load" hidden><i></i><b>Đang mở bản đồ…</b></div>
-    <div class="mp-pv" hidden><button class="mp-pvx" aria-label="Đóng">${icon('close', 18, 2.4)}</button><div class="mp-pvi"><img alt=""></div><div class="mp-pvt"><small></small><b></b><div class="mp-pva"></div><button class="primary mp-pvo">${icon('image', 16, 2.2)}<span>Mở kỷ niệm</span></button></div></div>
+    <div class="mp-pv" hidden><button class="mp-pvx" aria-label="Đóng">${icon('close', 18, 2.4)}</button><div class="mp-pvi"><img alt=""></div><div class="mp-pvt"><small></small><b></b><div class="mp-pva"></div><div class="mp-pvb"><button class="primary mp-pvo">${icon('image', 16, 2.2)}<span>Mở kỷ niệm</span></button><button class="mp-pvc">🗺 <span>Thẻ nơi</span></button></div></div></div>
     <div class="mp-tip" hidden><b>📍 Gắn nơi chốn cho kỷ niệm để thấy chúng bay quanh bản đồ</b><button class="mp-tipb">Chọn kỷ niệm chưa có nơi</button></div></div>`);
   const V = document.getElementById('mapv'), BOX = V.querySelector('.mp-map'), Q = V.querySelector('#mpQ'), RES = V.querySelector('.mp-res');
   let ML = null, map = null, M = { mode: 'view', pick: null, route: null, markers: [], evMk: new Map(), newMk: null, here: null, flt: null, theme: null, playing: 0 };
@@ -188,6 +188,7 @@ export function initMap(A) {
     const im = PV.querySelector('.mp-pvi img'); im.removeAttribute('src'); A.thumbURL?.(e.stack[0]?.id).then(u => { if (u && PV._key === key) im.src = u; });
     PV.hidden = false; PV.animate([{ transform: 'translateY(30px) scale(.9)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 380, easing: 'cubic-bezier(.34,1.56,.64,1)' }); A.sfx?.('pop');
   }
+  PV.querySelector('.mp-pvc').onclick = ev => { ev.stopPropagation(); const k = PV._key; PV.hidden = true; A.placeCard?.(k); };
   PV.querySelector('.mp-pvx').onclick = ev => { ev.stopPropagation(); PV.hidden = true; A.sfx?.('whoosh'); };
   PV.querySelector('.mp-pvo').onclick = ev => { ev.stopPropagation(); const k = PV._key; PV.hidden = true; if (M.tab) A.goTab?.('tl'); else close(); setTimeout(() => A.openEvent(k), M.tab ? 350 : 0); };
   // chưa có ảnh nào có toạ độ → thẻ gợi ý + danh sách sự kiện chưa có nơi
@@ -337,4 +338,32 @@ export async function mapIntro({ route, W, H, theme = 'dawn' }) {
     await shotAfter(() => map.jumpTo({ center: c, zoom: pts.length > 1 ? 12.6 + 2.6 * Math.sin(Math.PI * Math.min(1, p)) : 15 + p, pitch: 58, bearing: -30 + 50 * u })); return map.getCanvas(); };
   frame.dispose = () => { try { map.remove(); } catch (e) { } box.remove(); };
   return frame;
+}
+
+// ---------- v1.8.1: ẢNH BẢN ĐỒ TĨNH cho "Thẻ nơi chốn" (kiểu sáng, nghiêng nhẹ, đợi tải xong ô bản đồ rồi chụp) ----------
+export async function mapSnap({ lat, lon, W, H, zoom = 16.3, pitch = 40 }) {
+  const ML = (await import('./lib/maplibre-gl.mjs')).default || await import('./lib/maplibre-gl.mjs'), w = Math.round(W / 2), h = Math.round(H / 2);
+  const box = document.createElement('div'); box.style.cssText = `position:fixed;left:-9999px;top:0;width:${w}px;height:${h}px;pointer-events:none`; document.body.appendChild(box);
+  const map = new ML.Map({ container: box, style: themed(await baseStyle(), 'light'), center: [lon, lat], zoom, pitch, bearing: -12, interactive: false, attributionControl: false, pixelRatio: 2, canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true }, fadeDuration: 0 });
+  try {
+    await new Promise(r => { map.once('load', r); setTimeout(r, 15000); });
+    await new Promise(r => { const fin = () => r(); map.once('idle', fin); setTimeout(fin, 6000); map.triggerRepaint(); });
+    const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(map.getCanvas(), 0, 0, W, H); return c;
+  } finally { try { map.remove(); } catch (e) { } box.remove(); }
+}
+// tên + loại nơi (từ OSM) + địa chỉ ngắn: Nominatim reverse (zoom 18 = công trình / quán gần nhất), dự phòng Photon. Không bịa đánh giá.
+const CAT_VI = { restaurant: 'Nhà hàng', fast_food: 'Quán ăn nhanh', cafe: 'Quán cà phê', bar: 'Quán bar', pub: 'Quán bia', ice_cream: 'Quán kem', bakery: 'Tiệm bánh', food_court: 'Khu ẩm thực',
+  park: 'Công viên', garden: 'Vườn hoa', playground: 'Sân chơi', zoo: 'Vườn thú', beach: 'Bãi biển', school: 'Trường học', kindergarten: 'Trường mầm non', university: 'Trường đại học', college: 'Trường cao đẳng',
+  hospital: 'Bệnh viện', clinic: 'Phòng khám', pharmacy: 'Nhà thuốc', hotel: 'Khách sạn', guest_house: 'Nhà nghỉ', hostel: 'Nhà nghỉ', supermarket: 'Siêu thị', mall: 'Trung tâm thương mại', marketplace: 'Chợ',
+  attraction: 'Điểm tham quan', museum: 'Bảo tàng', viewpoint: 'Điểm ngắm cảnh', place_of_worship: 'Đền, chùa, nhà thờ', temple: 'Đền chùa', cinema: 'Rạp chiếu phim', theatre: 'Nhà hát', stadium: 'Sân vận động',
+  library: 'Thư viện', bus_station: 'Bến xe', station: 'Nhà ga', aerodrome: 'Sân bay', lake: 'Hồ', water: 'Hồ nước', river: 'Sông', peak: 'Đỉnh núi', residential: 'Khu dân cư', house: 'Nhà', apartments: 'Chung cư', village: 'Làng' };
+export async function placeInfo(lat, lon) {
+  try {
+    const j = await nomi(`/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=vi&lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}`), a = j.address || {};
+    const addr = [a.house_number && a.road ? a.house_number + ' ' + a.road : a.road, a.suburb || a.quarter || a.village || a.city_district, a.city || a.town || a.state].filter(Boolean).slice(0, 3).join(', ');
+    return { name: j.name || a.amenity || a.shop || a.tourism || a.leisure || '', cat: CAT_VI[j.type] || CAT_VI[j.category] || '', addr };
+  } catch (e) {
+    try { const r = await fetch(`${PHOTON}/reverse?lang=default&lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}`); const f = (await r.json()).features?.[0]?.properties || {}; return { name: f.name || '', cat: CAT_VI[f.osm_value] || '', addr: phName(f).slice(1, 4).join(', ') }; }
+    catch (e2) { return { name: '', cat: '', addr: '' }; }
+  }
 }

@@ -20,12 +20,14 @@ import { buildArchive } from './luutru.js';
 import { initLetters } from './thu.js';
 import { buildMemoir } from './hoiky.js';
 import { initAlbum } from './album.js';
+import { initPlaceCard } from './thenoi.js';
+import { placeInfo, reverseName } from './bando.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
 import { initVideoUI } from './videoui.js';
 
-const VERSION = '1.8.0';
+const VERSION = '1.8.1';
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
 const MUTE = Q.has('im');
@@ -1628,6 +1630,21 @@ async function exportMemoir(ch = null) {
 }
 // v1.8.0: 👨‍👩‍👧 album chung cả nhà (Drive + Google Picker)
 let ALB = null; const album = () => ALB ||= initAlbum({ get drive() { return DRV; }, apiKey: CFG.GOOGLE_API_KEY || '', appId: CFG.GOOGLE_APP_ID || '', prompt: prompt2, toast, ymd, blob: id => dbGet('blobs', 'o_' + id), importFiles: files => importFilesQuiet(files), closeAll: () => document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')) });
+// v1.8.1: 🗺 thẻ nơi chốn + 📍 lưu nơi đang ở
+let PLC = null; const placeCard = (e, o) => (PLC ||= initPlaceCard({ thumbURL: id => TL.thumbURL(id), blob: id => dbGet('blobs', 'o_' + id), thumbBlob: id => dbGet('blobs', 't_' + id), person: id => dispKid(S.kids.find(k => k.id === id)), avatarURL: p => P.avatarURL(S.kids.find(k => k.id === p.id) || p), metaGet, metaSet, noAccent, MOBILE, TEST, shareOrDownload, openModal: m => openModal(m), toast, onSaved: f => { if (TEST) T.lastPlaceCard = f; } })).open(e, o);
+async function saveHere(files) {
+  if (!files?.length) return; toast('📍 Đang lấy vị trí của bạn…', 2500);
+  const pos = await new Promise(res => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => res(p.coords), () => res(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }) : res(null));
+  const ids = await importFilesQuiet(files); if (!ids?.length) return; await loadAll();
+  const ms = (S.all || []).filter(m => ids.includes(m.id));
+  if (!pos) { toast('Chưa lấy được vị trí — ảnh đã thêm, bạn đặt nơi chốn trong trang sự kiện nhé', 3500); return; }
+  let info = { name: '', cat: '', addr: '' }; try { info = await placeInfo(pos.latitude, pos.longitude); } catch (e) { }
+  const name = info.name || (await reverseName(pos.latitude, pos.longitude).catch(() => '')) || 'Nơi này';
+  await metaSet('pli:' + pos.latitude.toFixed(4) + ',' + pos.longitude.toFixed(4), info);
+  await setPlace(ms, { lat: +pos.latitude.toFixed(6), lon: +pos.longitude.toFixed(6), name: [info.name, info.addr].filter(Boolean).join(', ') || name });
+  await TL.reload(); const k = TL.keyOfMid(ids[0]), e = TL.events.find(x => x.key === k); SFX.play('ting');
+  if (e) placeCard(e, { mids: ids.slice(0, 3) });
+}
 // v1.8.0: âm thanh hiệu ứng (sfx.js) — không phát khi đang chiếu có nhạc hoặc đang dựng / xem video
 window.SFX = initSfx({ block: () => { try { return document.body.classList.contains('showing') || !!document.querySelector('#mVid.open, #vkFs.on') || !!INTRO?.active; } catch (e) { return false; } } });
 function openModal(m) { const was = m.classList.contains('open'); m.classList.add('open'); haptic(5); if (!was) SFX.play('pop'); }
@@ -2905,7 +2922,7 @@ function kidMenu(el) {
 function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(() => $('#bgList')?.closest('.sec')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 380); }
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
-const TL = initTimeline({ hidden: () => new Set(), albumOn: () => !!DRV?.signedIn, toAlbum: e => album().sendEvent(e), ai: o => aiOpen(o), ageOf: (k, ts) => ageText(k, ts, false), life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
+const TL = initTimeline({ hidden: () => new Set(), placeCard: (e, o) => placeCard(e, o), albumOn: () => !!DRV?.signedIn, toAlbum: e => album().sendEvent(e), ai: o => aiOpen(o), ageOf: (k, ts) => ageText(k, ts, false), life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
   allCount: () => (S.all || []).length, makeVideo: o => makeVideo(o), voice: { open: (m, o) => VOICE.open(m, o), play: (m, o) => VOICE.play(m, o), ok: () => VOICE.supported() }, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
@@ -2965,7 +2982,7 @@ function yearReview(at) {
 }
 // ---------- v1.7.0: Bản đồ đời tôi (bản đồ đường phố 3D thực tế, MapLibre + OpenFreeMap) ----------
 var MAPOPEN = false;
-const MAP = initMap({ theme: () => S.theme, chapters: () => S.chapters || [], thumbURL: async id => id ? TL.thumbURL(id) : '', sfx: (n, d) => window.SFX?.play(n, d), chibiWave: p => chibiWaveSVG(p, { w: 60 }), goTab: t => goTab(t), personAv: id => { const k = S.kids.find(x => x.id === id); return k && !isMe(k) ? P.avatarNow(k) : ''; }, dbGet: dbGetRaw, dbPut: dbPutRaw, metaGet, metaSet, prompt: prompt2, toast, get drive() { return DRV; }, me: () => ME() ? dispKid(ME()) : null,
+const MAP = initMap({ placeCard: (key, mids) => { const e = TL.events.find(x => x.key === key); if (e) placeCard(e, { mids }); }, theme: () => S.theme, chapters: () => S.chapters || [], thumbURL: async id => id ? TL.thumbURL(id) : '', sfx: (n, d) => window.SFX?.play(n, d), chibiWave: p => chibiWaveSVG(p, { w: 60 }), goTab: t => goTab(t), personAv: id => { const k = S.kids.find(x => x.id === id); return k && !isMe(k) ? P.avatarNow(k) : ''; }, dbGet: dbGetRaw, dbPut: dbPutRaw, metaGet, metaSet, prompt: prompt2, toast, get drive() { return DRV; }, me: () => ME() ? dispKid(ME()) : null,
   chibi: k => chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }), events: () => TL.events, spanTxt: ms => TL.spanTxt(ms),
   openEvent: key => { if (document.body.classList.contains('galaxy')) exitGalaxy(); TL.openEvent(key); },
   setEventPlace: async (e, pl) => setPlace(e.ms, pl),
@@ -2999,7 +3016,8 @@ function initBars() {
     else if (t === 'diary') storyHub(b);
     else if (t === 'add') { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); if (!S.kids.length || !(S.all || []).length) { openAdd(); return; } contextMenu({ at: b, title: 'Thêm vào dòng thời gian', items: [
       { icon: 'image', label: 'Thêm ảnh, video', act: () => openAdd() },
-      { icon: 'grid', label: 'Tạo nhóm kỷ niệm <small class="cm-n">gom nhiều ngày</small>', act: () => TL.openGroupPicker() }] }); }
+      { icon: 'grid', label: 'Tạo nhóm kỷ niệm <small class="cm-n">gom nhiều ngày</small>', act: () => TL.openGroupPicker() },
+      { icon: 'pin', label: '📍 Lưu nơi đang ở <small class="cm-n">ảnh vừa chụp + vị trí → thẻ nơi chốn</small>', act: () => { const f = $('#hereIn') || (() => { document.body.insertAdjacentHTML('beforeend', '<input type="file" id="hereIn" accept="image/*,video/*" multiple hidden>'); const i = $('#hereIn'); i.onchange = () => { const fs = [...i.files]; i.value = ''; saveHere(fs); }; return i; })(); f.click(); } }] }); }
     else if (t === 'show') { TL.closeViewer(); TL.closeEvent(); $('#bShow').click(); }
     else if (t === 'set') $('#bSet').click();
   });
@@ -3205,7 +3223,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, letters, exportMemoir, album, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, letters, exportMemoir, album, placeCard, saveHere, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));
