@@ -15,6 +15,7 @@ import { initOnboarding } from './lamquen.js';
 import { chibiSVG, chibiWaveSVG } from './chibi.js';
 import { initSfx } from './sfx.js';
 import { initAI, testKey, resetModel as aiReset } from './ai.js';
+import { buildArchive } from './luutru.js';
 import { initMap, eventGeo, searchPlace } from './bando.js';
 import { initLich } from './lich.js';
 import { initVoice } from './giongke.js';
@@ -1596,6 +1597,15 @@ let toastT = 0;
 function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms); }
 // v1.8.0: ✨ AI kể lại cho hay (ai.js) — khoá Gemini riêng, chỉ mẫu chữ
 let AI = null; const aiOpen = o => { AI ||= initAI({ metaGet, toast, openModal: m => openModal(m), closeModal: m => closeModal(m), thumbBlob: id => dbGet('blobs', 't_' + id), openSettings: () => { renderSettings(); openModal($('#mSet')); setTimeout(() => $('#gemSec')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 380); } }); return AI.open(o); };
+// v1.8.0: BẢN LƯU BỀN doc-hanh-trinh.html (+ hanh-trinh.json) — tải về máy, hoặc tự ghi vào thư mục Drive mỗi ngày một lần khi có thay đổi
+async function makeArchive() { const me = ME(); return buildArchive({ me: me ? dispKid(me) : null, people: S.kids.map(dispKid), chapters: S.chapters || [], events: TL.events || [], thumbBlob: id => dbGet('blobs', 't_' + id), roleName, version: VERSION }); }
+const arcSig = () => { const evs = TL.events || []; let h = evs.length * 31 + (S.all || []).length; for (const e of evs) { const t = e.title + '|' + (e.note || '') + '|' + e.ms.length + '|' + e.ms.filter(m => m.driveFileId).length; for (let i = 0; i < t.length; i++) h = (h * 33 + t.charCodeAt(i)) | 0; } return String(h); };
+async function archiveToDrive(force = false) {
+  if (!DRV?.signedIn || !TL.events?.length) return false; const sig = arcSig(), last = (await metaGet('arcAt')) || 0;
+  if (!force && (sig === (await metaGet('arcSig')) || Date.now() - last < 864e5)) return false;
+  const a = await makeArchive(); const id = await DRV.putRoot('doc-hanh-trinh.html', a.html, 'text/html'); if (!id) return false;
+  await DRV.putRoot('hanh-trinh.json', a.json, 'application/json'); await metaSet('arcAt', Date.now()); await metaSet('arcSig', sig); return true;
+}
 // v1.8.0: âm thanh hiệu ứng (sfx.js) — không phát khi đang chiếu có nhạc hoặc đang dựng / xem video
 window.SFX = initSfx({ block: () => { try { return document.body.classList.contains('showing') || !!document.querySelector('#mVid.open, #vkFs.on') || !!INTRO?.active; } catch (e) { return false; } } });
 function openModal(m) { const was = m.classList.contains('open'); m.classList.add('open'); haptic(5); if (!was) SFX.play('pop'); }
@@ -2308,7 +2318,7 @@ async function renderSettings() {
   $$('#segMusic button').forEach(b => b.classList.toggle('on', b.dataset.v === S.music));
   $('#musicHint').textContent = S.music === 'builtin' ? 'Giai điệu hộp nhạc dịu êm do app tự chơi — không lo bản quyền.' : S.music === 'file' ? `Đang dùng: ${S.musicName || 'bài của bạn'} · bấm “Bài của bạn” lần nữa để đổi bài.` : 'Trình chiếu không có nhạc.';
   $('#verTxt').textContent = 'Hành Trình Của Bạn · v' + VERSION;
-  renderGem(); renderBgUi(); $('#setBig').checked = document.documentElement.classList.contains('big'); $('#setOtd').checked = !(await metaGet('otdOff')); { const st = SFX.state(); $('#setSfx').checked = st.on; $('#setSfxV').value = Math.round(st.vol * 100); $('#setSfxV').disabled = !st.on; }
+  renderGem(); renderBgUi(); $('#setBig').checked = document.documentElement.classList.contains('big'); $('#setOtd').checked = !(await metaGet('otdOff')); renderArc(); { const st = SFX.state(); $('#setSfx').checked = st.on; $('#setSfxV').value = Math.round(st.vol * 100); $('#setSfxV').disabled = !st.on; }
   try {
     const e = await navigator.storage?.estimate?.(), p = await navigator.storage?.persisted?.();
     $('#storeInfo').textContent = e ? `Đang dùng ${fmtSize(e.usage || 0)} trong máy${p ? ' · đã bật lưu bền vững ✓' : ''}.` : '';
@@ -2317,6 +2327,9 @@ async function renderSettings() {
 $('#bSet').onclick = () => { renderSettings(); openModal($('#mSet')); };
 $('#setOtd').onchange = async e => { await metaSet('otdOff', !e.target.checked); await TL.reload(); };
 // âm thanh hiệu ứng: bật/tắt + âm lượng (đồng bộ qua meta sy:sfx)
+$('#arcDl').onclick = async () => { const b = $('#arcDl'); b.disabled = true; $('#arcInfo').textContent = 'Đang dựng bản lưu bền…'; try { const a = await makeArchive(); const f = new File([a.html], 'doc-hanh-trinh.html', { type: 'text/html' }); $('#arcInfo').textContent = `Đã dựng: ${a.nEv} kỷ niệm, ${a.nImg} ảnh nhỏ · ${(a.html.size / 1e6).toFixed(1).replace('.', ',')} MB`; if (TEST) { T.lastArchive = a; return; } await shareOrDownload(f, f.name); } catch (e) { $('#arcInfo').textContent = 'Chưa dựng được: ' + (e.message || e); } finally { b.disabled = false; } };
+$('#arcUp').onclick = async () => { if (!DRV?.signedIn) { toast('Bạn đăng nhập Google ở mục Google Drive trước nhé', 2600); return; } const b = $('#arcUp'); b.disabled = true; $('#arcInfo').textContent = 'Đang ghi lên Drive…'; const ok = await archiveToDrive(true).catch(() => false); b.disabled = false; $('#arcInfo').textContent = ok ? 'Đã ghi doc-hanh-trinh.html + hanh-trinh.json vào thư mục Hành Trình Của Bạn ✓' : 'Chưa ghi được — kiểm tra mạng rồi thử lại'; if (ok) SFX.play('ting'); };
+async function renderArc() { const t = await metaGet('arcAt'); if ($('#arcInfo') && !$('#arcInfo').textContent) $('#arcInfo').textContent = t ? `Bản lưu bền trên Drive cập nhật lúc ${dmy(t)} ${new Date(t).toTimeString().slice(0, 5)}` : DRV?.signedIn ? 'Chưa có bản lưu bền trên Drive — app sẽ tự ghi khi có thay đổi.' : 'Đăng nhập Google để app tự ghi bản lưu bền lên Drive.'; }
 $('#setSfx').onchange = async e => { SFX.setOn(e.target.checked); $('#setSfxV').disabled = !e.target.checked; await metaSet('sy:sfx', SFX.state()); if (e.target.checked) SFX.play('ting'); };
 $('#setSfxV').oninput = e => { SFX.setVol(e.target.value / 100); }; $('#setSfxV').onchange = async () => { await metaSet('sy:sfx', SFX.state()); SFX.play('pop'); };
 async function loadSfx() { const v = await metaGet('sy:sfx'); if (v) { SFX.setOn(v.on !== false); if (v.vol != null) SFX.setVol(v.vol); } }
@@ -3059,6 +3072,7 @@ async function boot() {
     setTimeout(async () => { if (!ME() && !(await metaGet('meAsk'))) { meBanner(); return; } for (const k of S.kids) { if (k.gender || !isChild(k) || await metaGet('gAsk:' + k.id)) continue; genderBanner(k); return; } maybeRemindBackup(); }, S.splitNow ? 9500 : 2500);
     setTimeout(() => queueThumbFix((S.all || []).slice().sort((a, b) => b.ts - a.ts)), 4000);
     if (DRV.signedIn) setTimeout(() => DRV.afterLogin(), 1500);
+    setTimeout(() => archiveToDrive().catch(() => { }), 90e3); document.addEventListener('visibilitychange', () => { if (document.hidden) archiveToDrive().catch(() => { }); });
     setTimeout(() => checkUpdate(true), 3000);
     if (/#hoso=/.test(location.hash)) setTimeout(() => importProfiles(location.hash), 600);
   }
@@ -3165,7 +3179,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], VID, makeVideo, pickKids, setKidsMany, migrate18, aiOpen, makeArchive, archiveToDrive, get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));

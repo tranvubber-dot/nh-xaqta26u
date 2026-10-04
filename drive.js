@@ -453,7 +453,14 @@ export function initDrive(A) {
   async function getApp(name) { if (!on || !signedIn() || !navigator.onLine) return null; try { const id = await appFind(name); return id ? await download(id) : null; } catch (e) { return null; } }
   // tệp thấy được trong thư mục sự kiện (giọng kể, video kỷ niệm)
   async function putVisible({ blob, name, kidId, key, mime }) { if (!on || !signedIn() || !navigator.onLine) return null; try { const places = await A.places(); let parent = null; for (const p of places.values()) if (p.key === key && (p.flat || !kidId || p.kidId === kidId)) { parent = await eventFolder(p); break; } if (!parent) parent = await ensureFolder('root', ROOT_NAME, 'root'); return await upload({ blob, name: safe(name, 100), mime: mime || blob.type, parents: [parent], key: 'vis:' + name + ':' + blob.size }); } catch (e) { console.warn('putVisible', e.message); return null; } }
+  // tệp cố định trong thư mục gốc thấy được (bản lưu bền doc-hanh-trinh.html, hanh-trinh.json): có rồi thì ghi đè
+  async function putRoot(name, blob, mime) {
+    if (!on || !signedIn() || !navigator.onLine) return null;
+    try { await loadReg(); const root = await ensureFolder('root', ROOT_NAME, 'root'); await saveReg();
+      const j = await json('/drive/v3/files?' + new URLSearchParams({ q: `name='${qesc(name)}' and '${root}' in parents and trashed=false`, fields: 'files(id)', spaces: 'drive', pageSize: '2' }));
+      const id = j.files?.[0]?.id; return await upload({ blob, name, mime: mime || blob.type, parents: id ? undefined : [root], fileId: id || undefined, key: 'root:' + name + ':' + blob.size });
+    } catch (e) { console.warn('putRoot', e.message); return null; } }
   const fetchFile = async id => { if (!on || !signedIn()) return null; try { return await download(id); } catch (e) { return null; } };
-  const api = { on, boot, organize, putApp, getApp, putVisible, fetchFile, folderOf, rootId, loadReg, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
+  const api = { on, boot, organize, putApp, getApp, putVisible, putRoot, fetchFile, folderOf, rootId, loadReg, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
   return api;
 }

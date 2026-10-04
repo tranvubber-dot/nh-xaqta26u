@@ -1507,6 +1507,14 @@ input.ob-in[type=date]::-webkit-date-and-time-value { text-align: left; }
     <form onsubmit="return false" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="gemKey" type="password" autocomplete="off" spellcheck="false" placeholder="Dán khoá Gemini API…" style="flex:1;min-width:180px;font:600 15px var(--font);color:var(--text);background:var(--field);border:1px solid var(--line);border-radius:14px;padding:10px 12px;outline:none"><button id="gemSave">Lưu khoá</button><button id="gemTest">Kiểm tra khoá</button><button id="gemDel" class="danger" hidden>Xoá khoá</button></form>
     <p class="hint" id="gemInfo"></p>
     <p class="hint">Khoá chỉ lưu trong máy này, không đồng bộ lên Drive. Mặc định chỉ gửi chữ; ảnh chỉ gửi khi bạn tự bật “Cho AI xem ảnh”. Dùng miễn phí: Google có thể dùng nội dung gửi lên để cải thiện AI.</p></div>
+  <div class="sec" id="legacySec"><h3>🌳 Để lại cho con cháu</h3>
+    <p class="hint" style="margin-top:0">Để mai sau con cháu vẫn xem được hành trình của bạn — kể cả khi không còn app này:</p>
+    <ol class="gem-steps"><li><b>Đăng nhập Google</b> ở mục Google Drive phía trên và bấm “Lưu tất cả ảnh cũ lên Drive”: ảnh gốc nằm trong thư mục <b>Hành Trình Của Bạn</b> của bạn.</li>
+      <li>App tự ghi <b>bản lưu bền</b> <code>doc-hanh-trinh.html</code> vào thư mục đó (mỗi ngày một lần khi có thay đổi): một tệp mở bằng trình duyệt nào cũng được, không cần app, kèm <code>hanh-trinh.json</code> để nhập lại sau này.</li>
+      <li>Vào <b>myaccount.google.com/inactive</b> (Người quản lý tài khoản không hoạt động của Google) để chọn người thân được nhận dữ liệu Drive nếu tài khoản lâu không dùng.</li>
+      <li>Chia sẻ thư mục cho người nhà trong mục <b>Album chung</b>, xuất <b>Hồi ký PDF</b> để in thành sách, và thỉnh thoảng <b>Sao lưu</b> ra ổ cứng.</li></ol>
+    <div class="drow" style="margin-top:10px;flex-wrap:wrap"><button id="arcDl">💾 Tải bản lưu bền về máy</button><button id="arcUp">☁️ Ghi lên Drive ngay</button></div>
+    <p class="hint" id="arcInfo"></p></div>
   <div class="sec"><h3>Cài lên điện thoại</h3><p class="hint" style="margin:0">iPhone/iPad: mở link bằng <b>Safari</b> › bấm nút Chia sẻ <b>⬆︎</b> › <b>Thêm vào MH chính</b>.<br>Android: mở bằng Chrome › menu <b>⋮</b> › <b>Cài đặt ứng dụng</b>.</p></div>
   <div class="sec about"><div class="ab-card">
     <img src="icons/icon-192.png" alt="" class="ab-ic">
