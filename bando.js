@@ -68,7 +68,7 @@ export function initMap(A) {
   document.body.insertAdjacentHTML('beforeend', `<div id="mapv" aria-hidden="true"><div class="mp-map"></div>
     <div class="mp-top"><button class="glassbtn mp-back" aria-label="Đóng">${icon('back', 22, 2)}</button><div class="mp-q">${icon('pin', 18, 2)}<input id="mpQ" placeholder="Tìm địa chỉ, tên nơi…" autocomplete="off" enterkeyhint="search"><div class="mp-res" hidden></div></div><button class="glassbtn mp-more" aria-label="Tuỳ chọn">${icon('more', 22, 2)}</button></div>
     <div class="mp-flt" hidden></div><div class="mp-title"><b></b></div><div class="mp-hint">Chạm một chỗ trên bản đồ để cắm ghim</div>
-    <div class="mp-bar"><button data-m="me">${icon('pin', 17, 2.2)}<span>Vị trí của tôi</span></button><button data-m="home">🏡<span>Nhà mình</span></button><button data-m="all">🧭<span>Những nơi đã đến</span></button><button data-m="play" hidden>${icon('play', 17, 2.2)}<span>Phát lộ trình</span></button></div>
+    <div class="mp-bar"><button data-m="me" aria-label="Vị trí của tôi">${icon('pin', 20, 2.2)}<span>Vị trí của tôi</span></button><button data-m="home" aria-label="Nhà mình">🏡<span>Nhà mình</span></button><button data-m="all" aria-label="Những nơi đã đến">🧭<span>Những nơi đã đến</span></button><button data-m="play" hidden>${icon('play', 17, 2.2)}<span>Phát lộ trình</span></button></div>
     <div class="mp-load" hidden><i></i><b>Đang mở bản đồ…</b></div></div>`);
   const V = document.getElementById('mapv'), BOX = V.querySelector('.mp-map'), Q = V.querySelector('#mpQ'), RES = V.querySelector('.mp-res');
   let ML = null, map = null, M = { mode: 'view', pick: null, route: null, markers: [], evMk: new Map(), newMk: null, here: null, flt: null, theme: null, playing: 0 };
@@ -123,14 +123,18 @@ export function initMap(A) {
   }
   // ---------- chạm bản đồ: "Đặt kỷ niệm ở đây?" ----------
   function onMapClick(e) {
+    if (performance.now() - (M.openAt || 0) < 900) return; // cú chạm mở bản đồ không lọt xuống thành “Nơi này là…”
     if (map.queryRenderedFeatures(e.point, { layers: ['evc', 'days'].filter(l => map.getLayer(l)) }).length) return;
     haptic(10); M.newMk?.remove(); const ll = { lat: +e.lngLat.lat.toFixed(6), lon: +e.lngLat.lng.toFixed(6) }, pick = M.mode === 'pick';
     const el = document.createElement('div'); el.className = 'mk-new'; el.innerHTML = `<div class="sb-bub"><b>${pick ? 'Đặt kỷ niệm ở đây?' : 'Nơi này là…'}</b><div class="r">${pick ? '<button data-b="no">Thôi</button><button class="primary" data-b="ok">Đặt ở đây</button>' : '<button data-b="save">Lưu nơi quan trọng</button><button class="primary" data-b="ev">Gắn kỷ niệm</button>'}</div></div><span class="mk-pin">📍</span>`;
     M.newMk = new ML.Marker({ element: el, anchor: 'bottom' }).setLngLat(LL(ll)).addTo(map);
+    // giữ thẻ hỏi nằm trọn trong màn hình (chạm sát mép thì đẩy vào trong)
+    requestAnimationFrame(() => { const b = el.querySelector('.sb-bub'), r = b.getBoundingClientRect(), W = BOX.getBoundingClientRect(), pad = 12;
+      const dx = r.left < W.left + pad ? W.left + pad - r.left : r.right > W.right - pad ? W.right - pad - r.right : 0; if (dx) b.style.transform = `translateX(${dx}px)`; });
     el.addEventListener('click', async ev => { ev.stopPropagation(); const act = ev.target.closest('[data-b]')?.dataset.b; if (!act) return;
       if (act === 'no') { M.newMk.remove(); M.newMk = null; return; }
       if (act === 'ok') { const name = await reverseName(ll.lat, ll.lon), cb = M.pick; close(); cb?.({ lat: ll.lat, lon: ll.lon, name }); return; }
-      if (act === 'save') contextMenu({ at: el, title: 'Đây là…', items: KINDS.map(k => ({ label: `${k.e} ${k.t}`, act: async () => { const nm = (await A.prompt(`Tên ${k.t.toLowerCase()}`, k.k === 'home' ? 'Nhà mình' : await reverseName(ll.lat, ll.lon), 50))?.trim(); if (nm == null) return; const ps = await places(); if (k.k === 'home') { const i = ps.findIndex(x => x.kind === 'home'); if (i >= 0) ps.splice(i, 1); } ps.push({ id: Date.now().toString(36), kind: k.k, name: nm || k.t, lat: ll.lat, lon: ll.lon }); await savePlaces(ps); M.newMk.remove(); M.newMk = null; refresh(); A.toast(`Đã lưu ${nm || k.t} ✨`, 1800); } })) });
+      if (act === 'save') contextMenu({ at: el, title: 'Đây là…', items: [{ label: '✏️ Tự gõ tên nơi này…', act: async () => { const nm = (await A.prompt('Tên nơi này (vd: Nhà ngoại, Quán cà phê quen)', await reverseName(ll.lat, ll.lon), 50))?.trim(); if (!nm) return; const ps = await places(); ps.push({ id: Date.now().toString(36), kind: 'other', name: nm, lat: ll.lat, lon: ll.lon }); await savePlaces(ps); M.newMk.remove(); M.newMk = null; refresh(); A.toast(`Đã lưu ${nm} ✨`, 1800); } }, ...KINDS.map(k => ({ label: `${k.e} ${k.t}`, act: async () => { const nm = (await A.prompt(`Tên ${k.t.toLowerCase()}`, k.k === 'home' ? 'Nhà mình' : await reverseName(ll.lat, ll.lon), 50))?.trim(); if (nm == null) return; const ps = await places(); if (k.k === 'home') { const i = ps.findIndex(x => x.kind === 'home'); if (i >= 0) ps.splice(i, 1); } ps.push({ id: Date.now().toString(36), kind: k.k, name: nm || k.t, lat: ll.lat, lon: ll.lon }); await savePlaces(ps); M.newMk.remove(); M.newMk = null; refresh(); A.toast(`Đã lưu ${nm || k.t} ✨`, 1800); } }))] });
       if (act === 'ev') { const evs = A.events().filter(x => !eventGeo(x)).slice(0, 40); if (!evs.length) { A.toast('Mọi kỷ niệm đều đã có nơi chốn rồi', 2000); return; } contextMenu({ at: el, title: 'Gắn kỷ niệm nào vào đây?', items: evs.map(x => ({ label: `${typeOf(x.type).ic} ${esc(x.title)}`, note: A.spanTxt(x.ms), act: async () => { const nm = await reverseName(ll.lat, ll.lon); await A.setEventPlace(x, { lat: ll.lat, lon: ll.lon, name: nm }); M.newMk.remove(); M.newMk = null; refresh(); A.toast(`Đã gắn “${x.title}” vào ${nm || 'nơi này'}`, 2200); } })) }); }
     });
   }
@@ -175,7 +179,7 @@ export function initMap(A) {
     V.classList.remove('open'); V.setAttribute('aria-hidden', 'true'); document.body.classList.remove('mapopen'); M.pick = null; M.mode = 'view'; M.route = null; M.flt = null; V.querySelector('.mp-flt').hidden = true; A.onClose?.();
   }
   async function open(o = {}) {
-    V.classList.add('open'); V.setAttribute('aria-hidden', 'false'); document.body.classList.add('mapopen'); A.onOpen?.();
+    V.classList.add('open'); M.openAt = performance.now(); V.setAttribute('aria-hidden', 'false'); document.body.classList.add('mapopen'); A.onOpen?.();
     M.mode = o.pick ? 'pick' : 'view'; M.pick = o.pick || null; M.route = o.route || null; RES.hidden = true; Q.value = ''; V.querySelector('[data-m=play]').hidden = !(M.route?.length > 1); V.querySelector('.mp-flt').hidden = true;
     hint(o.pick ? 'Chạm vào chỗ diễn ra kỷ niệm để cắm ghim' : 'Chạm một chỗ để cắm ghim · hai ngón để xoay, nghiêng', 4500);
     const LD = V.querySelector('.mp-load'); LD.hidden = false;
@@ -185,7 +189,11 @@ export function initMap(A) {
       if (!at) { const g = A.events().map(eventGeo).find(Boolean); if (g) at = { ...g, name: g.name || '' }; }
       const style = themed(await baseStyle(), A.theme?.() || 'dawn'); M.theme = A.theme?.();
       map = new ML.Map({ container: BOX, style, center: at ? LL(at) : [105.8524, 21.0287], zoom: at ? 16 : 5.2, pitch: at ? 56 : 0, bearing: at ? -18 : 0, maxPitch: 62, maxZoom: 18.5, attributionControl: false, canvasContextAttributes: { antialias: true }, fadeDuration: 150 });
-      map.addControl(new ML.AttributionControl({ compact: true, customAttribution: '© OpenMapTiles © OpenStreetMap contributors' }), 'bottom-right');
+      const attr = new ML.AttributionControl({ compact: true, customAttribution: '© OpenMapTiles © OpenStreetMap contributors' });
+      map.addControl(attr, 'bottom-right');
+      // MapLibre mở sẵn dòng ghi nguồn → thu lại thành nút ⓘ, bấm mới hiện
+      const fold = () => attr._container?.classList.remove('maplibregl-compact-show');
+      map.once('load', fold); map.once('idle', fold); setTimeout(fold, 0);
       map.touchPitch.enable(); map.dragRotate.enable();
       await new Promise((res, rej) => { map.once('load', res); map.once('error', e => rej(e.error || e)); setTimeout(res, 12000); });
       LD.hidden = true; title(at?.name || (at ? '' : 'Tìm địa chỉ nhà bạn ở ô trên'));

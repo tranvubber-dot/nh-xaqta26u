@@ -1,5 +1,5 @@
 // Hành Trình Của Bạn — service worker (chạy offline). Ảnh/video của bạn KHÔNG đi qua đây: chúng nằm trong IndexedDB của máy.
-const VERSION = '1.7.0';
+const VERSION = '1.7.1';
 const CACHE = 'nganha-' + VERSION;
 const CORE = ['./', 'index.html', 'app.js', 'nhatky.js', 'ui.js', 'dongthoigian.js', 'hoso.js', 'hoso-data.js', 'nhac.js', 'modau.js', 'drive.js', 'config.js', 'doi.js', 'chibi.js', 'docvi.js', 'lamquen.js', 'bando.js', 'lib/maplibre-gl.mjs', 'lib/maplibre-gl-shared.mjs', 'lib/maplibre-gl-worker.mjs', 'lib/maplibre-gl.css', 'lib/mediabunny.min.mjs', 'lich.js', 'giongke.js', 'videonhac.js', 'videokn.js', 'videoui.js', 'manifest.webmanifest', 'lib/three.module.min.js', 'fonts/Quicksand.ttf',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
