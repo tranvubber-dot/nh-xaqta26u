@@ -1,4 +1,4 @@
-// Ngân Hà Của Con — hồ sơ bé, avatar (ảnh cắt tròn hoặc hình vẽ sẵn), màu riêng của từng bé.
+// Hành Trình Của Bạn — hồ sơ bé, avatar (ảnh cắt tròn hoặc hình vẽ sẵn), màu riêng của từng bé.
 import { icon, animateSpring, haptic, fmtLong, clamp, REDUCED } from './ui.js';
 import { profileOf, LUNAR_MONTH, MENH_TA } from './hoso-data.js';
 
@@ -219,7 +219,7 @@ export function initProfile(A) {
       x.textAlign = 'left'; x.fillStyle = mix(col, '#000000', .3); x.font = F(700, 32); x.fillText(t[0], cx + 34, cy + 58); x.fillStyle = '#3d1b35'; x.font = F(700, 46); x.fillText(t[1], cx + 34, cy + 122, 400); x.fillStyle = '#7d5a75'; x.font = F(600, 30); x.fillText(t[2], cx + 34, cy + 170, 400); });
     let cx = 70, cy = 1505; x.font = F(700, 34);
     for (const ch of P.zodiac.chip) { const w = x.measureText(ch).width + 56; if (cx + w > W - 70) { cx = 70; cy += 78; } rr(cx, cy, w, 62, 31); x.fillStyle = mix(col, '#ffffff', .25); x.fill(); x.fillStyle = '#fff'; x.textAlign = 'center'; x.fillText(ch, cx + w / 2, cy + 43); cx += w + 14; }
-    x.textAlign = 'center'; x.fillStyle = '#7d5a75'; x.font = F(600, 28); x.fillText('Mang tính tham khảo cho vui · Ngân Hà Của Con', W / 2, H - 60);
+    x.textAlign = 'center'; x.fillStyle = '#7d5a75'; x.font = F(600, 28); x.fillText('Mang tính tham khảo cho vui · Hành Trình Của Bạn', W / 2, H - 60);
     const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92)), name = `HoSo-${A.noAccent(kid.name)}.jpg`;
     await A.shareOrDownload(new File([blob], name, { type: 'image/jpeg' }), name); if (!A.TEST) A.toast('Đã lưu thẻ hồ sơ', 1800);
     return blob;

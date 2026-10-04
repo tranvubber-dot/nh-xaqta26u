@@ -1,4 +1,4 @@
-// Ngân Hà Của Con — nhắc sinh nhật hằng năm bằng sự kiện lịch .ics (RFC 5545), tạo hoàn toàn trong máy.
+// Hành Trình Của Bạn — nhắc sinh nhật hằng năm bằng sự kiện lịch .ics (RFC 5545), tạo hoàn toàn trong máy.
 import { solar2lunar, lunarBirthday, canChi, LUNAR_MONTH } from './hoso-data.js';
 
 const pad = n => String(n).padStart(2, '0');
@@ -22,14 +22,14 @@ const addDays = (y, m, d, n) => { const t = new Date(Date.UTC(y, m - 1, d + n));
 export function buildICS(kids, opt = {}) {
   const now = opt.now ? new Date(opt.now) : new Date(), Y0 = now.getFullYear(), years = opt.years ?? 30, url = opt.url || '', ds = stamp();
   const alarms = (opt.alarms || ['d0', 'd1']).filter(a => ALARMS[a]);
-  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Ngan Ha Cua Con//Nhac sinh nhat//VI', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Ngân Hà Của Con', 'X-WR-TIMEZONE:Asia/Ho_Chi_Minh'];
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Ngan Ha Cua Con//Nhac sinh nhat//VI', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Hành Trình Của Bạn', 'X-WR-TIMEZONE:Asia/Ho_Chi_Minh'];
   const ev = (uid, start, title, desc, extra = []) => {
     const [y, m, d] = start, [y2, m2, d2] = addDays(y, m, d, 1);
     L.push('BEGIN:VEVENT', `UID:${uid}@nganhacuacon`, `DTSTAMP:${ds}`, `DTSTART;VALUE=DATE:${ymd8(y, m, d)}`, `DTEND;VALUE=DATE:${ymd8(y2, m2, d2)}`, ...extra, `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc(desc)}`, 'TRANSP:TRANSPARENT', ...(url ? [`URL:${url}`] : []));
     for (const a of alarms) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `TRIGGER:${ALARMS[a].trig}`, `DESCRIPTION:${esc(title + ' – ' + ALARMS[a].txt)}`, 'END:VALARM');
     L.push('END:VEVENT');
   };
-  const tail = '\nMở Ngân Hà Của Con để xem lại kỷ niệm' + (url ? ': ' + url : '');
+  const tail = '\nMở Hành Trình Của Bạn để xem lại kỷ niệm' + (url ? ': ' + url : '');
   let n = 0;
   for (const k of kids) {
     if (!k?.birth) continue;

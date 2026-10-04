@@ -1,4 +1,4 @@
-// Ngân Hà Của Con — dữ liệu hồ sơ bé: âm lịch Việt Nam (thuật toán Hồ Ngọc Đức, múi giờ +7), can chi, nạp âm,
+// Hành Trình Của Bạn — dữ liệu hồ sơ bé: âm lịch Việt Nam (thuật toán Hồ Ngọc Đức, múi giờ +7), can chi, nạp âm,
 // cung hoàng đạo, đá & hoa tháng sinh, tính cách (nội dung tự viết, mang tính tham khảo cho vui). Không gọi mạng.
 
 const INT = Math.floor, TZ = 7;

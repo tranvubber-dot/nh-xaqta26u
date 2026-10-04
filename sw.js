@@ -1,4 +1,4 @@
-// Ngân Hà Của Con — service worker (chạy offline). Ảnh/video của bạn KHÔNG đi qua đây: chúng nằm trong IndexedDB của máy.
+// Hành Trình Của Bạn — service worker (chạy offline). Ảnh/video của bạn KHÔNG đi qua đây: chúng nằm trong IndexedDB của máy.
 const VERSION = '1.5.1';
 const CACHE = 'nganha-' + VERSION;
 const CORE = ['./', 'index.html', 'app.js', 'nhatky.js', 'ui.js', 'dongthoigian.js', 'hoso.js', 'hoso-data.js', 'nhac.js', 'modau.js', 'drive.js', 'config.js', 'manifest.webmanifest', 'lib/three.module.min.js', 'fonts/Quicksand.ttf',

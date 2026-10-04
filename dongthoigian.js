@@ -1,4 +1,4 @@
-// Ngân Hà Của Con — màn chính: DÒNG SỰ KIỆN DỌC (mới nhất trên cùng), trang sự kiện, trình xem ảnh/video toàn màn hình.
+// Hành Trình Của Bạn — màn chính: DÒNG SỰ KIỆN DỌC (mới nhất trên cùng), trang sự kiện, trình xem ảnh/video toàn màn hình.
 // Cuộn bằng cuộn gốc của trình duyệt (iPhone có quán tính + giãn cao su sẵn); chuyển động bằng lò xo (ui.js).
 import { icon, animateSpring, rubber, haptic, IOS, REDUCED, fmtLong, clamp, contextMenu, longPress, undoToast } from './ui.js';
 import { timeVN } from './nhatky.js';

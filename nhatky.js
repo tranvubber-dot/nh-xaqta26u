@@ -1,4 +1,4 @@
-// Ngân Hà Của Con — "Nhật ký truyện tranh": dựng trang truyện từ ảnh thật bằng Canvas 2D,
+// Hành Trình Của Bạn — "Nhật ký truyện tranh": dựng trang truyện từ ảnh thật bằng Canvas 2D,
 // trình chỉnh trang, trình xem lật trang, AI viết lời (tuỳ chọn, dùng khoá Gemini riêng của người dùng).
 // Ảnh không bao giờ rời máy trừ khi người dùng tự bấm "✨ AI viết lời".
 
@@ -385,7 +385,7 @@ export function renderPage(d, pi, opt) {
       cx = sh.cx; cy = sh.cy; drawBubble(x, b, sh); items.push({ p: k, kind: 'bubble', i, box: { x: cx - sh.rx, y: cy - sh.ry, w: sh.rx * 2, h: sh.ry * 2 }, tail: [tx, ty] }); });
     if (p.caption) { const [cx, cy] = at(p.caption.u, p.caption.v), bx = captionBox(x, p.caption, cx, cy, gm.bw - 24); bx.x = clamp(bx.x, gm.bx + 10, gm.bx + gm.bw - 10 - bx.w); bx.y = clamp(bx.y, gm.by + 10, gm.by + gm.bh - 10 - bx.h); drawCaption(x, p.caption, bx); items.push({ p: k, kind: 'caption', i: 0, box: { x: bx.x, y: bx.y, w: bx.w, h: bx.h } }); }
   });
-  x.fillStyle = '#a597ad'; x.font = FONT(600, 20); x.textAlign = 'right'; x.textBaseline = 'alphabetic'; x.fillText('Ngân Hà Của Con', PW - PM, PH - 18);
+  x.fillStyle = '#a597ad'; x.font = FONT(600, 20); x.textAlign = 'right'; x.textBaseline = 'alphabetic'; x.fillText('Hành Trình Của Bạn', PW - PM, PH - 18);
   // vùng đang chọn (chỉ trong trình chỉnh)
   const sel = opt.sel;
   if (sel && sel.p != null && geo[sel.p]) {

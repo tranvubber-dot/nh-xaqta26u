@@ -1,4 +1,4 @@
-// Ngân Hà Của Con — ĐOẠN MỞ ĐẦU NGÀY SINH của trình chiếu (12–18 giây, chạm để bỏ qua).
+// Hành Trình Của Bạn — ĐOẠN MỞ ĐẦU NGÀY SINH của trình chiếu (12–18 giây, chạm để bỏ qua).
 // 1) màn tối + tiếng tim thai (Web Audio), ảnh mang bầu lướt mờ  2) sao hội tụ thành NGÔI SAO CHÀO ĐỜI, bùng sáng + vòng sóng + chuông
 // 3) ngày / giờ / nơi sinh hiện từng dòng  4) tên thật từng chữ ánh vàng → tên ở nhà to, avatar phát sáng, thông số chào đời
 // 5) ảnh ngày chào đời bay ra thành thác polaroid → trao lại cho trình chiếu ngân hà.

@@ -1,4 +1,4 @@
-// Ngân Hà Của Con — dòng thời gian 3D lưu giữ ảnh/video của con.
+// Hành Trình Của Bạn — dòng thời gian 3D lưu giữ ảnh/video của con.
 // Mọi dữ liệu chỉ nằm trong máy người dùng (IndexedDB). Không gửi đi đâu.
 import * as THREE from './lib/three.module.min.js';
 import { initDiary } from './nhatky.js';
@@ -2092,7 +2092,7 @@ async function renderSettings() {
   $$('#segTheme button').forEach(b => b.classList.toggle('on', b.dataset.v === S.theme));
   $$('#segMusic button').forEach(b => b.classList.toggle('on', b.dataset.v === S.music));
   $('#musicHint').textContent = S.music === 'builtin' ? 'Giai điệu hộp nhạc dịu êm do app tự chơi — không lo bản quyền.' : S.music === 'file' ? `Đang dùng: ${S.musicName || 'bài của bạn'} · bấm “Bài của bạn” lần nữa để đổi bài.` : 'Trình chiếu không có nhạc.';
-  $('#verTxt').textContent = 'Ngân Hà Của Con · v' + VERSION;
+  $('#verTxt').textContent = 'Hành Trình Của Bạn · v' + VERSION;
   renderGem(); renderBgUi();
   try {
     const e = await navigator.storage?.estimate?.(), p = await navigator.storage?.persisted?.();
@@ -2230,8 +2230,8 @@ async function profileLink() {
 }
 async function shareProfiles() {
   const url = await profileLink(); if (TEST) T.lastProfileLink = url;
-  const text = `Hồ sơ ${S.kids.map(k => cap(k.name)).join(', ')} trên Ngân Hà Của Con — mở link này ở máy/ứng dụng khác để khỏi nhập lại.`;
-  if (!TEST && navigator.share && MOBILE) { try { await navigator.share({ title: 'Hồ sơ bé · Ngân Hà Của Con', text, url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  const text = `Hồ sơ ${S.kids.map(k => cap(k.name)).join(', ')} trên Hành Trình Của Bạn — mở link này ở máy/ứng dụng khác để khỏi nhập lại.`;
+  if (!TEST && navigator.share && MOBILE) { try { await navigator.share({ title: 'Hồ sơ bé · Hành Trình Của Bạn', text, url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
   try { await navigator.clipboard.writeText(url); toast('Đã chép link hồ sơ bé — dán vào ô “Dán link hồ sơ” ở máy kia nhé (link chỉ chứa thông tin bé, không có ảnh)', 4200); }
   catch (e) { prompt2('Chép link hồ sơ bé', url, 4000); }
 }
@@ -2655,7 +2655,7 @@ installSprings(); initBars();
 // ---------- Khởi động ----------
 async function boot() {
   if (matchMedia('(pointer: coarse)').matches) $('#drop').innerHTML = '<span class="big">📸</span>Chạm để chọn ảnh, video<br>từ thư viện của bạn';
-  $('#ver').textContent = 'v' + VERSION; $('#verTxt').textContent = 'Ngân Hà Của Con · v' + VERSION;
+  $('#ver').textContent = 'v' + VERSION; $('#verTxt').textContent = 'Hành Trình Của Bạn · v' + VERSION;
   resize();
   try { await Promise.race([Promise.all([document.fonts.load('700 40px Quicksand'), document.fonts.load('600 20px Quicksand')]), sleep(2500)]); } catch (e) { }
   await makePlaceholder();

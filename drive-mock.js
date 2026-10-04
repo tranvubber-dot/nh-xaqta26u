@@ -56,9 +56,9 @@ export function install() {
     if (path === '/drive/v3/files' && m === 'GET') {
       const q = u.searchParams.get('q') || '', sp = u.searchParams.get('spaces') || 'drive';
       let fs = (await all('files')).filter(f => (sp === 'appDataFolder') === (f.parents || []).includes('appDataFolder'));
-      const name = /name='((?:[^'\\]|\\.)*)'/.exec(q)?.[1]?.replace(/\\(.)/g, '$1'), par = /'([^']+)' in parents/.exec(q)?.[1], mime = /mimeType='([^']+)'/.exec(q)?.[1];
+      const names = [...q.matchAll(/name='((?:[^'\\]|\\.)*)'/g)].map(x => x[1].replace(/\\(.)/g, '$1')), name = names.length ? names : null, par = /'([^']+)' in parents/.exec(q)?.[1], mime = /mimeType='([^']+)'/.exec(q)?.[1];
       const ap = /appProperties has \{ key='([^']+)' and value='((?:[^'\\]|\\.)*)' \}/.exec(q); if (ap) fs = fs.filter(f => f.appProperties?.[ap[1]] === ap[2].replace(/\\(.)/g, '$1'));
-      if (name != null && !ap) fs = fs.filter(f => f.name === name); if (par) fs = fs.filter(f => (f.parents || []).includes(par)); if (mime) fs = fs.filter(f => f.mimeType === mime); if (/trashed=false/.test(q)) fs = fs.filter(f => !f.trashed);
+      if (name != null && !ap) fs = fs.filter(f => name.includes(f.name)); if (par) fs = fs.filter(f => (f.parents || []).includes(par)); if (mime) fs = fs.filter(f => f.mimeType === mime); if (/trashed=false/.test(q)) fs = fs.filter(f => !f.trashed);
       return J({ files: fs.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime, size: f.size, parents: f.parents })) });
     }
     if (path === '/drive/v3/files' && m === 'POST') { const meta = JSON.parse(opt.body || '{}'), f = { id: nid('d'), name: meta.name, parents: meta.parents || ['root'], mimeType: meta.mimeType, appProperties: meta.appProperties, trashed: false, created: Date.now(), modifiedTime: new Date().toISOString() }; await put('files', f); return J({ id: f.id }); }

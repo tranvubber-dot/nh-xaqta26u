@@ -1,4 +1,4 @@
-// Ngân Hà Của Con — bộ công cụ giao diện dùng chung: lò xo (spring), giãn cao su, rung nhẹ, icon SVG nét mảnh, bottom sheet kính.
+// Hành Trình Của Bạn — bộ công cụ giao diện dùng chung: lò xo (spring), giãn cao su, rung nhẹ, icon SVG nét mảnh, bottom sheet kính.
 
 export const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 export const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);

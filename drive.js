@@ -1,13 +1,13 @@
-// Ngân Hà Của Con — Đăng nhập Google + đồng bộ Google Drive riêng của từng người (không cần máy chủ).
+// Hành Trình Của Bạn — Đăng nhập Google + đồng bộ Google Drive riêng của từng người (không cần máy chủ).
 // • Đăng nhập: Google Identity Services (token model, popup) trên máy tính/Safari; OAuth 2.0 redirect (response_type=token)
 //   cho app mở từ Màn hình chính iOS (popup ở đó dễ bật sang Safari rồi không quay về). Token chỉ giữ trong bộ nhớ phiên.
 // • Quyền tối thiểu: drive.file (chỉ tệp do app tạo) + drive.appdata (thư mục ẩn của app) + openid email profile.
-// • Ảnh/video gốc → thư mục thấy được "Ngân Hà Của Con / <tên ở nhà> / <năm>"; ảnh nhỏ + dữ liệu (nganha-db.json) → appDataFolder.
+// • Ảnh/video gốc → thư mục thấy được "Hành Trình Của Bạn / <tên ở nhà> / <năm>"; ảnh nhỏ + dữ liệu (nganha-db.json) → appDataFolder.
 // • Đồng bộ 2 chiều theo từng bản ghi: so với "bản bóng" (hash lần đồng bộ trước); hai máy cùng sửa → bản sửa sau thắng; xoá hẳn = tombstone.
 
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata openid email profile';
 const G = 'https://www.googleapis.com';
-const ROOT_NAME = 'Ngân Hà Của Con';
+const ROOT_NAME = 'Hành Trình Của Bạn', OLD_ROOTS = ['Ngân Hà Của Con', 'Ngân Hà Nhà Mình']; // đổi tên app: thư mục cũ được đổi tên tại chỗ (tìm theo appProperties), không tạo trùng
 const CHUNK = 4 * 1024 * 1024; // bội số của 256 KB theo yêu cầu upload resumable
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const stable = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, kk) => (o[kk] = x[kk], o), {}) : x);
@@ -107,7 +107,7 @@ export function initDrive(A) {
     if (!id) id = (await json('/drive/v3/files?fields=id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent || 'root'] }) })).id;
     F[key] = id; await saveCfg(); markDirty(); return id;
   }
-  // ---------- thư mục theo SỰ KIỆN: Ngân Hà Của Con / <bé> / <năm> / <ngày · tên sự kiện> ----------
+  // ---------- thư mục theo SỰ KIỆN: Hành Trình Của Bạn / <bé> / <năm> / <ngày · tên sự kiện> ----------
   // mỗi thư mục mang appProperties.nganha = 'root' | 'kid:<id>' | 'year:<kid>:<yyyy>' | 'ev:<kid>:<khoá sự kiện>' để tìm lại đúng (không theo tên),
   // sổ đăng ký thư mục (meta drvFolders) đồng bộ qua nganha-db.json để máy khác dùng lại, không tạo trùng
   const safe = (t, n = 80) => String(t || '').replace(/[\/\\:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n).trim() || 'Không tên';
@@ -119,7 +119,7 @@ export function initDrive(A) {
     await loadReg(); let f = REG[prop];
     if (!f) {
       // bản cũ (v1.5.0) đã tạo thư mục theo tên: nhận lại, gắn nhãn appProperties
-      const legacy = D.cfg.folders?.[(parent || 'root') + '/' + name];
+      const legacy = D.cfg.folders?.[(parent || 'root') + '/' + name] || (prop === 'root' ? OLD_ROOTS.map(n => D.cfg.folders?.['root/' + n]).find(Boolean) : null);
       let id = legacy || null;
       if (!id) { const q = `appProperties has { key='nganha' and value='${qesc(prop)}' } and mimeType='application/vnd.google-apps.folder' and trashed=false`; const j = await json('/drive/v3/files?' + new URLSearchParams({ q, fields: 'files(id,name,parents)', spaces: 'drive', pageSize: '5' })); const hit = j.files?.[0]; if (hit) { id = hit.id; f = { id, name: hit.name, parent: hit.parents?.[0] || parent }; } }
       if (id && !f) { await json(`/drive/v3/files/${id}?fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appProperties: { nganha: prop } }) }); f = { id, name, parent }; }
@@ -161,9 +161,9 @@ export function initDrive(A) {
         const fresh = (await A.dbGetRaw('moments', m.id)) || m; fresh.driveParent = fid; fresh.driveName = name; await A.dbPut('moments', fresh);
         D.org_n = ++n; await sleep(n % 20 ? 120 : 1200); // giới hạn tốc độ
       }
-      // thư mục "Ngân Hà Của Con" trùng (bản 1.5.0 có thể tạo 2 cái) mà bên trong không còn tệp nào → thùng rác Drive
+      // thư mục gốc trùng (bản 1.5.0 có thể tạo 2 cái) mà bên trong không còn tệp nào → thùng rác Drive
       if (REG.root) {
-        const q = `name='${qesc(ROOT_NAME)}' and mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents`;
+        const q = `(${[ROOT_NAME, ...OLD_ROOTS].map(n => `name='${qesc(n)}'`).join(' or ')}) and mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents`;
         const dup = ((await json('/drive/v3/files?' + new URLSearchParams({ q, fields: 'files(id)', spaces: 'drive', pageSize: '20' }))).files || []).filter(f => f.id !== REG.root.id);
         const hasFile = async (id, depth) => { const c = (await json('/drive/v3/files?' + new URLSearchParams({ q: `'${id}' in parents and trashed=false`, fields: 'files(id,mimeType)', spaces: 'drive', pageSize: '100' }))).files || []; for (const f of c) { if (f.mimeType !== 'application/vnd.google-apps.folder') return true; if (depth < 4 && await hasFile(f.id, depth + 1)) return true; } return false; };
         for (const f of dup) if (!(await hasFile(f.id, 0))) await json(`/drive/v3/files/${f.id}?fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
@@ -403,8 +403,8 @@ export function initDrive(A) {
       box.innerHTML = `<h3>Google Drive</h3>
         <div class="drv-acc">${D.cfg.picture ? `<img src="${A.esc(D.cfg.picture)}" alt="" referrerpolicy="no-referrer">` : `<i>${A.esc((D.cfg.name || '?')[0])}</i>`}<div><b>${A.esc(D.cfg.name || '')}</b><small>${A.esc(D.cfg.email)}</small></div></div>
         <p class="drv-st">${A.esc(st)}</p><p class="hint">${up}/${ms.length} ảnh, video đã có bản gốc trên Drive${D.cfg.all ? '' : ' (tự lưu ảnh mới thêm từ lúc đăng nhập)'}. App chỉ thấy các tệp do chính nó tạo trong Drive của bạn.</p>
-        <p class="hint drv-tree">Ảnh xếp theo: <b>Ngân Hà Của Con › tên bé › năm › ngày · tên sự kiện</b> (nhóm nhiều ngày: “2025-09-12 → 15 · Đi biển”). Đổi tên, gộp, tách sự kiện trong app thì thư mục trên Drive đổi theo.</p>
-        <div class="drv-b">${!D.cfg.all || up < ms.length ? `<button data-d="all">${A.icon('download', 16)}<span>Lưu tất cả ảnh cũ lên Drive</span></button>` : ''}<button data-d="sync">${A.icon('timeline', 16)}<span>Đồng bộ ngay</span></button>${rootId() ? `<button data-d="open">${A.icon('image', 16)}<span>Mở thư mục Ngân Hà Của Con trên Drive</span></button>` : ''}${D.status && /đăng nhập lại/i.test(D.status) ? `<button class="primary" data-d="re">Đăng nhập lại</button>` : ''}</div>
+        <p class="hint drv-tree">Ảnh xếp theo: <b>Hành Trình Của Bạn › tên bé › năm › ngày · tên sự kiện</b> (nhóm nhiều ngày: “2025-09-12 → 15 · Đi biển”). Đổi tên, gộp, tách sự kiện trong app thì thư mục trên Drive đổi theo.</p>
+        <div class="drv-b">${!D.cfg.all || up < ms.length ? `<button data-d="all">${A.icon('download', 16)}<span>Lưu tất cả ảnh cũ lên Drive</span></button>` : ''}<button data-d="sync">${A.icon('timeline', 16)}<span>Đồng bộ ngay</span></button>${rootId() ? `<button data-d="open">${A.icon('image', 16)}<span>Mở thư mục Hành Trình Của Bạn trên Drive</span></button>` : ''}${D.status && /đăng nhập lại/i.test(D.status) ? `<button class="primary" data-d="re">Đăng nhập lại</button>` : ''}</div>
         <label class="tog drv-slim"><span>Chỉ giữ bản nhỏ trên máy <small>bản gốc đã lên Drive thì xoá khỏi máy, mở xem sẽ tải lại từ Drive${D.cfg.saved ? ` · đã tiết kiệm ${fmtSize(D.cfg.saved)}` : ''}</small></span><input type="checkbox" data-d="slim" ${D.cfg.slim ? 'checked' : ''}></label>
         <button class="drv-out" data-d="out">Đăng xuất (không xoá gì)</button>`;
     }
@@ -434,7 +434,7 @@ export function initDrive(A) {
     return { redirected };
   }
   addEventListener('hashchange', async () => { if (on && /[#&](access_token|error)=/.test(location.hash) && readRedirect()) { try { const u = await json('/oauth2/v3/userinfo'); D.cfg = { ...D.cfg, email: u.email, name: u.name || u.email, picture: u.picture || '', since: D.cfg.since || Date.now() }; await saveCfg(); emit(); await afterLogin(); } catch (e) { } } });
-  const rootId = () => REG?.root?.id || D.cfg?.folders?.['root/' + ROOT_NAME] || null;
+  const rootId = () => REG?.root?.id || D.cfg?.folders?.['root/' + ROOT_NAME] || OLD_ROOTS.map(n => D.cfg?.folders?.['root/' + n]).find(Boolean) || null;
   const folderOf = (kidId, key) => REG?.['ev:' + kidId + ':' + key]?.id || null;
   const api = { on, boot, organize, folderOf, rootId, loadReg, signIn, signOut, sync, pump, markDirty, fetchBlob, processTrash, slimNow, renderSettings, afterLogin, get signedIn() { return signedIn(); }, get state() { return D; }, standalone, redirectUri, SCOPES };
   return api;

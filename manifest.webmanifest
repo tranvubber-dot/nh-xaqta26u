@@ -1,7 +1,7 @@
 {
-  "name": "Ngân Hà Của Con",
-  "short_name": "Ngân Hà Con",
-  "description": "Dòng thời gian 3D lưu giữ ảnh và video của con — dữ liệu chỉ nằm trên máy của bạn.",
+  "name": "Hành Trình Của Bạn",
+  "short_name": "Hành Trình",
+  "description": "Lưu lại hành trình cuộc đời bạn — từ tuổi trẻ, gia đình, con cái đến lúc về già xem lại. Ảnh, video nằm trên Drive của chính bạn.",
   "lang": "vi",
   "start_url": "./",
   "scope": "./",
@@ -10,8 +10,23 @@
   "background_color": "#0b0a24",
   "theme_color": "#0b0a24",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
