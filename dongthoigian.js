@@ -2,6 +2,7 @@
 // Cuộn bằng cuộn gốc của trình duyệt (iPhone có quán tính + giãn cao su sẵn); chuyển động bằng lò xo (ui.js).
 import { icon, animateSpring, rubber, haptic, IOS, REDUCED, fmtLong, clamp, contextMenu, longPress, undoToast } from './ui.js';
 import { timeVN } from './nhatky.js';
+import { eventGeo } from './bando.js';
 import { isMe, isChild, isPartner, roleOf, roleName, showsAge, sinceOf, anchorOf, chapterAt, approxLabel, TYPES, typeOf, guessType, holidayOf, MILES, mileOf, CH_COLORS } from './doi.js';
 const META0 = () => ({ titles: {}, notes: {}, merges: [], splits: {}, covers: {}, types: {}, miles: {} });
 
@@ -220,6 +221,7 @@ export function initTimeline(A) {
       e.stack = cov ? [cov, ...pick.filter(m => m !== cov)].slice(0, 3) : pick;
       e.typeSet = M.types?.[e.key] || (e.group?.type) || null; e.type = e.typeSet || guessType(e, { wedDays });
       if (life) e.chapter = chapterAt(chs, e.ts0);
+      e.geo = eventGeo(e);
     }
     evs.sort((a, b) => b.ts0 - a.ts0);
     // công việc theo thời gian của bạn → cột mốc "Việc làm đầu tiên", "Công việc mới", "Nghỉ hưu" ở sự kiện đầu tiên của năm đó
@@ -242,7 +244,7 @@ export function initTimeline(A) {
   // ---------- dựng dòng sự kiện ----------
   function card(e, i) {
     const side = st.wide ? (i % 2 ? 'R' : 'L') : 'R', ag = A.ageText(A.kid(), e.ts0, false), T = typeOf(e.type);
-    const chips = [e.type !== 'daily' ? `<span class="chip ty" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</span>` : '', `<span class="chip">${icon(e.nImg ? 'image' : 'video', 15, 1.9)}${esc(countTxt(e))}</span>`,
+    const chips = [e.geo?.name ? `<span class="chip geo">${icon('pin', 13, 2.2)}${esc(e.geo.name.split(',')[0])}</span>` : '', e.type !== 'daily' ? `<span class="chip ty" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</span>` : '', `<span class="chip">${icon(e.nImg ? 'image' : 'video', 15, 1.9)}${esc(countTxt(e))}</span>`,
       e.diaries.length ? `<button class="chip bk" data-diary="${e.diaries[0].id}">${icon('book', 15, 1.9)}nhật ký</button>` : '',
       ...(A.family() ? e.ages.filter(a => a.txt !== e.title).map(a => `<span class="chip age" style="--c:${a.color}"><img class="mav" src="${A.avatar(kidById(a.id))}" alt="">${esc(a.txt)}</span>`) : [ag ? `<span class="chip age">${esc(ag)}</span>` : '']),
       ...e.sibs.map(x => `<span class="chip sib" style="--c:${kidById(x.id)?.color}">${icon('heart', 13, 2)}${esc(x.txt)}</span>`)].join('');
@@ -659,7 +661,7 @@ export function initTimeline(A) {
     if (!EVP.querySelector('.evp-ti').classList.contains('editing')) EVP.querySelector('.evp-ti .tt').textContent = e.title;
     const ag = A.family() ? '' : A.ageText(A.kid(), e.ts0, false);
     const T = typeOf(e.type); EVP.style.setProperty('--tc', T.c);
-    EVP.querySelector('.evp-chips').innerHTML = [e.type !== 'daily' ? `<button class="hc ty" data-a="type" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</button>` : '', e.mile ? `<span class="hc mile">${e.mile.emo || icon(e.mile.ic, 14, 2)}Cột mốc</span>` : '', e.approx ? `<span class="hc">${icon('clock', 14, 2)}ước chừng</span>` : '', ag ? `<span class="hc age">${esc(ag)}</span>` : '', `<span class="hc">${esc(countTxt(e))}</span>`].join('');
+    EVP.querySelector('.evp-chips').innerHTML = [e.type !== 'daily' ? `<button class="hc ty" data-a="type" style="--tc:${T.c}">${T.ic} ${esc(T.t)}</button>` : '', e.mile ? `<span class="hc mile">${e.mile.emo || icon(e.mile.ic, 14, 2)}Cột mốc</span>` : '', e.approx ? `<span class="hc">${icon('clock', 14, 2)}ước chừng</span>` : '', A.openMap ? `<button class="hc geo" data-a="geo">${icon('pin', 14, 2)}${esc(e.geo ? (e.geo.name || 'Có toạ độ — xem sa bàn').split(',')[0] : 'Thêm nơi chốn')}</button>` : '', ag ? `<span class="hc age">${esc(ag)}</span>` : '', `<span class="hc">${esc(countTxt(e))}</span>`].join('');
     EVP.querySelector('.evp-bt b').textContent = e.title; EVP.querySelector('.evp-bt small').textContent = A.dmy(e.ts0);
     const nt = EVP.querySelector('.evp-nt'); nt.textContent = e.note; nt.hidden = !e.note;
     EVP.classList.toggle('mile', !!e.mile);
@@ -739,6 +741,7 @@ export function initTimeline(A) {
     const b = ev.target.closest('[data-a], [data-day]'); if (!b || !EVP.contains(b)) return; const a = b.dataset.a;
     if (a === 'play') playEvent(e);
     else if (a === 'type') typeMenu(e, b);
+    else if (a === 'geo') placeEvent(e);
     else if (b.dataset.day) jumpDay(b.dataset.day);
     else if (a === 'grid') showGrid(GRID.hidden, true);
   });
@@ -854,6 +857,7 @@ export function initTimeline(A) {
       { icon: 'edit', label: 'Sửa nhóm: tên, ghi chú, chọn ngày / ảnh', act: () => openGroupPicker({ group: e.group }) },
       { icon: 'star', label: 'Đổi ảnh bìa', act: async () => { await ensure(); startCoverPick(); } },
       { icon: 'tag', label: `Loại kỷ niệm: ${typeOf(e.type).ic} ${typeOf(e.type).t}`, act: () => typeMenu(e, el) },
+      A.openMap && { icon: 'map', label: e.geo ? `Nơi chốn: ${esc(e.geo.name || 'có toạ độ GPS')}` : 'Đặt nơi chốn trên sa bàn', act: () => placeEvent(e) },
       { icon: 'plus', label: 'Thêm ảnh từ máy vào nhóm', act: () => { st.cur = st.cur || e; st.addTo = e; $('#evFiles').click(); } },
       { icon: 'grid', label: GRID.hidden ? 'Xem dạng lưới' : 'Ẩn lưới', act: async () => { await ensure(); showGrid(GRID.hidden, true); } },
       { icon: 'check', label: 'Chọn nhiều ảnh', act: async () => { await ensure(); showGrid(true, true); startSel('ev'); } },
@@ -873,6 +877,7 @@ export function initTimeline(A) {
       { sep: 1 },
       { icon: 'star', label: 'Đổi ảnh bìa', act: async () => { await ensure(); startCoverPick(); } },
       { icon: 'calendar', label: 'Đổi ngày cả sự kiện', act: () => changeEventDate(e) },
+      A.openMap && { icon: 'map', label: e.geo ? `Nơi chốn: ${esc(e.geo.name || 'có toạ độ GPS')} · xem trên sa bàn` : 'Đặt nơi chốn trên sa bàn', act: () => placeEvent(e) },
       { icon: 'clock', label: e.approx ? `Ngày ước chừng: ${approxLabel(e.approx, e.ts0, true)}` : 'Không nhớ rõ ngày? Đặt ngày ước chừng', act: () => approxMoments(e.ms, e) },
       { icon: 'tag', label: `Loại kỷ niệm: ${typeOf(e.type).ic} ${typeOf(e.type).t}`, act: () => typeMenu(e, el) },
       { icon: 'flag', label: e.lifeMile ? `Cột mốc: ${mileOf(e.lifeMile)?.ic || ''} ${mileOf(e.lifeMile)?.t || ''}` : 'Đánh dấu cột mốc đời người…', act: () => mileMenu(e, el) },
@@ -883,6 +888,10 @@ export function initTimeline(A) {
       A.driveFolderOf?.(e) && { icon: 'image', label: 'Mở thư mục sự kiện trên Drive', act: () => window.open('https://drive.google.com/drive/folders/' + A.driveFolderOf(e), '_blank') },
       { icon: 'trash', label: 'Xoá sự kiện…', danger: true, act: () => deleteEvent(e) }
     ] });
+  }
+  // nơi chốn: mở sa bàn ở toạ độ GPS (nếu có) để xác nhận / cắm ghim
+  function placeEvent(e) {
+    const g = e.geo; A.openMap({ at: g ? { lat: g.lat, lon: g.lon, name: g.name || e.title } : null, focus: g, pick: async pl => { await A.setPlace(e.ms, pl); refreshAll(e.key); A.toast(`Đã đặt “${e.title}” ở ${pl.name || 'nơi này'} 📍`, 2200); } });
   }
   // loại kỷ niệm (chuyến đi, Lễ Tết…): tự đoán, đổi được; nhóm lưu trong nhóm, ngày lẻ lưu trong meta sự kiện
   function typeMenu(e, el) {

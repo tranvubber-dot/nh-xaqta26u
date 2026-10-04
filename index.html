@@ -1032,6 +1032,49 @@ html.wk .ob-card { -webkit-backdrop-filter: none; backdrop-filter: none; backgro
 .ob-card .ce-r > b { color: rgba(255,255,255,.85); } .ob-card .ce-a button, .ob-card .seg button { color: #fff; } .ob-card .seg { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.2); } .ob-card .ce-pv { display: none; }
 .tl-cb { display: inline-block; width: 46px; margin-right: 4px; vertical-align: middle; animation: cbBob 3.6s ease-in-out infinite; }
 .lc-cb { display: inline-block; animation: lcPop .6s 1s cubic-bezier(.34,1.56,.64,1) backwards, cbBob 3.4s 1.6s ease-in-out infinite; filter: drop-shadow(0 8px 20px rgba(255,140,200,.5)); }
+
+/* v1.7.0: sa bàn 3D */
+#sbv { position: absolute; inset: 0; overflow: hidden; touch-action: none; background: #bfe6ff; }
+#sbv canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.sb-pins { position: absolute; inset: 0; pointer-events: none; }
+.sb-pin { position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; will-change: transform; }
+.sb-pin > div { position: absolute; left: 0; bottom: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.sb-pin .pi { width: 40px; height: 40px; border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); display: grid; place-items: center; background: var(--c, #ff8fbf); box-shadow: 0 6px 14px rgba(40,20,60,.3), inset 0 2px 0 rgba(255,255,255,.5); border: 2.5px solid #fff; }
+.sb-pin .pi span { transform: rotate(45deg); font-size: 19px; line-height: 1; }
+.sb-pin .pl { margin-bottom: 6px; padding: 3px 9px; border-radius: 12px; background: rgba(255,255,255,.95); color: #4a2a4e; font: 800 12px var(--font); white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 3px 10px rgba(40,20,60,.2); }
+.sb-pin.ev .pi { width: 30px; height: 30px; } .sb-pin.ev .pi span { font-size: 15px; }
+.sb-pin.new .pi { animation: pinPulse 1.2s ease-in-out infinite; }
+@keyframes pinPulse { 50% { box-shadow: 0 0 0 10px rgba(255,143,191,.25), 0 6px 14px rgba(40,20,60,.3); } }
+.sb-bub { margin-bottom: 8px; padding: 10px 12px; border-radius: 16px; background: #fff; color: #3d1b35; box-shadow: 0 10px 30px rgba(40,20,60,.3); text-align: center; min-width: 190px; font: 700 13.5px var(--font); }
+.sb-bub b { display: block; font-size: 14.5px; margin-bottom: 6px; } .sb-bub .r { display: flex; gap: 6px; justify-content: center; } .sb-bub button { height: 34px; padding: 0 12px; font-size: 13px; border-radius: 12px; color: #3d1b35; background: #f2eaf6; border: none; } .sb-bub button.primary { color: #fff; background: linear-gradient(135deg, #ff8fbf, #ffb36b); }
+.sb-me { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+.sb-me > div { position: absolute; left: 0; bottom: -4px; transform: translateX(-50%); width: 46px; filter: drop-shadow(0 6px 6px rgba(40,20,60,.3)); }
+.sb-me.walking > div { animation: walkBob .32s ease-in-out infinite alternate; } .sb-me.left > div svg { transform: scaleX(-1); }
+@keyframes walkBob { from { transform: translateX(-50%) translateY(0) rotate(-4deg); } to { transform: translateX(-50%) translateY(-6px) rotate(4deg); } }
+.sb-att { position: absolute; right: 8px; bottom: calc(var(--safe-b) + 6px); z-index: 3; padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,.8); color: #3d3d55; font: 600 10.5px var(--font); }
+.sb-att a { color: inherit; }
+.sb-load { position: absolute; inset: 0; z-index: 4; display: grid; place-content: center; text-align: center; gap: 6px; background: linear-gradient(180deg, #cdeeff, #fff0f6); color: #4a2a4e; }
+.sb-load b { font-size: 18px; } .sb-load small { font-weight: 700; color: #7a5a7e; min-height: 18px; }
+.sb-cloud { position: relative; width: 120px; height: 60px; margin: 0 auto 10px; animation: cbBob 2s ease-in-out infinite; } .sb-cloud i { position: absolute; background: #fff; border-radius: 50%; box-shadow: 0 6px 16px rgba(80,120,170,.2); }
+.sb-cloud i:nth-child(1) { width: 60px; height: 60px; left: 30px; top: 0; } .sb-cloud i:nth-child(2) { width: 44px; height: 44px; left: 6px; top: 16px; } .sb-cloud i:nth-child(3) { width: 48px; height: 48px; left: 70px; top: 12px; }
+.sb-clouds { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.sb-clouds i { position: absolute; width: 70vmax; height: 40vmax; border-radius: 50%; background: radial-gradient(ellipse, #fff 40%, rgba(255,255,255,0) 70%); transform: translateX(-180vmax); transition: transform .9s cubic-bezier(.5,0,.3,1); }
+.sb-clouds i:nth-child(1) { top: -10%; } .sb-clouds i:nth-child(2) { top: 20%; transition-delay: .08s; } .sb-clouds i:nth-child(3) { top: 45%; transition-delay: .16s; } .sb-clouds i:nth-child(4) { top: 65%; transition-delay: .05s; } .sb-clouds i:nth-child(5) { top: 85%; transition-delay: .12s; }
+#sbv.cloudy .sb-clouds i { transform: translateX(-10vw) scale(1.4); }
+/* màn Bản đồ đời tôi */
+#mapv { position: fixed; inset: 0; z-index: 34; opacity: 0; pointer-events: none; transition: opacity .35s; }
+#mapv.open { opacity: 1; pointer-events: auto; }
+.mp-top { position: absolute; z-index: 6; left: 0; right: 0; top: 0; padding: calc(var(--safe-t) + 10px) 12px 0; display: flex; gap: 8px; align-items: center; }
+.mp-top .glassbtn { flex: none; }
+.mp-q { flex: 1; min-width: 0; position: relative; } .mp-q input { width: 100%; height: 44px; border-radius: 22px; border: none; padding: 0 16px 0 40px; font: 700 15px var(--font); color: #3d1b35; background: rgba(255,255,255,.95); box-shadow: 0 6px 18px rgba(40,20,60,.18); outline: none; }
+.mp-q .ic { position: absolute; left: 13px; top: 12px; color: #9a7aa0; }
+.mp-res { position: absolute; left: 0; right: 0; top: 50px; border-radius: 18px; background: #fff; color: #3d1b35; box-shadow: 0 14px 34px rgba(40,20,60,.25); overflow: hidden; }
+.mp-res button { display: block; width: 100%; text-align: left; padding: 10px 14px; border: none; border-bottom: 1px solid #f1e8f3; border-radius: 0; background: #fff; color: #3d1b35; font: 700 13.5px var(--font); height: auto; } .mp-res small { display: block; font-weight: 600; color: #8a6a8e; font-size: 12px; }
+.mp-bar { position: absolute; z-index: 6; left: 12px; right: 12px; bottom: calc(var(--safe-b) + 34px); display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.mp-bar button { height: 44px; padding: 0 14px; border-radius: 22px; background: rgba(255,255,255,.95); color: #3d1b35; border: none; font: 800 13.5px var(--font); box-shadow: 0 6px 18px rgba(40,20,60,.18); display: inline-flex; align-items: center; gap: 6px; }
+.mp-title { position: absolute; z-index: 6; left: 0; right: 0; top: calc(var(--safe-t) + 62px); text-align: center; pointer-events: none; } .mp-title b { display: inline-block; padding: 5px 14px; border-radius: 16px; background: rgba(255,255,255,.88); color: #3d1b35; font: 800 14px var(--font); box-shadow: 0 4px 12px rgba(40,20,60,.15); }
+.mp-hint { position: absolute; z-index: 6; left: 50%; bottom: calc(var(--safe-b) + 150px); transform: translateX(-50%); padding: 7px 14px; border-radius: 16px; background: rgba(61,27,53,.82); color: #fff; font: 700 13px var(--font); white-space: nowrap; pointer-events: none; transition: opacity .4s; }
+.chip.geo { color: var(--text); } .hc.geo { border: none; cursor: pointer; color: inherit; background: rgba(255,255,255,.14); font-weight: 800; }
 </style>
 </head>
 <body data-theme="night" class="v12">
@@ -1182,6 +1225,7 @@ html.wk .ob-card { -webkit-backdrop-filter: none; backdrop-filter: none; backgro
     <img src="icons/icon-192.png" alt="" class="ab-ic">
     <div class="ab-t"><b>Hành Trình Của Bạn</b><small id="abVer"></small></div>
     <p class="ab-d">Lưu lại hành trình cuộc đời bạn — từ tuổi trẻ, có gia đình, con cái đến lúc về già xem lại. Ảnh, video nằm trong máy và trên Google Drive của chính bạn.</p>
+    <p class="ab-d" style="font-size:12.5px">Bản đồ dùng dữ liệu OpenStreetMap: khu vực bạn xem được tải từ máy chủ OSM (© OpenStreetMap contributors, tìm địa chỉ bằng Nominatim). Toạ độ kỷ niệm chỉ lưu trong máy và Google Drive của bạn.</p>
     <div class="ab-l"><span>Tác giả</span><b>Trần Vũ</b></div>
     <div class="ab-l"><span>Điện thoại / Zalo</span><b>0967 115 093</b></div>
     <div class="ab-b"><a class="btn" href="tel:0967115093">📞 Gọi</a><a class="btn" href="https://zalo.me/0967115093" target="_blank" rel="noopener">💬 Zalo</a></div>

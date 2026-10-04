@@ -13,6 +13,7 @@ import { ROLES, roleOf, isMe, isChild, isPartner, isElder, roleName, showsAge, f
 import { lunar2solar, solar2lunar, LUNAR_MONTH } from './hoso-data.js';
 import { initOnboarding } from './lamquen.js';
 import { chibiSVG } from './chibi.js';
+import { initMap, eventGeo, searchPlace } from './bando.js';
 
 const VERSION = '1.6.0';
 const Q = new URLSearchParams(location.search);
@@ -138,7 +139,11 @@ function tiffTags(dv, t0) {
       if (type === 2) out[tag] = str(cnt <= 4 ? e + 8 : u32(e + 8), cnt); else if (type === 4 || type === 3) out[tag] = type === 4 ? u32(e + 8) : u16(e + 8); }
     return out; };
   const ifd0 = readIfd(u32(4)), ex = ifd0[0x8769] ? readIfd(ifd0[0x8769]) : {};
-  return { orig: ex[0x9003] || '', digi: ex[0x9004] || '', dt: ifd0[0x0132] || '', off: ex[0x9011] || '' };
+  // v1.7.0: toạ độ GPS (IFD 0x8825): 1/3 = N|S, E|W; 2/4 = 3 số hữu tỉ độ-phút-giây
+  let gps = null;
+  try { const g = ifd0[0x8825]; if (g && t0 + g + 2 <= L) { const n = u16(g), raw = {}; for (let i = 0; i < n && i < 40; i++) { const e = g + 2 + i * 12, tag = u16(e), type = u16(e + 2), cnt = u32(e + 4); if (type === 2) raw[tag] = str(cnt <= 4 ? e + 8 : u32(e + 8), cnt); else if (type === 5 && cnt === 3) { const o = u32(e + 8); raw[tag] = [0, 1, 2].map(k => { const d = u32(o + k * 8 + 4); return d ? u32(o + k * 8) / d : 0; }); } }
+    if (raw[2] && raw[4]) { const dms = a => a[0] + a[1] / 60 + a[2] / 3600; let la = dms(raw[2]), lo = dms(raw[4]); if (/S/i.test(raw[1] || '')) la = -la; if (/W/i.test(raw[3] || '')) lo = -lo; if ((la || lo) && Math.abs(la) <= 90 && Math.abs(lo) <= 180) gps = { lat: +la.toFixed(6), lon: +lo.toFixed(6) }; } } } catch (e) { }
+  return { orig: ex[0x9003] || '', digi: ex[0x9004] || '', dt: ifd0[0x0132] || '', off: ex[0x9011] || '', gps };
 }
 async function readMeta(file) {
   const info = { exif: [], xmp: '' };
@@ -224,6 +229,16 @@ function alignDates(rows) {
     if (!ref && good.length) { const lm = r.file.lastModified || 0; const g = good.slice().sort((a, b) => Math.abs((a.file.lastModified || 0) - lm) - Math.abs((b.file.lastModified || 0) - lm))[0]; if (g) ref = { g, frac: g.ts + 60e3 }; }
     if (ref) { r.ts = Math.round(ref.frac); r.src = 'align'; }
   }
+}
+// toạ độ chụp: EXIF GPS (ảnh) hoặc ©xyz / ISO6709 trong moov (video iPhone, Android)
+async function readGps(file, isVideo) {
+  try {
+    if (!isVideo) { const info = await readMeta(file); return info.exif.map(x => x.gps).find(Boolean) || null; }
+    const parts = [[0, Math.min(file.size, 3 << 20)]]; if (file.size > 3 << 20) parts.push([Math.max(3 << 20, file.size - (4 << 20)), file.size]);
+    for (const [a, b] of parts) { const buf = new Uint8Array(await file.slice(a, b).arrayBuffer()); let txt = ''; for (let i = 0; i < buf.length; i += 32768) txt += String.fromCharCode.apply(null, buf.subarray(i, i + 32768));
+      for (const key of ['com.apple.quicktime.location.ISO6709', '\xa9xyz']) { const k = txt.indexOf(key); if (k < 0) continue; const m = /([+-]\d{1,2}\.\d+)([+-]\d{1,3}\.\d+)/.exec(txt.slice(k, k + 200)); if (m) return { lat: +(+m[1]).toFixed(6), lon: +(+m[2]).toFixed(6) }; } }
+  } catch (e) { }
+  return null;
 }
 async function readDate(file, isVideo) {
   let t = isVideo ? await videoDate(file) : await exifDate(file);
@@ -1720,7 +1735,7 @@ async function createMe(first = false) {
   if (ME()) { openKid(ME()); return; }
   $('#mKid').classList.remove('open');
   const d = await OB.open({ first, color: defaultColor(null, S.kids.map(k => k.color)) }); if (!d) { if (first && !S.kids.length && !$('#mKid').classList.contains('open')) openKid(null, { role: 'con' }); return; }
-  const k = { id: uid(), role: 'me', created: Date.now(), avatar: 0, avStyle: 0, ...d }; await dbPut('kids', k); S.kids.push(k); await P.warm([k]); await metaSet('meAsk', Date.now());
+  const k = { id: uid(), role: 'me', created: Date.now(), avatar: 0, avStyle: 0, ...d }; await dbPut('kids', k); if (d.home?.name && navigator.onLine) setTimeout(() => homeFromName(d.home.name), 4500); S.kids.push(k); await P.warm([k]); await metaSet('meAsk', Date.now());
   document.body.classList.remove('intro'); leaveIntro(true); await selectKid(k.id, false); await enterFamily(); renderSettings();
   if (S.kids.length > 1) setTimeout(() => toast(`${S.kids.filter(x => !isMe(x)).map(x => cap(x.name)).join(', ')} đã thành người thân trong hành trình của bạn ✨`, 4000), 700);
 }
@@ -2114,7 +2129,7 @@ async function addFiles(list) {
     $('#addList').appendChild(el); el.style.animationDelay = Math.min(ADD.rows.length, 8) * .05 + 's';
     const r = { file: f, isV, el, ts: 0, src: '', th: null, url: null, ready: false }; ADD.rows.push(r); ADD.pending++; refreshAddBtn();
     try {
-      const [dt, th] = await Promise.all([readDate(f, isV), isV ? videoThumb(f) : imageThumb(f)]);
+      const [dt, th, gp] = await Promise.all([readDate(f, isV), isV ? videoThumb(f) : imageThumb(f), readGps(f, isV)]); r.gps = gp;
       r.ts = dt.ts; r.src = dt.src; r.th = th; r.url = URL.createObjectURL(th.blob);
       el.querySelector('.th').style.backgroundImage = `url("${r.url}")`;
       el.querySelector('.pl').textContent = isV ? '▶ ' + fmtDur(th.dur) : '';
@@ -2159,7 +2174,7 @@ async function saveAdd() {
       const r = rows[i], id = uid(), f = r.file;
       await dbPut('blobs', f, 'o_' + id);
       await dbPut('blobs', r.th.blob, 't_' + id);
-      const m = { id, fp: r.fp, tv: 2, kidId: ADD.kids[0], kidIds: ADD.kids.slice(), ts: r.ts, ...(r.approx ? { approx: r.approx, dateSrc: 'approx' } : {}), title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
+      const m = { id, fp: r.fp, tv: 2, kidId: ADD.kids[0], kidIds: ADD.kids.slice(), ts: r.ts, ...(r.approx ? { approx: r.approx, dateSrc: 'approx' } : {}), ...(r.gps ? { gps: r.gps } : {}), title: r.el.querySelector('.r-ti').value.trim(), note: '', type: r.isV ? 'video' : 'image', mime: f.type || '', name: f.name || '', size: f.size, dur: r.th.dur || 0, w: r.th.w, h: r.th.h, color: r.th.color, heic: !r.isV && !r.th.ok && isHeic(f), dateSrc: r.src, created: Date.now() + i };
       await dbPut('moments', m); S.all.push(m); ids.push(id);
       $('#addProg i').style.width = ((i + 1) / rows.length * 100) + '%';
     }
@@ -2620,6 +2635,7 @@ $('#verTxt').addEventListener('click', () => { const t = performance.now(); FPSM
 function loop(now) {
   requestAnimationFrame(loop);
   if (FPSM.on) fpsTick(now);
+  if (MAPOPEN) { last = now; return; } // sa bàn đang mở: nghỉ vẽ ngân hà
   const raw = (now - last) / 1000; last = now; const dt = Math.min(.05, Math.max(0, raw));
   const f0 = performance.now(); frame(dt); perf.frames++; perf.ms = perf.ms * .95 + (performance.now() - f0) * .05;
   // tự hạ độ phân giải nếu máy yếu (giữ mượt)
@@ -2739,7 +2755,7 @@ function openBgSettings() { renderSettings(); openModal($('#mSet')); setTimeout(
 async function setMomentKids(m, ids) { m.kidIds = ids.slice(); m.kidId = ids[0]; await dbPut('moments', m); refreshKid(); buildGalaxy(); buildScrub(); TL.render(); }
 async function saveChapters(cfg) { S.chCfg = cfg; await metaSet('chapters', cfg); refreshKid(); buildGalaxy(); }
 const TL = initTimeline({ life: LIFE, me: () => ME() ? dispKid(ME()) : null, chapters: () => S.chapters || [], chCfg: () => S.chCfg || {}, saveChapters, kidsRaw: () => S.kids,
-  allCount: () => (S.all || []).length, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
+  allCount: () => (S.all || []).length, openMap: o => MAP.open(o), setPlace, story: o => startStory(o), addOld: (y, prec) => openAdd({ approx: { prec: prec || 'y', y } }), pickApprox, chibi: k => k && !k.avatar ? chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }) : '', kid: () => S.kid ? { ...S.kid, name: KN() } : null, kidRaw: () => S.kid, moments: () => S.family ? S.all.filter(m => kidsOf(m).some(id => S.kids.some(k => k.id === id))) : S.moments, diaries: () => S.family ? (S.allDiaries || []) : (S.diaries || []),
   groups: () => S.groups || (S.groups = []), setGroups: g => { S.groups = g; }, saveGroups: () => metaSet('groups', S.groups || []),
   driveFolderOf: e => DRV?.signedIn ? DRV.folderOf(e.kids?.[0] || S.kid?.id, e.key) : null,
   music: on => on ? startMusic() : Music.stop(), confetti: c => P.confetti(c), nhac: ks => nhacFor(ks ? ks.map(k => S.kids.find(x => x.id === k.id)) : null),
@@ -2763,6 +2779,18 @@ function storyHub(at) {
   ] });
 }
 var openVideoMaker = null;
+// ---------- v1.7.0: Bản đồ đời tôi (sa bàn 3D chibi) ----------
+var MAPOPEN = false;
+const MAP = initMap({ dbGet: dbGetRaw, dbPut: dbPutRaw, metaGet, metaSet, prompt: prompt2, toast, get drive() { return DRV; }, me: () => ME() ? dispKid(ME()) : null,
+  chibi: k => chibiSVG(S.kids.find(x => x.id === k.id) || k, { w: 46 }), events: () => TL.events, spanTxt: ms => TL.spanTxt(ms),
+  openEvent: key => { if (document.body.classList.contains('galaxy')) exitGalaxy(); TL.openEvent(key); },
+  setEventPlace: async (e, pl) => setPlace(e.ms, pl),
+  onOpen: () => { MAPOPEN = true; }, onClose: () => { MAPOPEN = false; } });
+async function setPlace(ms, pl) { for (const m of ms) { if (pl) m.place = { lat: pl.lat, lon: pl.lon, name: pl.name || '' }; else delete m.place; await dbPut('moments', m); } await afterDataChange(); }
+// Nhà mình từ màn làm quen: tìm toạ độ khu vực đã gõ, cắm ghim (chỉnh lại được trên sa bàn)
+async function homeFromName(name) {
+  try { const r = (await searchPlace(name))[0]; if (!r) return; const ps = (await metaGet('sy:places')) || []; if (ps.some(p => p.kind === 'home')) return; ps.push({ id: Date.now().toString(36), kind: 'home', name: 'Nhà mình', area: name, lat: r.lat, lon: r.lon }); await metaSet('sy:places', ps); toast(`Đã cắm 🏡 Nhà mình ở ${r.name} trên sa bàn — mở “Bản đồ đời tôi” để chỉnh cho đúng`, 4200); } catch (e) { }
+}
 function tabOn(t) { $$('#tabbar [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === t)); }
 function enterGalaxy() {
   TL.closeViewer(); TL.closeEvent(); $('#kidMenu').hidden = true;
@@ -2793,6 +2821,7 @@ function initBars() {
     { icon: 'image', label: 'Đổi hình nền', act: () => openBgSettings() },
     { icon: S.theme === 'dawn' ? 'moon' : 'sun', label: S.theme === 'dawn' ? 'Đổi sang Đêm ngân hà' : 'Đổi sang Bình minh', act: () => $('#bTheme').click() },
     { icon: 'heart', label: TL.hidePreg ? 'Hiện ảnh lúc mang bầu' : 'Ẩn ảnh lúc mang bầu', act: () => TL.setHidePreg(!TL.hidePreg) },
+    { icon: 'map', label: 'Bản đồ đời tôi <small class="cm-n">sa bàn 3D</small>', act: () => MAP.open() },
     { icon: 'galaxy', label: gx ? 'Về dòng thời gian' : 'Xem Toàn cảnh ngân hà', act: () => $('#bOverview').click() },
     S.kid && { icon: 'star', label: `Hồ sơ của ${esc(KN())}`, act: () => P.openProfile(dispKid(S.kid)) },
     S.kid && { icon: 'cake', label: S.family ? 'Nhắc sinh nhật cả nhà' : `Nhắc sinh nhật ${esc(KN())}`, act: () => nhacFor(S.family ? S.kids : [S.kid]) },
@@ -2982,7 +3011,7 @@ if (TEST) {
     fps(ms = 3000) { return new Promise(r => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }); },
     state() { return { mode: S.mode, kid: S.kid?.name, n: S.moments.length, cards: G.cards.length, gates: G.gates.map(g => g.it.year), loaded: Stream.loaded, budget: Stream.BUDGET, lb: S.lbIdx, theme: S.theme, mix: +S.mix.toFixed(2), dpr, fps: +perf.fps.toFixed(1), now: $('#nowD').textContent + ' | ' + $('#nowA').textContent + ' | ' + $('#nowC').textContent, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, music: Music.playing }; },
     async wipe() { for (const st of ['kids', 'moments', 'blobs', 'meta', 'diaries']) await dbx(st, 'readwrite', s => s.clear()); },
-    errors: [], ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
+    errors: [], get MAP() { return MAP; }, setPlace, metaSet, metaGet, ME, LIFE, setKidRole, pickApprox, saveChapters, aoApply, get ADD() { return ADD; }, chaptersOf,
     errors_: null
   };
   addEventListener('error', e => T.errors.push(String(e.message)));
