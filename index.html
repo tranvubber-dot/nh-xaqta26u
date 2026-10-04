@@ -1023,6 +1023,7 @@ body.cmopen #tabbar, body.sheet #tabbar { opacity: .35; transform: scale(.96); f
 
 #lifecard { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; text-align: center; padding: 24px; background: radial-gradient(ellipse at 50% 40%, rgba(40,20,80,.55), rgba(5,4,20,.88)); opacity: 0; transition: opacity .55s ease; cursor: pointer; }
 #lifecard.on { opacity: 1; }
+#lifecard h1 .lc-w { display: inline-block; white-space: nowrap; opacity: 1; transform: none; animation: none; } /* xuống dòng giữa các TỪ, không bao giờ cắt giữa chữ ("Trần V / ũ") */
 #lifecard small { display: block; font-size: 13px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: #ffd27f; opacity: 0; animation: lcUp .7s .05s ease-out forwards; }
 #lifecard h1 { margin: 10px 0 4px; font-size: clamp(30px, 8vw, 58px); line-height: 1.15; font-weight: 800; color: #fff; text-shadow: 0 0 22px rgba(255,140,200,.65), 0 3px 0 rgba(120,40,90,.6); }
 #lifecard h1 span { display: inline-block; opacity: 0; transform: translateY(26px) scale(.6); animation: lcPop .62s cubic-bezier(.34,1.56,.64,1) forwards; }
